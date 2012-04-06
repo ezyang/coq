@@ -24,9 +24,13 @@ open Ppconstr
 open Declarations
 
 let emacs_str s =
-  if !Flags.print_emacs then s else ""
+  match !Flags.print_mode with
+  | Flags.Print_emacs -> s
+  | _ -> ""
 let delayed_emacs_cmd s =
-  if !Flags.print_emacs then s () else str ""
+  match !Flags.print_mode with
+  | Flags.Print_emacs -> s ()
+  | _ -> str ""
 
 (**********************************************************************)
 (** Terms                                                             *)
@@ -271,13 +275,13 @@ let pr_context_unlimited env =
   let sign_env =
     fold_named_context
       (fun env d pps ->
-         let pidt =  pr_var_decl env d in (pps ++ fnl () ++ pidt))
+         let pidt =  tag "hyp" [("type", "var")] (pr_var_decl env d) in (pps ++ fnl () ++ pidt))
       env ~init:(mt ())
   in
   let db_env =
     fold_rel_context
       (fun env d pps ->
-         let pnat = pr_rel_decl env d in (pps ++ fnl () ++ pnat))
+         let pnat = tag "hyp" [("type", "rel")] (pr_rel_decl env d) in (pps ++ fnl () ++ pnat))
       env ~init:(mt ())
   in
   (sign_env ++ db_env)
@@ -351,7 +355,7 @@ let default_pr_goal gs =
     str"  " ++ hv 0 (penv ++ fnl () ++
 		       str (emacs_str "")  ++
 		       str "============================" ++ fnl ()  ++
-		       thesis ++ str " " ++  pc)
+		       thesis ++ str " " ++  tag "goal" [] pc)
 
 (* display a goal tag *)
 let pr_goal_tag g =
@@ -491,36 +495,38 @@ let default_pr_subgoals ?(pr_first=true) close_cmd sigma seeds shelf stack goals
       begin
 	match close_cmd with
 	  Some cmd ->
-	    (str "Subproof completed, now type " ++ str cmd ++
+	    tag "normalresponse" [("status", "subproof-complete")] (str "Subproof completed, now type " ++ str cmd ++
 	       str ".")
 	| None ->
 	    let exl = Evarutil.non_instantiated sigma in
 	    if Evar.Map.is_empty exl then
-	      (str"No more subgoals."
+	      tag "normalresponse" [("status", "no-more-subgoals")] (str"No more subgoals."
 	       ++ emacs_print_dependent_evars sigma seeds)
 	    else
 	      let pei = pr_evars_int 1 exl in
-	      (str "No more subgoals but non-instantiated existential " ++
+	      tag "normalresponse" [("status", "no-more-subgoals-but-non-instantiated-existential-variables")] (str "No more subgoals but non-instantiated existential " ++
 		 str "variables:" ++ fnl () ++ (hov 0 pei)
 	       ++ emacs_print_dependent_evars sigma seeds ++ fnl () ++
                  str "You can use Grab Existential Variables.")
       end
-  | [g] when not !Flags.print_emacs ->
+  | [g] when not (!Flags.print_mode = Flags.Print_normal) ->
       let pg = default_pr_goal { it = g ; sigma = sigma; } in
-      v 0 (
+      tag "normalresponse" [("goal-id", Goal.uid g); ("subgoals", "1")]
+      (v 0 (
 	str "1" ++ focused_if_needed ++ str"subgoal" ++ print_extra
         ++ pr_goal_tag g ++ cut () ++ pg
 	++ emacs_print_dependent_evars sigma seeds
-      )
+      ))
   | g1::rest ->
       let goals = print_multiple_goals g1 rest in
-      v 0 (
+      tag "normalresponse" [("goal-uid", Goal.uid g1); ("subgoals", string_of_int (List.length rest+1))]
+      (v 0 (
 	int(List.length rest+1) ++ focused_if_needed ++ str"subgoals" ++
           print_extra ++ cut () ++
           str (emacs_str ", subgoal 1") ++ pr_goal_tag g1 ++ cut ()
 	++ goals
 	++ emacs_print_dependent_evars sigma seeds
-      )
+      ))
 
 (**********************************************************************)
 (* Abstraction layer                                                  *)

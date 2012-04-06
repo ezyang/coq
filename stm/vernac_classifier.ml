@@ -61,7 +61,7 @@ let rec classify_vernac e =
     (* PG compatibility *)
     | VernacUnsetOption (["Silent"]|["Undo"]|["Printing";"Depth"])
     | VernacSetOption   ((["Silent"]|["Undo"]|["Printing";"Depth"]),_)
-      when !Flags.print_emacs -> VtStm(VtPG,false), VtNow
+      when (!Flags.print_mode = Flags.Print_emacs) -> VtStm(VtPG,false), VtNow
     (* Stm *)
     | VernacStm Finish -> VtStm (VtFinish, true), VtNow
     | VernacStm Wait -> VtStm (VtWait, true), VtNow

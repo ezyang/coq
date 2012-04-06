@@ -203,7 +203,7 @@ let tclSHOWHYPS (tac : tactic) (goal: Goal.goal Evd.sigma)
       hyps
   in
   let emacs_str s =
-    if !Flags.print_emacs then s else "" in
+    if !Flags.print_mode = Flags.Print_emacs then s else "" in
   let s = 
     let frst = ref true in
     List.fold_left

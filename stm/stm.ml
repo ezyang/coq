@@ -25,7 +25,7 @@ open Vernac_classifier
 
 (* During interactive use we cache more states so that Undoing is fast *)
 let interactive () =
-  if !Flags.ide_slave || !Flags.print_emacs || not !Flags.batch_mode then `Yes
+  if !Flags.ide_slave || (!Flags.print_mode = Flags.Print_emacs) || not !Flags.batch_mode then `Yes
   else `No
 
 let fallback_to_lazy_if_marshal_error = ref true

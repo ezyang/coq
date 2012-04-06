@@ -67,7 +67,8 @@ let debug = ref false
 
 let profile = false
 
-let print_emacs = ref false
+type print_mode = Print_normal | Print_emacs | Print_pgip
+let print_mode = ref Print_normal
 
 let xml_export = ref false
 

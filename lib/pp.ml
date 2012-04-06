@@ -39,13 +39,18 @@ end
 open Pp_control
 
 (* This should not be used outside of this file. Use
-   Flags.print_emacs instead. This one is updated when reading
+   Flags.print_mode instead. This one is updated when reading
    command line options. This was the only way to make [Pp] depend on
    an option without creating a circularity: [Flags] -> [Util] ->
    [Pp] -> [Flags] *)
-let print_emacs = ref false
-let make_pp_emacs() = print_emacs:=true
-let make_pp_nonemacs() = print_emacs:=false
+type print_mode =
+  | Print_normal
+  | Print_emacs
+  | Print_pgip
+let print_mode = ref Print_normal
+let make_pp_normal() = print_mode := Print_normal
+let make_pp_emacs() = print_mode := Print_emacs
+let make_pp_pgip() = print_mode := Print_pgip
 
 (* The different kinds of blocks are:
    \begin{description}
@@ -84,6 +89,8 @@ type str_token =
 
 type 'a ppcmd_token =
   | Ppcmd_print of 'a
+  | Ppcmd_open_tag of string * (string * string) list
+  | Ppcmd_close_tag of string
   | Ppcmd_box of block_type * ('a ppcmd_token Glue.t)
   | Ppcmd_print_break of int * int
   | Ppcmd_set_tab
@@ -213,6 +220,22 @@ let qstring s = str ("\""^escape_string s^"\"")
 let qs = qstring
 let quote s = h 0 (str "\"" ++ s ++ str "\"")
 
+let xmlencode (len, str) =
+  let rec escape what withwhat (len, str) =
+    try
+      let pos = String.index str what in
+      let (tlen, tail) =
+        escape what withwhat ((len - pos - 1),
+          (String.sub str (pos + 1) (len - pos - 1)))
+      in
+      (pos + tlen + String.length withwhat, String.sub str 0 pos ^ withwhat ^ tail)
+    with Not_found -> (len, str)
+  in (escape '"' "&quot;"
+     (escape '>' "&gt;"
+     (escape '<' "&lt;"
+     (escape '&' "&amp;"
+        (len, str)))))
+
 (* This flag tells if the last printed comment ends with a newline, to
   avoid empty lines *)
 let com_eol = ref false
@@ -221,6 +244,16 @@ let com_brk ft = com_eol := false
 let com_if ft f =
   if !com_eol then (com_eol := false; Format.pp_force_newline ft ())
   else Lazy.force f
+
+let pp_print_as ft n s =
+  match !print_mode with
+  | Print_pgip -> let (n', s') = xmlencode (n, s)
+                  in Format.pp_print_as ft n' s'
+  | _ -> Format.pp_print_as ft n s
+
+let open_tag name attrs = Glue.atom(Ppcmd_open_tag(name, attrs))
+let close_tag name = Glue.atom(Ppcmd_close_tag(name))
+let tag name attrs inner = open_tag name attrs ++ inner ++ close_tag name
 
 let rec pr_com ft s =
   let (s1,os) =
@@ -233,7 +266,7 @@ let rec pr_com ft s =
     if String.length s1 <> 0 && s1.[0] = ' ' then
       (Format.pp_print_space ft (); String.sub s1 1 (String.length s1 - 1))
     else s1 in*)
-  Format.pp_print_as ft (utf8_length s1) s1;
+  pp_print_as ft (utf8_length s1) s1;
   match os with
       Some s2 ->
         if Int.equal (String.length s2) 0 then (com_eol := true)
@@ -255,9 +288,23 @@ let pp_dirs ft =
         begin match tok with
         | Str_def s ->
           let n = utf8_length s in
-          com_if ft (Lazy.lazy_from_val()); Format.pp_print_as ft n s
+          com_if ft (Lazy.lazy_from_val()); pp_print_as ft n s
         | Str_len (s, n) ->
-          com_if ft (Lazy.lazy_from_val()); Format.pp_print_as ft n s
+          com_if ft (Lazy.lazy_from_val()); pp_print_as ft n s
+        end
+    | Ppcmd_open_tag(name,attrs) ->
+        begin match !print_mode with
+        | Print_pgip ->
+            Format.pp_print_string ft "<";
+            Format.pp_print_string ft (String.concat " " (name :: List.map (fun (n,v) -> String.concat "=" [n; "\"" ^ snd (xmlencode (utf8_length v, v)) ^ "\""]) attrs));
+            Format.pp_print_string ft ">"
+        | _ -> ()
+        end
+    | Ppcmd_close_tag name ->
+        begin match !print_mode with
+        | Print_pgip ->
+            Format.pp_print_string ft "</"; Format.pp_print_string ft name; Format.pp_print_string ft ">"
+        | _ -> ()
         end
     | Ppcmd_box(bty,ss)       -> (* Prevent evaluation of the stream! *)
         com_if ft (Lazy.lazy_from_val());
@@ -305,10 +352,11 @@ let pp_dirs ft =
 let emacs_quote_start = String.make 1 (Char.chr 254)
 let emacs_quote_end = String.make 1 (Char.chr 255)
 
-let emacs_quote g =
-  if !print_emacs then str emacs_quote_start ++ hov 0 g ++ str emacs_quote_end
-  else hov 0 g
-
+let mode_quote g =
+  match !print_mode with
+  | Print_emacs -> str emacs_quote_start ++ hov 0 g ++ str emacs_quote_end
+  | Print_pgip -> tag "errorresponse" [("fatality", "nonfatal")] (hov 0 g)
+  | Print_normal -> hov 0 g
 
 (* pretty printing functions WITHOUT FLUSH *)
 let pp_with ft strm =
@@ -370,7 +418,7 @@ let print_color s x = x
 (*   else x *)
 
 let make_body color info s =
-  emacs_quote (print_color color (print_color "1" (hov 0 (info ++ spc () ++ s))))
+  mode_quote (print_color color (print_color "1" (hov 0 (info ++ spc () ++ s))))
 
 let debugbody strm = print_color "36" (hov 0 (str "Debug:" ++ spc () ++ strm)) (* cyan *)
 let warnbody strm = make_body "93" (str "Warning:") strm (* bright yellow *)

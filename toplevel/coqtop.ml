@@ -173,7 +173,7 @@ let set_vm_opt () =
 (** Options for proof general *)
 
 let set_emacs () =
-  Flags.print_emacs := true;
+  Flags.print_mode := Flags.Print_emacs;
   Pp.make_pp_emacs ();
   Vernacentries.qed_display_script := false;
   Flags.make_term_color false
@@ -399,6 +399,9 @@ let parse_args arglist =
     |"-config"|"--config" -> print_config := true
     |"-debug" -> set_debug ()
     |"-emacs" -> set_emacs ()
+    | "-pgip" ->
+        warning "Experimental option, PGIP input not supported.  Conflicts with -emacs.";
+        Flags.print_mode := Flags.Print_pgip; Pp.make_pp_pgip();
     |"-filteropts" -> filter_opts := true
     |"-h"|"-H"|"-?"|"-help"|"--help" -> usage ()
     |"-ideslave" -> toploop := Some "coqidetop"; Flags.ide_slave := true
@@ -466,6 +469,7 @@ let init arglist =
       Envars.set_coqlib Errors.error;
       if !print_where then (print_endline(Envars.coqlib ()); exit(exitcode ()));
       if !print_config then (Usage.print_config (); exit (exitcode ()));
+      (* ezyang: [XML-PROBLEM] Don't use -filter-opts *)
       if !filter_opts then (print_string (String.concat "\n" extras); exit 0);
       init_load_path ();
       Option.iter Mltop.load_ml_object_raw !toploop;

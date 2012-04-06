@@ -1595,7 +1595,9 @@ let vernac_bullet (bullet:Proof_global.Bullet.t) =
   Proof_global.simple_with_current_proof (fun _ p ->
     Proof_global.Bullet.put p bullet);
   (* Makes the focus visible in emacs by re-printing the goal. *)
-  if !Flags.print_emacs then print_subgoals ()
+  match !Flags.print_mode with
+  | Print_emacs -> print_subgoals ()
+  | _ -> ()
 
 
 let vernac_show = function

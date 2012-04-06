@@ -59,7 +59,7 @@ let prompt_char ic ibuf count =
     | ll::_ -> Int.equal ibuf.len ll
     | [] -> Int.equal ibuf.len 0
   in
-  if bol && not !print_emacs then msgerr (str (ibuf.prompt()));
+  if bol && !print_mode = Print_normal then msgerr (str (ibuf.prompt()));
   try
     let c = input_char ic in
     if c == '\n' then ibuf.bols <- (ibuf.len+1) :: ibuf.bols;
@@ -145,12 +145,13 @@ let print_highlight_location ib loc =
 	  (l1 ++ li ++ ln)
   in
   let loc = Loc.make_loc (bp,ep) in
-  (str"Toplevel input, characters " ++ Cerrors.print_loc loc ++ str":" ++ fnl () ++
+  tag "metainforesponse" [("type", "highlight-location")] (str"Toplevel input, characters " ++ Cerrors.print_loc loc ++ str":" ++ fnl () ++
      highlight_lines ++ fnl ())
 
 (* Functions to report located errors in a file. *)
 
 let print_location_in_file {outer=s;inner=fname} loc =
+  tag "metainforesponse" [("type", "file-location")] (
   let errstrm = str"Error while reading " ++ str s in
   if Loc.is_ghost loc then
     hov 1 (errstrm ++ spc() ++ str" (unknown location):") ++ fnl ()
@@ -178,6 +179,7 @@ let print_location_in_file {outer=s;inner=fname} loc =
     with e when Errors.noncritical e ->
       (close_in ic;
        hov 1 (errstrm ++ spc() ++ str"(invalid location):") ++ fnl ())
+  )
 
 let valid_buffer_loc ib loc =
   not (Loc.is_ghost loc) &&
@@ -221,8 +223,9 @@ let make_emacs_prompt() =
       (fun acc x -> acc ^ (if String.is_empty acc then "" else "|") ^ Names.Id.to_string x)
       "" pending in
   let proof_info = if dpth >= 0 then string_of_int dpth else "0" in
-  if !Flags.print_emacs then statnum ^ " |" ^ pendingprompt ^ "| " ^ proof_info ^ " < "
-  else ""
+  match !print_mode with
+  | Print_emacs -> statnum ^ " |" ^ pendingprompt ^ "| " ^ proof_info ^ " < "
+  | _ -> ""
 
 (* A buffer to store the current command read on stdin. It is
  * initialized when a vernac command is immediately followed by "\n",
@@ -265,7 +268,7 @@ let print_toplevel_error e =
         print_highlight_location top_buffer loc
       else mt ()
   in
-  locmsg ++ Errors.print e
+  locmsg ++ tag "errorresponse" [("fatality", "fatal")] (Errors.print e)
 
 (* Read the input stream until a dot is encountered *)
 let parse_to_dot =
@@ -307,7 +310,11 @@ let read_sentence () =
 
 let do_vernac () =
   msgerrnl (mt ());
-  if !print_emacs then msgerr (str (top_buffer.prompt()));
+  begin match !print_mode with
+  | Print_emacs -> msgerr (str (top_buffer.prompt()))
+  | Print_pgip -> msgnl (tag "ready" [] (mt ()))
+  | Print_normal -> ()
+  end;
   resynch_buffer top_buffer;
   try
     Vernac.eval_expr (read_sentence ())
@@ -339,7 +346,7 @@ let feed_emacs = function
 
 let rec loop () =
   Sys.catch_break true;
-  if !Flags.print_emacs then begin
+  if !Flags.print_mode = Flags.Print_emacs then begin
     (* TODO : check with Enrico ?! *)
     (*
     Pp.set_feeder feed_emacs;

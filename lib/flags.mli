@@ -31,7 +31,8 @@ val debug : bool ref
 
 val profile : bool
 
-val print_emacs : bool ref
+type print_mode = Print_normal | Print_emacs | Print_pgip
+val print_mode : print_mode ref
 
 val xml_export : bool ref
 

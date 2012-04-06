@@ -6,11 +6,11 @@
 (*         *       GNU Lesser General Public License Version 2.1        *)
 (************************************************************************)
 
-(** Modify pretty printing functions behavior for emacs ouput (special
-   chars inserted at some places). This function should called once in
-   module [Options], that's all. *)
+(** Modify pretty printing functions behavior for PGIP/emacs output.
+    This function should called once in module [Options], that's all. *)
 val make_pp_emacs:unit -> unit
-val make_pp_nonemacs:unit -> unit
+val make_pp_normal:unit -> unit
+val make_pp_pgip:unit -> unit
 
 (** Pretty-printers. *)
 
@@ -76,6 +76,13 @@ val hovb : int -> std_ppcmds
 val tb : unit -> std_ppcmds
 val close : unit -> std_ppcmds
 val tclose : unit -> std_ppcmds
+
+
+(** {6 PGIP commands. } *)
+
+val tag : string -> (string * string) list -> std_ppcmds -> std_ppcmds
+val open_tag : string -> (string * string) list -> std_ppcmds
+val close_tag : string -> std_ppcmds (* not maintaining tag stack *)
 
 (** {6 Sending messages to the user} *)
 type message_level = Feedback.message_level =

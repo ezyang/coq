@@ -16,6 +16,7 @@ let memory_stat = ref false
 
 let print_memory_stat () =
   if !memory_stat then begin
+    (* ezyang: [XML-PROBLEM] don't use -memory-stat *)
     Format.printf "total heap size = %d kbytes\n" (CObj.heap_size_kb ());
     Format.print_newline();
     flush_all()
