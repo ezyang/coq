@@ -148,7 +148,7 @@ let native_conv pb env t1 t2 =
         let time_info = Format.sprintf "Evaluation done in %.5f@." (t1 -. t0) in
         if !Flags.debug then Pp.msg_debug (Pp.str time_info);
         (* TODO change 0 when we can have deBruijn *)
-        conv_val pb 0 !rt1 !rt2 empty_constraint
+        conv_val pb 0 !rt1 !rt2 Constraint.empty
       end
   | _ -> anomaly (Pp.str "Compilation failure") 
 

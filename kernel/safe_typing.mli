@@ -65,6 +65,13 @@ val add_modtype :
 val add_constraints :
   Univ.constraints -> safe_environment -> safe_environment
 
+(** Adding universe constraints *)
+val push_context_set :
+  Univ.universe_context_set -> safe_environment -> safe_environment
+
+val push_context :
+  Univ.universe_context -> safe_environment -> safe_environment
+
 (** Settin the strongly constructive or classical logical engagement *)
 val set_engagement : engagement -> safe_environment -> safe_environment
 
@@ -92,7 +99,9 @@ val add_include :
    delta_resolver * safe_environment
 
 val pack_module : safe_environment -> module_body
+
 val current_modpath : safe_environment -> module_path
+val current_dirpath : safe_environment -> dir_path
 val delta_of_senv : safe_environment -> delta_resolver*delta_resolver
   
 
@@ -134,7 +143,7 @@ val j_type : judgment -> constr
    constraints to be added to the environment for the judgment to
    hold. It is guaranteed that the constraints are satisfiable
  *)
-val safe_infer : safe_environment -> constr -> judgment * Univ.constraints
+val safe_infer : safe_environment -> constr -> judgment Univ.in_universe_context_set
 
 val typing : safe_environment -> constr -> judgment
 

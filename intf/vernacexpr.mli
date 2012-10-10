@@ -107,8 +107,8 @@ type reference_or_constr =
   | HintsConstr of constr_expr
 
 type hints_expr =
-  | HintsResolve of (int option * bool * reference_or_constr) list
-  | HintsImmediate of reference_or_constr list
+  | HintsResolve of (int option * polymorphic * bool * reference_or_constr) list
+  | HintsImmediate of (polymorphic * reference_or_constr) list
   | HintsUnfold of reference list
   | HintsTransparency of reference list * bool
   | HintsConstructors of reference list
@@ -262,13 +262,13 @@ type vernac_expr =
 
   (* Gallina *)
   | VernacDefinition of definition_kind * lident * definition_expr
-  | VernacStartTheoremProof of theorem_kind *
+  | VernacStartTheoremProof of theorem_kind * polymorphic *
       (lident option * (local_binder list * constr_expr * (lident option * recursion_order_expr) option)) list *
         bool
   | VernacEndProof of proof_end
   | VernacExactProof of constr_expr
   | VernacAssumption of assumption_kind * inline * simple_binder with_coercion list
-  | VernacInductive of inductive_flag * infer_flag * (inductive_expr * decl_notation list) list
+  | VernacInductive of polymorphic * inductive_flag * infer_flag * (inductive_expr * decl_notation list) list
   | VernacFixpoint of locality * (fixpoint_expr * decl_notation list) list
   | VernacCoFixpoint of locality * (cofixpoint_expr * decl_notation list) list
   | VernacScheme of (lident option * scheme) list
@@ -281,15 +281,16 @@ type vernac_expr =
       export_flag option * lreference list
   | VernacImport of export_flag * lreference list
   | VernacCanonical of reference or_by_notation
-  | VernacCoercion of locality_flag * reference or_by_notation *
+  | VernacCoercion of locality_flag * polymorphic * reference or_by_notation *
       class_rawexpr * class_rawexpr
-  | VernacIdentityCoercion of locality_flag * lident *
+  | VernacIdentityCoercion of locality_flag * polymorphic * lident *
       class_rawexpr * class_rawexpr
 
   (* Type classes *)
   | VernacInstance of
       bool * (* abstract instance *)
       bool * (* global *)
+      polymorphic *
       local_binder list * (* super *)
 	typeclass_constraint * (* instance name, class name, params *)
 	constr_expr option * (* props *)
