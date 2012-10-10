@@ -508,6 +508,8 @@ let declare_definition prg =
     { const_entry_body = body;
       const_entry_secctx = None;
       const_entry_type = Some typ;
+      (* FIXME *)
+      const_entry_polymorphic = false;
       const_entry_opaque = false }
   in
     progmap_remove prg;
@@ -552,7 +554,7 @@ let declare_mutual_definition l =
   let fixkind = Option.get first.prg_fixkind in
   let arrrec, recvec = Array.of_list fixtypes, Array.of_list fixdefs in
   let fixdecls = (Array.of_list (List.map (fun x -> Name x.prg_name) l), arrrec, recvec) in
-  let (local,kind) = first.prg_kind in
+  let (local,poly,kind) = first.prg_kind in
   let fixnames = first.prg_deps in
   let kind = if fixkind != IsCoFixpoint then Fixpoint else CoFixpoint in
   let indexes, fixdecls =
@@ -586,6 +588,7 @@ let declare_obligation prg obl body =
 	{ const_entry_body = body;
           const_entry_secctx = None;
 	  const_entry_type = Some ty;
+	  const_entry_polymorphic = false;
 	  const_entry_opaque = opaque }
       in
       let constant = Declare.declare_constant obl.obl_name
@@ -701,9 +704,9 @@ let dependencies obls n =
       obls;
     !res
 
-let goal_kind = Decl_kinds.Global, Decl_kinds.DefinitionBody Decl_kinds.Definition
+let goal_kind = Decl_kinds.Global, true, Decl_kinds.DefinitionBody Decl_kinds.Definition
 
-let goal_proof_kind = Decl_kinds.Global, Decl_kinds.Proof Decl_kinds.Lemma
+let goal_proof_kind = Decl_kinds.Global, true, Decl_kinds.Proof Decl_kinds.Lemma
 
 let kind_of_opacity o =
   match o with
@@ -894,7 +897,7 @@ let show_term n =
 	     Printer.pr_constr_env (Global.env ()) prg.prg_type ++ spc () ++ str ":=" ++ fnl ()
 	    ++ Printer.pr_constr_env (Global.env ()) prg.prg_body)
 
-let add_definition n ?term t ?(implicits=[]) ?(kind=Global,Definition) ?tactic
+let add_definition n ?term t ?(implicits=[]) ?(kind=Global,false,Definition) ?tactic
     ?(reduce=reduce) ?(hook=fun _ _ -> ()) obls =
   let info = str (Id.to_string n) ++ str " has type-checked" in
   let prg = init_prog_info n term t [] None [] obls implicits kind reduce hook in
@@ -912,7 +915,7 @@ let add_definition n ?term t ?(implicits=[]) ?(kind=Global,Definition) ?tactic
 	| Remain rem -> Flags.if_verbose (fun () -> show_obligations ~msg:false (Some n)) (); res
 	| _ -> res)
 
-let add_mutual_definitions l ?tactic ?(kind=Global,Definition) ?(reduce=reduce)
+let add_mutual_definitions l ?tactic ?(kind=Global,false,Definition) ?(reduce=reduce)
     ?(hook=fun _ _ -> ()) notations fixkind =
   let deps = List.map (fun (n, b, t, imps, obls) -> n) l in
     List.iter

@@ -72,6 +72,7 @@ type instance = {
      -1 for discard, 0 for none, mutable to avoid redeclarations
      when multiple rebuild_object happen. *)
   is_global: int;
+  is_poly: bool;
   is_impl: global_reference;
 }
 
@@ -79,7 +80,7 @@ type instances = (instance Gmap.t) Gmap.t
 
 let instance_impl is = is.is_impl
 
-let new_instance cl pri glob impl =
+let new_instance cl pri glob poly impl =
   let global =
     if glob then Lib.sections_depth ()
     else -1
@@ -87,6 +88,7 @@ let new_instance cl pri glob impl =
     { is_class = cl.cl_impl;
       is_pri = pri ;
       is_global = global ;
+      is_poly = poly;
       is_impl = impl }
 
 (*
@@ -367,7 +369,7 @@ let declare_instance pri local glob =
   let ty = Retyping.get_type_of (Global.env ()) Evd.empty c in
     match class_of_constr ty with
     | Some (rels, (tc, args) as _cl) ->
-      add_instance (new_instance tc pri (not local) glob)
+      add_instance (new_instance tc pri (not local) (Flags.use_polymorphic_flag ()) glob)
 (*       let path, hints = build_subclasses (not local) (Global.env ()) Evd.empty glob in *)
 (*       let entries = List.map (fun (path, pri, c) -> (pri, local, path, c)) hints in *)
 (* 	Auto.add_hints local [typeclasses_db] (Auto.HintsResolveEntry entries); *)

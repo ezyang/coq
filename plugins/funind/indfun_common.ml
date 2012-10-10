@@ -149,7 +149,7 @@ open Declare
 
 let definition_message = Declare.definition_message
 
-let save with_clean id const (locality,kind) hook =
+let save with_clean id const (locality,p,kind) hook =
   let {const_entry_body = pft;
        const_entry_secctx = _;
        const_entry_type = tpo;

@@ -270,6 +270,8 @@ let close_proof () =
       (fun (c,t) -> { Entries.const_entry_body = c;
                       const_entry_secctx = section_vars;
                       const_entry_type = Some t;
+		      (* FIXME *)
+		      const_entry_polymorphic = false;
 		      const_entry_opaque = true })
       proofs_and_types
     in

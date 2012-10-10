@@ -1583,7 +1583,8 @@ let declare_an_instance n s args =
 let declare_instance a aeq n s = declare_an_instance n s [a;aeq]
 
 let anew_instance global binders instance fields =
-  new_instance binders instance (Some (CRecord (Loc.ghost,None,fields)))
+  new_instance (Flags.is_universe_polymorphism ()) binders instance
+    (Some (CRecord (Loc.ghost,None,fields)))
     ~global:(not (Locality.use_section_locality ())) ~generalize:false None
 
 let declare_instance_refl global binders a aeq n lemma =
@@ -1763,6 +1764,7 @@ let declare_projection n instance_id r =
     { const_entry_body = term;
       const_entry_secctx = None;
       const_entry_type = Some typ;
+      const_entry_polymorphic = false;
       const_entry_opaque = false }
   in
     ignore(Declare.declare_constant n (Entries.DefinitionEntry cst, Decl_kinds.IsDefinition Decl_kinds.Definition))
@@ -1822,7 +1824,7 @@ let add_setoid global binders a aeq t n =
        (Ident (Loc.ghost,Id.of_string "Equivalence_Symmetric"), mkappc "Seq_sym" [a;aeq;t]);
        (Ident (Loc.ghost,Id.of_string "Equivalence_Transitive"), mkappc "Seq_trans" [a;aeq;t])])
 
-let add_morphism_infer glob m n =
+let add_morphism_infer (glob,poly) m n =
   init_setoid ();
   let instance_id = add_suffix n "_Proper" in
   let instance = build_morphism_signature m in
@@ -1830,22 +1832,23 @@ let add_morphism_infer glob m n =
       let cst = Declare.declare_constant ~internal:Declare.KernelSilent instance_id
 				(Entries.ParameterEntry (None,instance,None), Decl_kinds.IsAssumption Decl_kinds.Logical)
       in
-	add_instance (Typeclasses.new_instance (Lazy.force proper_class) None glob (ConstRef cst));
+	add_instance (Typeclasses.new_instance (Lazy.force proper_class) None glob 
+		      (*FIXME*) (Flags.use_polymorphic_flag ()) (ConstRef cst));
 	declare_projection n instance_id (ConstRef cst)
     else
-      let kind = Decl_kinds.Global, Decl_kinds.DefinitionBody Decl_kinds.Instance in
+      let kind = Decl_kinds.Global, false, Decl_kinds.DefinitionBody Decl_kinds.Instance in
 	Flags.silently
 	  (fun () ->
 	    Lemmas.start_proof instance_id kind instance
 	      (fun _ -> function
 		Globnames.ConstRef cst ->
 		  add_instance (Typeclasses.new_instance (Lazy.force proper_class) None
-				   glob (ConstRef cst));
+				glob poly (ConstRef cst));
 		  declare_projection n instance_id (ConstRef cst)
 		| _ -> assert false);
 	    Pfedit.by (Tacinterp.interp <:tactic< Coq.Classes.SetoidTactics.add_morphism_tactic>>)) ()
 
-let add_morphism glob binders m s n =
+let add_morphism (glob, poly) binders m s n =
   init_setoid ();
   let instance_id = add_suffix n "_Proper" in
   let instance =
@@ -1855,21 +1858,24 @@ let add_morphism glob binders m s n =
 	     [cHole; s; m]))
   in
   let tac = Tacinterp.interp <:tactic<add_morphism_tactic>> in
-    ignore(new_instance ~global:glob binders instance (Some (CRecord (Loc.ghost,None,[])))
+    ignore(new_instance ~global:glob poly binders instance (Some (CRecord (Loc.ghost,None,[])))
 	      ~generalize:false ~tac ~hook:(declare_projection n instance_id) None)
+
+let flags () = (not (Locality.use_section_locality ()), Flags.use_polymorphic_flag ())
 
 VERNAC COMMAND EXTEND AddSetoid1
    [ "Add" "Setoid" constr(a) constr(aeq) constr(t) "as" ident(n) ] ->
-     [ add_setoid (not (Locality.use_section_locality ())) [] a aeq t n ]
-  | [ "Add" "Parametric" "Setoid" binders(binders) ":" constr(a) constr(aeq) constr(t) "as" ident(n) ] ->
-     [	add_setoid (not (Locality.use_section_locality ())) binders a aeq t n ]
+      [ add_setoid (flags ()) [] a aeq t n ]
+  | [ "Add" "Parametric" "Setoid" binders(binders) ":" 
+    constr(a) constr(aeq) constr(t) "as" ident(n) ] -> 
+      [ add_setoid (flags ()) binders a aeq t n ]
   | [ "Add" "Morphism" constr(m) ":" ident(n) ] ->
-      [ add_morphism_infer (not (Locality.use_section_locality ())) m n ]
+      [ add_morphism_infer (flags ()) m n ]
   | [ "Add" "Morphism" constr(m) "with" "signature" lconstr(s) "as" ident(n) ] ->
-      [ add_morphism (not (Locality.use_section_locality ())) [] m s n ]
+      [ add_morphism (flags ()) [] m s n ]
   | [ "Add" "Parametric" "Morphism" binders(binders) ":" constr(m)
 	"with" "signature" lconstr(s) "as" ident(n) ] ->
-      [ add_morphism (not (Locality.use_section_locality ())) binders m s n ]
+      [ add_morphism (flags ()) binders m s n ]
 END
 
 (** Bind to "rewrite" too *)

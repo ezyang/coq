@@ -182,6 +182,7 @@ let declare_record_instance gr ctx params =
   let ce = { const_entry_body= def;
              const_entry_secctx = None;
 	     const_entry_type=None;
+	     const_entry_polymorphic = true;
 	     const_entry_opaque=false } in
   let cst = Declare.declare_constant ident
     (DefinitionEntry ce,Decl_kinds.IsDefinition Decl_kinds.StructureComponent) in
@@ -197,12 +198,15 @@ let declare_class_instance gr ctx params =
   let ce = Entries.DefinitionEntry
     {  const_entry_type = Some typ;
        const_entry_secctx = None;
-       const_entry_body= def;
-       const_entry_opaque=false } in
+       const_entry_body = def;
+       (* FIXME *)
+       const_entry_polymorphic = false;
+       const_entry_opaque = false } in
   try
   let cst = Declare.declare_constant ident
     (ce,Decl_kinds.IsDefinition Decl_kinds.Instance) in
-  Typeclasses.add_instance (Typeclasses.new_instance cl (Some 100) true (ConstRef cst));
+  Typeclasses.add_instance (Typeclasses.new_instance cl (Some 100) true
+			    (*FIXNE*)true (ConstRef cst));
   new_instance_message ident typ def
   with e -> msg_info (str"Error defining instance := "++pr_constr def++str" : "++pr_constr typ++str"  "++Errors.print e)
 
