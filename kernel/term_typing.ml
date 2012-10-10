@@ -25,7 +25,7 @@ open Typeops
 
 let constrain_type env j cst1 = function
   | None ->
-      make_polymorphic_if_constant_for_ind env j, cst1
+      make_polymorphic env j, cst1
   | Some t ->
       let (tj,cst2) = infer_type env t in
       let (_,cst3) = judge_of_cast env j DEFAULTcast tj in

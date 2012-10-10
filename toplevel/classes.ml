@@ -56,7 +56,8 @@ let existing_instance glob g =
   let instance = Typing.type_of (Global.env ()) Evd.empty (constr_of_global c) in
   let _, r = decompose_prod_assum instance in
     match class_of_constr r with
-      | Some (_, (tc, _)) -> add_instance (new_instance tc None glob c)
+      | Some (_, (tc, _)) -> add_instance (new_instance tc None glob 
+  (*FIXME*) (Flags.use_polymorphic_flag ()) c)
       | None -> user_err_loc (loc_of_reference g, "declare_instance",
 			     Pp.str "Constant does not build instances of a declared type class.")
 
@@ -105,6 +106,8 @@ let declare_instance_constant k pri global imps ?hook id term termtype =
       { const_entry_body   = term;
         const_entry_secctx = None;
 	const_entry_type   = Some termtype;
+	(* FIXME *)
+	const_entry_polymorphic = false;
 	const_entry_opaque = false }
     in DefinitionEntry entry, kind
   in
@@ -113,7 +116,7 @@ let declare_instance_constant k pri global imps ?hook id term termtype =
     instance_hook k pri global imps ?hook (ConstRef kn);
     id
 
-let new_instance ?(abstract=false) ?(global=false) ctx (instid, bk, cl) props
+let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) props
     ?(generalize=true)
     ?(tac:Proof_type.tactic option) ?(hook:(global_reference -> unit) option) pri =
   let env = Global.env() in
@@ -273,7 +276,8 @@ let new_instance ?(abstract=false) ?(global=false) ctx (instid, bk, cl) props
 	if Evd.is_empty evm && not (Option.is_empty term) then
 	  declare_instance_constant k pri global imps ?hook id (Option.get term) termtype
 	else begin
-	  let kind = Decl_kinds.Global, Decl_kinds.DefinitionBody Decl_kinds.Instance in
+	  let kind = Decl_kinds.Global, (*FIXME*) false,
+	    Decl_kinds.DefinitionBody Decl_kinds.Instance in
 	    if Flags.is_program_mode () then
 	      let hook vis gr =
 		let cst = match gr with ConstRef kn -> kn | _ -> assert false in
@@ -289,7 +293,7 @@ let new_instance ?(abstract=false) ?(global=false) ctx (instid, bk, cl) props
 		| None -> [||], None, termtype
 	      in
 		ignore (Obligations.add_definition id ?term:constr
-			typ ~kind:(Global,Instance) ~hook obls);
+			typ ~kind:(Global,(*FIXME*)false,Instance) ~hook obls);
 		id
 	    else
 	      (Flags.silently 
@@ -331,7 +335,8 @@ let context l =
       in
 	match class_of_constr t with
 	| Some (rels, (tc, args) as _cl) ->
-	    add_instance (Typeclasses.new_instance tc None false (ConstRef cst));
+	    add_instance (Typeclasses.new_instance tc None false (*FIXME*)
+			  (Flags.use_polymorphic_flag ()) (ConstRef cst));
             status
 	    (* declare_subclasses (ConstRef cst) cl *)
 	| None -> status
@@ -340,7 +345,7 @@ let context l =
 	(fun (x,_) ->
 	   match x with ExplByPos (_, Some id') -> Id.equal id id' | _ -> false) impls
       in
-	Command.declare_assumption false (Local (* global *), Definitional) t
+	Command.declare_assumption false (Local (* global *), (*FIXME*)false, Definitional) t
 	  [] impl (* implicit *) None (* inline *) (Loc.ghost, id) && status)
   in List.fold_left fn true (List.rev ctx)
        

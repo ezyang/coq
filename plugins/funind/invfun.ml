@@ -1055,7 +1055,7 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
 	 i*)
 	 let lem_id = mk_correct_id f_id in
 	 Lemmas.start_proof lem_id
-	   (Decl_kinds.Global,(Decl_kinds.Proof Decl_kinds.Theorem))
+	   (Decl_kinds.Global, (*FIXME*)false, (Decl_kinds.Proof Decl_kinds.Theorem))
 	   (fst lemmas_types_infos.(i))
 	   (fun _ _ -> ());
 	 Pfedit.by
@@ -1106,7 +1106,7 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
 	   i*)
 	 let lem_id = mk_complete_id f_id in
 	 Lemmas.start_proof lem_id
-	   (Decl_kinds.Global,(Decl_kinds.Proof Decl_kinds.Theorem))
+	   (Decl_kinds.Global,(*FIXME*)false,(Decl_kinds.Proof Decl_kinds.Theorem))
 	   (fst lemmas_types_infos.(i))
 	   (fun _ _ -> ());
 	 Pfedit.by

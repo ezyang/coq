@@ -60,6 +60,7 @@ let (declare_fun : Id.t -> logical_kind -> constr -> global_reference) =
     let ce = {const_entry_body = value;
               const_entry_secctx = None;
 	      const_entry_type = None;
+	      const_entry_polymorphic = (*FIXME*)false;
 	      const_entry_opaque = false } in
       ConstRef(declare_constant f_id (DefinitionEntry ce, kind));;
 
@@ -1314,7 +1315,7 @@ let open_new_goal (build_proof:tactic -> tactic -> unit) using_lemmas ref_ goal_
   in
   start_proof
     na
-    (Decl_kinds.Global, Decl_kinds.Proof Decl_kinds.Lemma)
+    (Decl_kinds.Global, false, Decl_kinds.Proof Decl_kinds.Lemma)
     sign
     gls_type
     hook ;
@@ -1362,7 +1363,7 @@ let com_terminate
   let start_proof (tac_start:tactic) (tac_end:tactic) =
     let (evmap, env) = Lemmas.get_current_context() in
     start_proof thm_name
-      (Global, Proof Lemma) (Environ.named_context_val env)
+      (Global, (*FIXME*)false, Proof Lemma) (Environ.named_context_val env)
       (compute_terminate_type nb_args fonctional_ref) hook;
 
     by (observe_tac (str "starting_tac") tac_start);
@@ -1409,7 +1410,7 @@ let (com_eqn : int -> Id.t ->
     let (evmap, env) = Lemmas.get_current_context() in
     let f_constr = constr_of_global f_ref in
     let equation_lemma_type = subst1 f_constr equation_lemma_type in
-    (start_proof eq_name (Global, Proof Lemma)
+    (start_proof eq_name (Global, false, Proof Lemma)
        (Environ.named_context_val env) equation_lemma_type (fun _ _ -> ());
      by
        (start_equation f_ref terminate_ref

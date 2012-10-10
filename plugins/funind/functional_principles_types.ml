@@ -289,7 +289,7 @@ let build_functional_principle interactive_proof old_princ_type sorts funs i pro
   begin
     Lemmas.start_proof
       new_princ_name
-      (Decl_kinds.Global,(Decl_kinds.Proof Decl_kinds.Theorem))
+      (Decl_kinds.Global,false,(Decl_kinds.Proof Decl_kinds.Theorem))
       new_principle_type
       (hook new_principle_type)
     ;
@@ -339,6 +339,7 @@ let generate_functional_principle
 	  { const_entry_body = value;
             const_entry_secctx = None;
 	    const_entry_type = None;
+	    const_entry_polymorphic = false;
 	    const_entry_opaque = false }
 	in
 	ignore(

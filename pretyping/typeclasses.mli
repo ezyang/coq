@@ -52,7 +52,7 @@ val add_constant_class : constant -> unit
 
 val add_inductive_class : inductive -> unit
 
-val new_instance : typeclass -> int option -> bool -> global_reference -> instance
+val new_instance : typeclass -> int option -> bool -> polymorphic -> global_reference -> instance
 val add_instance : instance -> unit
 val remove_instance : instance -> unit
 
