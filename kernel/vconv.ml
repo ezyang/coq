@@ -41,6 +41,8 @@ let conv_vect fconv vect1 vect2 cu =
 
 let infos = ref (create_clos_infos betaiotazeta Environ.empty_env)
 
+let eq_table_key = Names.eq_table_key eq_constant
+
 let rec conv_val pb k v1 v2 cu =
   if v1 == v2 then cu
   else conv_whd pb k (whd_val v1) (whd_val v2) cu
@@ -168,6 +170,13 @@ and conv_arguments k args1 args2 cu =
       !rcu
     else raise NotConvertible
 
+let rec eq_puniverses f (x,l1) (y,l2) cu =
+  if f x y then conv_universes l1 l2 cu
+  else raise NotConvertible
+
+and conv_universes l1 l2 cu =
+  if Univ.Instance.eq l1 l2 then cu else raise NotConvertible
+
 let rec conv_eq pb t1 t2 cu =
   if t1 == t2 then cu
   else
@@ -191,12 +200,11 @@ let rec conv_eq pb t1 t2 cu =
     | Evar (e1,l1), Evar (e2,l2) ->
 	if e1 = e2 then conv_eq_vect l1 l2 cu
 	else raise NotConvertible
-    | Const c1, Const c2 ->
-	if eq_constant c1 c2 then cu else raise NotConvertible
+    | Const c1, Const c2 -> eq_puniverses eq_constant c1 c2 cu
     | Ind c1, Ind c2 ->
-	if eq_ind c1 c2 then cu else raise NotConvertible
+       eq_puniverses eq_ind c1 c2 cu
     | Construct c1, Construct c2 ->
-	if eq_constructor c1 c2 then cu else raise NotConvertible
+       eq_puniverses eq_constructor c1 c2 cu
     | Case (_,p1,c1,bl1), Case (_,p2,c2,bl2) ->
 	let pcu = conv_eq CONV p1 p2 cu in
 	let ccu = conv_eq CONV c1 c2 pcu in
@@ -220,12 +228,12 @@ and conv_eq_vect vt1 vt2 cu =
 
 let vconv pb env t1 t2 =
   let cu =
-    try conv_eq pb t1 t2 empty_constraint
+    try conv_eq pb t1 t2 Constraint.empty
     with NotConvertible ->
       infos := create_clos_infos betaiotazeta env;
       let v1 = val_of_constr env t1 in
       let v2 = val_of_constr env t2 in
-      let cu = conv_val pb (nb_rel env) v1 v2 empty_constraint in
+      let cu = conv_val pb (nb_rel env) v1 v2 Constraint.empty in
       cu
   in cu
 

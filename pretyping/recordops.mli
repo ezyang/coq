@@ -68,6 +68,7 @@ type cs_pattern =
 
 type obj_typ = {
   o_DEF : constr;
+  o_CTX : Univ.ContextSet.t;
   o_INJ : int;      (** position of trivial argument *)
   o_TABS : constr list;    (** ordered *)
   o_TPARAMS : constr list; (** ordered *)
@@ -77,7 +78,7 @@ type obj_typ = {
 val cs_pattern_of_constr : constr -> cs_pattern * int * constr list
 val pr_cs_pattern : cs_pattern -> Pp.std_ppcmds
 
-val lookup_canonical_conversion : (global_reference * cs_pattern) -> obj_typ
+val lookup_canonical_conversion : (global_reference puniverses * cs_pattern) -> obj_typ
 val declare_canonical_structure : global_reference -> unit
 val is_open_canonical_projection :
   Environ.env -> Evd.evar_map -> (constr * constr Reductionops.stack) -> bool
