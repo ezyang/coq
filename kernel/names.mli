@@ -308,11 +308,12 @@ val hcons_construct : constructor -> constructor
 
 (******)
 
-type 'a tableKey =
-  | ConstKey of constant
+type ('a,'b) tableKey =
+  | ConstKey of 'b
   | VarKey of Id.t
   | RelKey of 'a
 
+(** Sets of names *)
 type transparent_state = Id.Pred.t * Cpred.t
 
 val empty_transparent_state : transparent_state
@@ -320,11 +321,17 @@ val full_transparent_state : transparent_state
 val var_full_transparent_state : transparent_state
 val cst_full_transparent_state : transparent_state
 
+
+type ('a,'b) tableKey =
+  | ConstKey of 'b
+  | VarKey of identifier
+  | RelKey of 'a
+
 type inv_rel_key = int (** index in the [rel_context] part of environment
 			  starting by the end, {e inverse}
 			  of de Bruijn indice *)
 
-type id_key = inv_rel_key tableKey
+type id_key = (inv_rel_key,constant) tableKey
 
 val eq_id_key : id_key -> id_key -> bool
 

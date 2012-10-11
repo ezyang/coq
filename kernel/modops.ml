@@ -242,8 +242,8 @@ let add_retroknowledge mp =
       | Retroknowledge.RKRegister (f, e) ->
 	  Environ.register env f 
 	  (match e with 
-	    | Const kn -> kind_of_term (mkConst kn)
-	    | Ind ind -> kind_of_term (mkInd ind)
+	    | Const kn -> kind_of_term (mkConstU kn)
+	    | Ind ind -> kind_of_term (mkIndU ind)
 	    | _ -> anomaly "Modops.add_retroknowledge: had to import an unsupported kind of term")
   in
   fun lclrk env ->

@@ -13,15 +13,20 @@ open Environ
 open Entries
 open Declarations
 
+type constrained_unsafe_judgment = unsafe_judgment * Univ.constraints
+
 (** {6 Typing functions (not yet tagged as safe) } *)
 
-val infer      : env -> constr       -> unsafe_judgment * constraints
-val infer_v    : env -> constr array -> unsafe_judgment array * constraints
-val infer_type : env -> types        -> unsafe_type_judgment * constraints
+val infer      : env -> universe_context_set -> constr       -> 
+  unsafe_judgment * universe_context_set
+val infer_v    : env -> universe_context_set -> constr array -> 
+  unsafe_judgment array * universe_context_set
+val infer_type : env -> universe_context_set -> types        -> 
+  unsafe_type_judgment * universe_context_set
 
 val infer_local_decls :
-  env -> (Id.t * local_entry) list
-    -> env * rel_context * constraints
+  env -> universe_context_set -> (Id.t * local_entry) list
+    -> env * rel_context * universe_context_set
 
 (** {6 Basic operations of the typing machine. } *)
 
@@ -44,15 +49,15 @@ val judge_of_relative : env -> int -> unsafe_judgment
 val judge_of_variable : env -> variable -> unsafe_judgment
 
 (** {6 type of a constant } *)
-val judge_of_constant : env -> constant -> unsafe_judgment
+val judge_of_constant : env -> constant puniverses -> constrained_unsafe_judgment
 
-val judge_of_constant_knowing_parameters :
-  env -> constant -> unsafe_judgment array -> unsafe_judgment
+(* val judge_of_constant_knowing_parameters : *)
+(*   env -> constant -> unsafe_judgment array -> unsafe_judgment *)
 
 (** {6 Type of application. } *)
 val judge_of_apply :
   env -> unsafe_judgment -> unsafe_judgment array
-    -> unsafe_judgment * constraints
+    -> constrained_unsafe_judgment
 
 (** {6 Type of an abstraction. } *)
 val judge_of_abstraction :
@@ -72,36 +77,29 @@ val judge_of_letin :
 (** {6 Type of a cast. } *)
 val judge_of_cast :
   env -> unsafe_judgment -> cast_kind -> unsafe_type_judgment ->
-    unsafe_judgment * constraints
+  constrained_unsafe_judgment
 
 (** {6 Inductive types. } *)
 
-val judge_of_inductive : env -> inductive -> unsafe_judgment
+val judge_of_inductive : env -> inductive puniverses -> constrained_unsafe_judgment
 
-val judge_of_inductive_knowing_parameters :
-  env -> inductive -> unsafe_judgment array -> unsafe_judgment
+(* val judge_of_inductive_knowing_parameters : *)
+(*   env -> inductive -> unsafe_judgment array -> unsafe_judgment *)
 
-val judge_of_constructor : env -> constructor -> unsafe_judgment
+val judge_of_constructor : env -> constructor puniverses -> constrained_unsafe_judgment
 
 (** {6 Type of Cases. } *)
 val judge_of_case : env -> case_info
   -> unsafe_judgment -> unsafe_judgment -> unsafe_judgment array
-    -> unsafe_judgment * constraints
+    -> constrained_unsafe_judgment
 
 (** Typecheck general fixpoint (not checking guard conditions) *)
 val type_fixpoint : env -> Name.t array -> types array
     -> unsafe_judgment array -> constraints
 
 (** Kernel safe typing but applicable to partial proofs *)
-val typing : env -> constr -> unsafe_judgment
+val typing : env -> universe_context_set -> constr -> 
+  unsafe_judgment * universe_context_set
 
-val type_of_constant : env -> constant -> types
-
-val type_of_constant_type : env -> constant_type -> types
-
-val type_of_constant_knowing_parameters :
-  env -> constant_type -> constr array -> types
-
-(** Make a type polymorphic if an arity *)
-val make_polymorphic : env -> unsafe_judgment -> constant_type
+val type_of_constant : env -> constant puniverses -> types * constraints
 

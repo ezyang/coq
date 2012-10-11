@@ -23,10 +23,10 @@ type mind_specif = mutual_inductive_body * one_inductive_body
     Raises [Not_found] if the inductive type is not found. *)
 val lookup_mind_specif : env -> inductive -> mind_specif
 
-val type_of_inductive : env -> mind_specif -> constr
+val type_of_inductive : env -> mind_specif -> constr * Univ.constraints
 
 (* Return type as quoted by the user *)
-val type_of_constructor : constructor -> mind_specif -> constr
+val type_of_constructor : constructor -> mind_specif -> constr * Univ.constraints
 
 val arities_of_specif : mutual_inductive -> mind_specif -> constr array
 
@@ -37,7 +37,7 @@ val arities_of_specif : mutual_inductive -> mind_specif -> constr array
    introduced by products) and the type for the whole expression.
  *)
 val type_case_branches :
-  env -> inductive * constr list -> constr * constr -> constr
+  env -> inductive puniverses * constr list -> constr * constr -> constr
     -> constr array * constr
 
 (* Check a [case_info] actually correspond to a Case expression on the

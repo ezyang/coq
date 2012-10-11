@@ -17,6 +17,8 @@ type sorts =
   | Prop of contents       (** Prop and Set *)
   | Type of Univ.universe  (** Type *)
 
+type 'a puniverses = 'a Univ.puniverses
+
 val set_sort  : sorts
 val prop_sort : sorts
 val type1_sort  : sorts
@@ -127,17 +129,20 @@ val mkApp : constr * constr array -> constr
 (** Constructs a constant 
    The array of terms correspond to the variables introduced in the section *)
 val mkConst : constant -> constr
+val mkConstU : constant puniverses -> constr
 
 (** Inductive types *)
 
 (** Constructs the ith (co)inductive type of the block named kn 
    The array of terms correspond to the variables introduced in the section *)
 val mkInd : inductive -> constr
+val mkIndU : inductive puniverses -> constr
 
 (** Constructs the jth constructor of the ith (co)inductive type of the
    block named kn. The array of terms correspond to the variables
    introduced in the section *)
 val mkConstruct : constructor -> constr
+val mkConstructU : constructor puniverses -> constr
 
 (** Constructs a destructor of inductive type.
     
@@ -206,9 +211,9 @@ type ('constr, 'types) kind_of_term =
   | Lambda    of Name.t * 'types * 'constr
   | LetIn     of Name.t * 'constr * 'types * 'constr
   | App       of 'constr * 'constr array
-  | Const     of constant
-  | Ind       of inductive
-  | Construct of constructor
+  | Const     of constant puniverses
+  | Ind       of inductive puniverses
+  | Construct of constructor puniverses
   | Case      of case_info * 'constr * 'constr * 'constr array
   | Fix       of ('constr, 'types) pfixpoint
   | CoFix     of ('constr, 'types) pcofixpoint
@@ -299,16 +304,16 @@ val destApplication : constr -> constr * constr array
 val decompose_app : constr -> constr * constr list
 
 (** Destructs a constant *)
-val destConst : constr -> constant
+val destConst : constr -> constant puniverses
 
 (** Destructs an existential variable *)
 val destEvar : constr -> existential
 
 (** Destructs a (co)inductive type *)
-val destInd : constr -> inductive
+val destInd : constr -> inductive puniverses
 
 (** Destructs a constructor *)
-val destConstruct : constr -> constructor
+val destConstruct : constr -> constructor puniverses
 
 (** Destructs a [match c as x in I args return P with ... |
 Ci(...yij...) => ti | ... end] (or [let (..y1i..) := c as x in I args
@@ -628,6 +633,9 @@ val compare_constr : (constr -> constr -> bool) -> constr -> constr -> bool
 
 val constr_ord : constr -> constr -> int
 val hash_constr : constr -> int
+
+val subst_univs_constr : Univ.universe_subst -> constr -> constr
+
 
 (*********************************************************************)
 

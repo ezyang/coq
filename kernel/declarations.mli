@@ -21,14 +21,7 @@ type engagement = ImpredicativeSet
 
 (** {6 Representation of constants (Definition/Axiom) } *)
 
-type polymorphic_arity = {
-  poly_param_levels : universe option list;
-  poly_level : universe;
-}
-
-type constant_type =
-  | NonPolymorphicType of types
-  | PolymorphicArity of rel_context * polymorphic_arity
+type constant_type = types
 
 type constr_substituted
 
@@ -65,9 +58,9 @@ type constant_def =
 type constant_body = {
     const_hyps : section_context; (** New: younger hyp at top *)
     const_body : constant_def;
-    const_type : constant_type;
+    const_type : types;
     const_body_code : to_patch_substituted;
-    const_constraints : constraints }
+    const_universes : universe_context }
 
 val subst_const_def : substitution -> constant_def -> constant_def
 val subst_const_body : substitution -> constant_body -> constant_body
@@ -111,14 +104,10 @@ val subst_wf_paths : substitution -> wf_paths -> wf_paths
 v}
 *)
 
-type monomorphic_inductive_arity = {
-  mind_user_arity : constr;
+type inductive_arity = {
+  mind_user_arity : types;
   mind_sort : sorts;
 }
-
-type inductive_arity =
-| Monomorphic of monomorphic_inductive_arity
-| Polymorphic of polymorphic_arity
 
 type one_inductive_body = {
 (** {8 Primitive datas } *)
@@ -127,7 +116,9 @@ type one_inductive_body = {
 
     mind_arity_ctxt : rel_context; (** Arity context of [Ii] with parameters: [forall params, Ui] *)
 
-    mind_arity : inductive_arity; (** Arity sort and original user arity if monomorphic *)
+    mind_arity : inductive_arity; (** Arity sort and original user arity *)
+
+    mind_universes : universe_context; (** Local universe variables and constraints *)
 
     mind_consnames : Id.t array; (** Names of the constructors: [cij] *)
 

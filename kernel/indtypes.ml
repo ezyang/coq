@@ -108,6 +108,10 @@ let is_unit constrsinfos =
    | [] -> (* type without constructors *) true
    | _ -> false
 
+let infer_type env t = 
+  (* TODO next *)
+  infer_type env empty_universe_context_set t
+
 let rec infos_and_sort env t =
   let t = whd_betadeltaiota env t in
   match kind_of_term t with
@@ -173,7 +177,6 @@ let infer_constructor_packet env_ar_par params lc =
   let level = max_inductive_sort (Array.map (fun j -> j.utj_type) jlc) in
   (* compute *)
   let info = small_unit (List.map (infos_and_sort env_ar_par) lc) in
-
   (info,lc'',level,cst)
 
 (* Type-check an inductive definition. Does not check positivity

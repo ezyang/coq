@@ -151,11 +151,17 @@ GEXTEND Gram
     record_field decl_notation rec_definition;
 
   gallina:
+    [ [ _ = [ "Polymorphic" -> Flags.make_polymorphic_flag true |
+	  | "Monomorphic" -> Flags.make_polymorphic_flag false ]; 
+	g = gallina_def -> g ] ]
+   ;
+ 
+  gallina_def:
       (* Definition, Theorem, Variable, Axiom, ... *)
     [ [ thm = thm_token; id = identref; bl = binders; ":"; c = lconstr;
         l = LIST0
           [ "with"; id = identref; bl = binders; ":"; c = lconstr ->
-            (Some id,(bl,c,None)) ] ->
+          (Some id,(bl,c,None)) ] ->
           VernacStartTheoremProof (thm, Flags.use_polymorphic_flag (),
 				   (Some id,(bl,c,None))::l, false, no_hook)
       | stre = assumption_token; nl = inline; bl = assum_list ->

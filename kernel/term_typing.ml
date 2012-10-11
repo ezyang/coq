@@ -23,7 +23,7 @@ open Entries
 open Indtypes
 open Typeops
 
-let constrain_type env j cst1 = function
+let constrain_type env j cst1 poly = function
   | None ->
       make_polymorphic env j, cst1
   | Some t ->
@@ -31,7 +31,10 @@ let constrain_type env j cst1 = function
       let (_,cst3) = judge_of_cast env j DEFAULTcast tj in
 	assert (eq_constr t tj.utj_val);
 	let cstrs = union_constraints (union_constraints cst1 cst2) cst3 in
-	  NonPolymorphicType t, cstrs
+ 	  if poly then 
+ 	    make_polymorphic env { j with uj_type = tj.utj_val }, cstrs
+ 	  else
+ 	    NonPolymorphicType t, cstrs
 
 let local_constrain_type env j cst1 = function
   | None ->
@@ -93,7 +96,8 @@ let infer_declaration env dcl =
       let j =
         {uj_val = hcons_constr j.uj_val;
          uj_type = hcons_constr j.uj_type} in
-      let (typ,cst) = constrain_type env j cst c.const_entry_type in
+      let (typ,cst) = constrain_type env j cst 
+	c.const_entry_polymorphic c.const_entry_type in
       let def =
 	if c.const_entry_opaque
 	then OpaqueDef (Declarations.opaque_from_val j.uj_val)
@@ -103,6 +107,7 @@ let infer_declaration env dcl =
   | ParameterEntry (ctx,t,nl) ->
       let (j,cst) = infer env t in
       let t = hcons_constr (Typeops.assumption_of_judgment env j) in
+	(* TODO: polymorphic parameters *)
       Undef nl, NonPolymorphicType t, cst, ctx
 
 let global_vars_set_constant_type env = function
@@ -113,7 +118,7 @@ let global_vars_set_constant_type env = function
 	  (fun t c -> Id.Set.union (global_vars_set env t) c))
       ctx ~init:Id.Set.empty
 
-let build_constant_declaration env kn (def,typ,cst,ctx) =
+let build_constant_declaration env kn (def,typ,univs,ctx) =
   let hyps = 
     let inferred =
       let ids_typ = global_vars_set_constant_type env typ in
@@ -138,7 +143,7 @@ let build_constant_declaration env kn (def,typ,cst,ctx) =
     const_body = def;
     const_type = typ;
     const_body_code = tps;
-    const_constraints = cst }
+    const_universes = univs }
 
 (*s Global and local constant declaration. *)
 

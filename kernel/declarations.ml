@@ -32,14 +32,7 @@ type engagement = ImpredicativeSet
 
 (*s Constants (internal representation) (Definition/Axiom) *)
 
-type polymorphic_arity = {
-  poly_param_levels : universe option list;
-  poly_level : universe;
-}
-
-type constant_type =
-  | NonPolymorphicType of types
-  | PolymorphicArity of rel_context * polymorphic_arity
+type constant_type = types
 
 type constr_substituted = constr substituted
 
@@ -88,7 +81,7 @@ type constant_body = {
     const_body : constant_def;
     const_type : constant_type;
     const_body_code : Cemitcodes.to_patch_substituted;
-    const_constraints : constraints }
+    const_universes : universe_context }
 
 let body_of_constant cb = match cb.const_body with
   | Undef _ -> None
@@ -117,9 +110,7 @@ let subst_rel_context sub = List.smartmap (subst_rel_declaration sub)
 
 let subst_const_type sub arity =
   if is_empty_subst sub then arity
-  else match arity with
-    | NonPolymorphicType s -> NonPolymorphicType (subst_mps sub s)
-    | PolymorphicArity (ctx,s) -> PolymorphicArity (subst_rel_context sub ctx,s)
+  else subst_mps sub arity
 
 let subst_const_def sub = function
   | Undef inl -> Undef inl
@@ -131,7 +122,7 @@ let subst_const_body sub cb = {
   const_body = subst_const_def sub cb.const_body;
   const_type = subst_const_type sub cb.const_type;
   const_body_code = Cemitcodes.subst_to_patch_subst sub cb.const_body_code;
-  const_constraints = cb.const_constraints}
+  const_universes = cb.const_universes}
 
 (* Hash-consing of [constant_body] *)
 
@@ -143,16 +134,7 @@ let hcons_rel_decl ((n,oc,t) as d) =
 
 let hcons_rel_context l = List.smartmap hcons_rel_decl l
 
-let hcons_polyarity ar =
-  { poly_param_levels =
-      List.smartmap (Option.smartmap hcons_univ) ar.poly_param_levels;
-    poly_level = hcons_univ ar.poly_level }
-
-let hcons_const_type = function
-  | NonPolymorphicType t ->
-    NonPolymorphicType (hcons_constr t)
-  | PolymorphicArity (ctx,s) ->
-    PolymorphicArity (hcons_rel_context ctx, hcons_polyarity s)
+let hcons_const_type = hcons_constr
 
 let hcons_const_def = function
   | Undef inl -> Undef inl
@@ -168,8 +150,8 @@ let hcons_const_def = function
 let hcons_const_body cb =
   { cb with
     const_body = hcons_const_def cb.const_body;
-    const_type = hcons_const_type cb.const_type;
-    const_constraints = hcons_constraints cb.const_constraints }
+    const_type = hcons_constr cb.const_type;
+    const_universes = hcons_universe_context cb.const_universes }
 
 
 (*s Inductive types (internal representation with redundant
@@ -227,14 +209,10 @@ let subst_wf_paths sub p = Rtree.smartmap (subst_recarg sub) p
    with      In (params) : Un := cn1 : Tn1 | ... | cnpn : Tnpn
 *)
 
-type monomorphic_inductive_arity = {
+type inductive_arity = {
   mind_user_arity : constr;
   mind_sort : sorts;
 }
-
-type inductive_arity =
-| Monomorphic of monomorphic_inductive_arity
-| Polymorphic of polymorphic_arity
 
 type one_inductive_body = {
 
@@ -246,8 +224,11 @@ type one_inductive_body = {
  (* Arity context of [Ii] with parameters: [forall params, Ui] *)
     mind_arity_ctxt : rel_context;
 
- (* Arity sort, original user arity, and allowed elim sorts, if monomorphic *)
+ (* Arity sort, original user arity *)
     mind_arity : inductive_arity;
+
+ (* Local universe variables and constraints *)
+    mind_universes : universe_context;
 
  (* Names of the constructors: [cij] *)
     mind_consnames : Id.t array;
@@ -319,13 +300,9 @@ type mutual_inductive_body = {
 
   }
 
-let subst_indarity sub = function
-| Monomorphic s ->
-    Monomorphic {
-      mind_user_arity = subst_mps sub s.mind_user_arity;
-      mind_sort = s.mind_sort;
-    }
-| Polymorphic s as x -> x
+let subst_indarity sub s =
+  { mind_user_arity = subst_mps sub s.mind_user_arity;
+    mind_sort = s.mind_sort }
 
 let subst_mind_packet sub mbp =
   { mind_consnames = mbp.mind_consnames;
@@ -334,6 +311,9 @@ let subst_mind_packet sub mbp =
     mind_nf_lc = Array.smartmap (subst_mps sub) mbp.mind_nf_lc;
     mind_arity_ctxt = subst_rel_context sub mbp.mind_arity_ctxt;
     mind_arity = subst_indarity sub mbp.mind_arity;
+    (* FIXME: Really? No need to substitute in universe levels?
+       copying mind_constraints below *)
+    mind_universes = mbp.mind_universes;
     mind_user_lc = Array.smartmap (subst_mps sub) mbp.mind_user_lc;
     mind_nrealargs = mbp.mind_nrealargs;
     mind_nrealargs_ctxt = mbp.mind_nrealargs_ctxt;
@@ -355,11 +335,9 @@ let subst_mind sub mib =
     mind_packets = Array.smartmap (subst_mind_packet sub) mib.mind_packets ;
     mind_constraints = mib.mind_constraints  }
 
-let hcons_indarity = function
-  | Monomorphic a ->
-    Monomorphic { mind_user_arity = hcons_constr a.mind_user_arity;
-		  mind_sort = hcons_sorts a.mind_sort }
-  | Polymorphic a -> Polymorphic (hcons_polyarity a)
+let hcons_indarity a =
+  { mind_user_arity = hcons_constr a.mind_user_arity;
+    mind_sort = hcons_sorts a.mind_sort }
 
 let hcons_mind_packet oib =
  { oib with

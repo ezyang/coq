@@ -51,6 +51,15 @@ type universe = Universe.t
 
 module UniverseLSet : Set.S with type elt = universe_level
 
+type universe_set = UniverseLSet.t
+val empty_universe_set : universe_set
+
+type universe_list = universe_level list
+val empty_universe_list : universe_list
+
+type 'a puniverses = 'a * universe_list
+val out_punivs : 'a puniverses -> 'a
+
 (** The universes hierarchy: Type 0- = Prop <= Type 0 = Set <= Type 1 <= ... 
    Typing of universes: Type 0-, Type 0 : Type 1; Type i : Type (i+1) if i>0 *)
 
@@ -90,6 +99,30 @@ val empty_constraint : constraints
 val union_constraints : constraints -> constraints -> constraints
 
 val is_empty_constraint : constraints -> bool
+
+(** Local variables and graph *)
+type universe_context = universe_list * constraints 
+
+type universe_subst = (universe_level * universe_level) list
+
+(** Make a universe level substitution. *)
+val make_universe_subst : universe_list -> universe_context -> universe_subst
+
+val subst_univs_level : universe_subst -> universe_level -> universe_level
+val subst_univs_universe : universe_subst -> universe -> universe
+val subst_univs_constraints : universe_subst -> constraints -> constraints
+
+val instantiate_univ_context : universe_subst -> universe_context -> constraints
+
+type universe_context_set = universe_set * constraints 
+
+val empty_universe_context_set : universe_context_set
+val is_empty_universe_context_set : universe_context_set -> bool
+val union_universe_context_set : universe_context_set -> universe_context_set -> 
+  universe_context_set
+
+val empty_universe_context : universe_context
+val is_empty_universe_context : universe_context -> bool
 
 type constraint_function = universe -> universe -> constraints -> constraints
 
@@ -161,3 +194,8 @@ val dump_universes :
 val hcons_univlevel : universe_level -> universe_level
 val hcons_univ : universe -> universe
 val hcons_constraints : constraints -> constraints
+val hcons_universe_set : universe_set -> universe_set
+val hcons_universe_context : universe_context -> universe_context
+val hcons_universe_context_set : universe_context_set -> universe_context_set 
+
+(******)
