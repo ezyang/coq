@@ -20,9 +20,9 @@ open Environ
    only a coinductive type.
    They raise [Not_found] if not convertible to a recursive type. *)
 
-val find_rectype     : env -> types -> inductive * constr list
-val find_inductive   : env -> types -> inductive * constr list
-val find_coinductive : env -> types -> inductive * constr list
+val find_rectype     : env -> types -> inductive puniverses * constr list
+val find_inductive   : env -> types -> inductive puniverses * constr list
+val find_coinductive : env -> types -> inductive puniverses * constr list
 
 type mind_specif = mutual_inductive_body * one_inductive_body
 
@@ -34,12 +34,12 @@ val lookup_mind_specif : env -> inductive -> mind_specif
 (** {6 Functions to build standard types related to inductive } *)
 val ind_subst : mutual_inductive -> mutual_inductive_body -> constr list
 
-val type_of_inductive : env -> mind_specif -> types
+val type_of_inductive : env -> mind_specif puniverses -> types * Univ.constraints
 
 val elim_sorts : mind_specif -> sorts_family list
 
 (** Return type as quoted by the user *)
-val type_of_constructor : constructor -> mind_specif -> types
+val type_of_constructor : constructor puniverses -> mind_specif -> types * Univ.constraints
 
 (** Return constructor types in normal form *)
 val arities_of_constructors : inductive -> mind_specif -> types array
@@ -60,7 +60,7 @@ val inductive_params : mind_specif -> int
    the universe constraints generated.
  *)
 val type_case_branches :
-  env -> inductive * constr list -> unsafe_judgment -> constr
+  env -> inductive puniverses * constr list -> unsafe_judgment -> constr
     -> types array * types * constraints
 
 val build_branches_type :
@@ -91,13 +91,13 @@ val check_cofix : env -> cofixpoint -> unit
 
 exception SingletonInductiveBecomesProp of Id.t
 
-val type_of_inductive_knowing_parameters : ?polyprop:bool ->
-  env -> one_inductive_body -> types array -> types
+(* val type_of_inductive_knowing_parameters : ?polyprop:bool -> *)
+(*   env -> one_inductive_body -> types array -> types *)
 
 val max_inductive_sort : sorts array -> universe
 
-val instantiate_universes : env -> rel_context ->
-    polymorphic_arity -> types array -> rel_context * sorts
+(* val instantiate_universes : env -> rel_context -> *)
+(*     inductive_arity -> types array -> rel_context * sorts *)
 
 (** {6 Debug} *)
 

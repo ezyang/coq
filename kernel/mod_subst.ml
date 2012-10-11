@@ -290,12 +290,12 @@ let subst_ind sub mind =
       | Canonical -> mind_of_delta2 resolve mind'
   with No_subst -> mind
 
-let subst_con0 sub con =
+let subst_con0 sub (con,u) =
   let kn1,kn2 = user_con con,canonical_con con in
   let mp1,dir,l = repr_kn kn1 in
   let mp2,_,_ = repr_kn kn2 in
   let rebuild_con mp1 mp2 = make_con_equiv mp1 mp2 dir l in
-  let dup con = con, mkConst con in
+  let dup con = con, mkConstU (con,u) in
   let side,con',resolve = gen_subst_mp rebuild_con sub mp1 mp2 in
   match constant_of_delta_with_inline resolve con' with
     | Some t ->
@@ -310,7 +310,10 @@ let subst_con0 sub con =
 
 let subst_con sub con =
   try subst_con0 sub con
-  with No_subst -> con, mkConst con
+  with No_subst -> fst con, mkConstU con
+
+let subst_con_kn sub con =
+  subst_con sub (con,[])
 
 (* Here the semantics is completely unclear.
    What does "Hint Unfold t" means when "t" is a parameter?
@@ -319,18 +322,18 @@ let subst_con sub con =
    interpretation (i.e. an evaluable reference is never expanded). *)
 let subst_evaluable_reference subst = function
   | EvalVarRef id -> EvalVarRef id
-  | EvalConstRef kn -> EvalConstRef (fst (subst_con subst kn))
+  | EvalConstRef kn -> EvalConstRef (fst (subst_con_kn subst kn))
 
 let rec map_kn f f' c =
   let func = map_kn f f' in
     match kind_of_term c with
       | Const kn -> (try snd (f' kn) with No_subst -> c)
-      | Ind (kn,i) ->
+      | Ind ((kn,i),u) ->
 	  let kn' = f kn in
-	  if kn'==kn then c else mkInd (kn',i)
-      | Construct ((kn,i),j) ->
+	  if kn'==kn then c else mkIndU ((kn',i),u)
+      | Construct (((kn,i),j),u) ->
 	  let kn' = f kn in
-	  if kn'==kn then c else mkConstruct ((kn',i),j)
+	  if kn'==kn then c else mkConstructU (((kn',i),j),u)
       | Case (ci,p,ct,l) ->
 	  let ci_ind =
             let (kn,i) = ci.ci_ind in

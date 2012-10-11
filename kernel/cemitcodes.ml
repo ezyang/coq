@@ -330,7 +330,7 @@ let subst_patch s (ri,pos) =
       let ci = {a.ci with ci_ind = (subst_ind s kn,i)} in
       (Reloc_annot {a with ci = ci},pos)
   | Reloc_const sc -> (Reloc_const (subst_strcst s sc), pos)
-  | Reloc_getglobal kn -> (Reloc_getglobal (fst (subst_con s kn)), pos)
+  | Reloc_getglobal kn -> (Reloc_getglobal (fst (subst_con_kn s kn)), pos)
 
 let subst_to_patch s (code,pl,fv) =
   code,List.rev_map (subst_patch s) pl,fv
@@ -342,7 +342,7 @@ type body_code =
 
 let subst_body_code s = function
   | BCdefined tp -> BCdefined (subst_to_patch s tp)
-  | BCallias kn -> BCallias (fst (subst_con s kn))
+  | BCallias kn -> BCallias (fst (subst_con_kn s kn))
   | BCconstant -> BCconstant
 
 type to_patch_substituted = body_code substituted

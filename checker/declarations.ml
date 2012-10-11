@@ -14,20 +14,7 @@ type retroknowledge
 type engagement = ImpredicativeSet
 let val_eng = val_enum "eng" 1
 
-
-type polymorphic_arity = {
-  poly_param_levels : Univ.universe option list;
-  poly_level : Univ.universe;
-}
-let val_pol_arity =
-  val_tuple ~name:"polyorphic_arity"[|val_list(val_opt val_univ);val_univ|]
-
-type constant_type =
-  | NonPolymorphicType of constr
-  | PolymorphicArity of rel_context * polymorphic_arity
-
-let val_cst_type =
-  val_sum "constant_type" 0 [|[|val_constr|];[|val_rctxt;val_pol_arity|]|]
+let val_cst_type = val_constr
 
 (** Substitutions, code imported from kernel/mod_subst *)
 
@@ -513,12 +500,15 @@ let subst_constant_def sub = function
   | Def c -> Def (subst_constr_subst sub c)
   | OpaqueDef lc -> OpaqueDef (subst_lazy_constr sub lc)
 
+(** Local variables and graph *)
+type universe_context = Univ.UniverseLSet.t * Univ.constraints 
+
 type constant_body = {
     const_hyps : section_context; (* New: younger hyp at top *)
     const_body : constant_def;
-    const_type : constant_type;
+    const_type : types;
     const_body_code : to_patch_substituted;
-    const_constraints : Univ.constraints }
+    const_constraints : universe_context }
 
 let body_of_constant cb = match cb.const_body with
   | Undef _ -> None

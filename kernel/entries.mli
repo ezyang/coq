@@ -55,6 +55,7 @@ type definition_entry = {
   const_entry_secctx : section_context option;
   const_entry_type   : types option;
   const_entry_polymorphic : bool;
+  const_entry_universes : universe_context;
   const_entry_opaque : bool }
 
 type inline = int option (* inlining level, None for no inlining *)

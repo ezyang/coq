@@ -163,18 +163,23 @@ let add_constant kn cs env =
   { env with env_globals = new_globals }
 
 (* constant_type gives the type of a constant *)
-let constant_type env kn =
+let constant_type env (kn,u) =
   let cb = lookup_constant kn env in
-    cb.const_type
+  let subst = make_universe_subst u cb.const_universes in
+    (subst_univs_constr subst cb.const_type, 
+     instantiate_univ_context subst cb.const_universes)
 
 type const_evaluation_result = NoBody | Opaque
 
 exception NotEvaluableConst of const_evaluation_result
 
-let constant_value env kn =
+let constant_value env (kn,u) =
   let cb = lookup_constant kn env in
   match cb.const_body with
-    | Def l_body -> Declarations.force l_body
+    | Def l_body -> 
+      let subst = make_universe_subst u cb.const_universes in
+	(subst_univs_constr subst (Declarations.force l_body),
+	 instantiate_univ_context subst cb.const_universes)
     | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
     | Undef _ -> raise (NotEvaluableConst NoBody)
 
@@ -182,10 +187,44 @@ let constant_opt_value env cst =
   try Some (constant_value env cst)
   with NotEvaluableConst _ -> None
 
+let constant_value_and_type env (kn, u) =
+  let cb = lookup_constant kn env in
+  let subst = make_universe_subst u cb.const_universes in
+  let cst = instantiate_univ_context subst cb.const_universes in
+  let b' = match cb.const_body with
+    | Def l_body -> Some (subst_univs_constr subst (Declarations.force l_body))
+    | OpaqueDef _ -> None
+    | Undef _ -> None
+  in b', subst_univs_constr subst cb.const_type, cst
+
+(* TODO remove *)
+
+(* constant_type gives the type of a constant *)
+let constant_type_unsafe env (kn,u) =
+  let cb = lookup_constant kn env in
+  let subst = make_universe_subst u cb.const_universes in
+    subst_univs_constr subst cb.const_type
+
+let constant_value_unsafe env (kn,u) =
+  let cb = lookup_constant kn env in
+  match cb.const_body with
+    | Def l_body -> 
+      let subst = make_universe_subst u cb.const_universes in
+	subst_univs_constr subst (Declarations.force l_body)
+    | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
+    | Undef _ -> raise (NotEvaluableConst NoBody)
+
+let constant_opt_value_unsafe env cst =
+  try Some (constant_value_unsafe env cst)
+  with NotEvaluableConst _ -> None
+
 (* A global const is evaluable if it is defined and not opaque *)
-let evaluable_constant cst env =
-  try let _  = constant_value env cst in true
-  with NotEvaluableConst _ -> false
+let evaluable_constant (kn,_) env =
+  let cb = lookup_constant kn env in
+    match cb.const_body with
+    | Def _ -> true
+    | OpaqueDef _ -> false
+    | Undef _ -> false
 
 (* Mutual Inductives *)
 let lookup_mind = lookup_mind
@@ -228,9 +267,9 @@ let lookup_constructor_variables (ind,_) env =
 let vars_of_global env constr =
   match kind_of_term constr with
       Var id -> [id]
-    | Const kn -> lookup_constant_variables kn env
-    | Ind ind -> lookup_inductive_variables ind env
-    | Construct cstr -> lookup_constructor_variables cstr env
+    | Const (kn,_) -> lookup_constant_variables kn env
+    | Ind (ind,_) -> lookup_inductive_variables ind env
+    | Construct (cstr,_) -> lookup_constructor_variables cstr env
     | _ -> raise Not_found
 
 let global_vars_set env constr =
@@ -401,7 +440,7 @@ let unregister env field =
           is abstract, and that the only function which add elements to the
           retroknowledge is Environ.register which enforces this shape *)
 	(match retroknowledge find env field with
-	   | Ind i31t -> let i31c = Construct (i31t, 1) in
+	   | Ind (i31t,u) -> let i31c = Construct ((i31t, 1),u) in
 	     {env with retroknowledge =
 		 remove (retroknowledge clear_info env i31c) field}
 	   | _ -> assert false)
@@ -458,13 +497,13 @@ fun env field value ->
      operators to the reactive retroknowledge. *)
   let add_int31_binop_from_const op =
     match value with
-      | Const kn ->  retroknowledge add_int31_op env value 2
+      | Const (kn,_) ->  retroknowledge add_int31_op env value 2
 	                               op kn
       | _ -> anomaly "Environ.register: should be a constant"
   in
   let add_int31_unop_from_const op =
     match value with
-      | Const kn ->  retroknowledge add_int31_op env value 1
+      | Const (kn,_) ->  retroknowledge add_int31_op env value 1
 	                               op kn
       | _ -> anomaly "Environ.register: should be a constant"
   in
@@ -476,9 +515,9 @@ fun env field value ->
     match field with
       | KInt31 (grp, Int31Type) ->
 	  (match Retroknowledge.find rk (KInt31 (grp,Int31Bits)) with
-	    | Ind i31bit_type ->
+	    | Ind (i31bit_type,u) ->
 		(match value with
-		  | Ind i31t ->
+		  | Ind (i31t,u) ->
 		      Retroknowledge.add_vm_decompile_constant_info rk
 		               value (constr_of_int31 i31t i31bit_type)
 		  | _ -> anomaly "Environ.register: should be an inductive type")
@@ -490,7 +529,7 @@ fun env field value ->
   match field with
     | KInt31 (_, Int31Type) ->
         let i31c = match value with
-                     | Ind i31t -> (Construct (i31t, 1))
+                     | Ind (i31t,u) -> (Construct ((i31t, 1),u))
 		     | _ -> anomaly "Environ.register: should be an inductive type"
 	in
 	add_int31_decompilation_from_type
@@ -508,14 +547,14 @@ fun env field value ->
     | KInt31 (_, Int31TimesC) -> add_int31_binop_from_const Cbytecodes.Kmulcint31
     | KInt31 (_, Int31Div21) -> (* this is a ternary operation *)
                                 (match value with
-				 | Const kn ->
+				 | Const (kn,u) ->
 				     retroknowledge add_int31_op env value 3
 	                               Cbytecodes.Kdiv21int31 kn
 				 | _ -> anomaly "Environ.register: should be a constant")
     | KInt31 (_, Int31Div) -> add_int31_binop_from_const Cbytecodes.Kdivint31
     | KInt31 (_, Int31AddMulDiv) -> (* this is a ternary operation *)
                                 (match value with
-				 | Const kn ->
+				 | Const (kn,u) ->
 				     retroknowledge add_int31_op env value 3
 	                               Cbytecodes.Kaddmuldivint31 kn
 				 | _ -> anomaly "Environ.register: should be a constant")

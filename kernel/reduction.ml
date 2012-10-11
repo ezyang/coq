@@ -27,8 +27,14 @@ open Esubst
 let unfold_reference ((ids, csts), infos) k =
   match k with
     | VarKey id when not (Id.Pred.mem id ids) -> None
-    | ConstKey cst when not (Cpred.mem cst csts) -> None
+    | ConstKey (cst,_) when not (Cpred.mem cst csts) -> None
     | _ -> unfold_reference infos k
+
+let conv_key k =
+  match k with
+  | VarKey id -> VarKey id
+  | ConstKey (cst,_) -> ConstKey cst
+  | RelKey n -> RelKey n
 
 let rec is_empty_stack = function
     [] -> true
@@ -297,7 +303,7 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
         with NotConvertible ->
           (* else the oracle tells which constant is to be expanded *)
           let (app1,app2) =
-            if Conv_oracle.oracle_order l2r fl1 fl2 then
+            if Conv_oracle.oracle_order l2r (conv_key fl1) (conv_key fl2) then
               match unfold_reference infos fl1 with
                 | Some def1 -> ((lft1, whd_stack (snd infos) def1 v1), appr2)
                 | None ->
@@ -365,13 +371,13 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
 
     (* Inductive types:  MutInd MutConstruct Fix Cofix *)
 
-    | (FInd ind1, FInd ind2) ->
+    | (FInd (ind1,u1), FInd (ind2,u2)) ->
         if eq_ind ind1 ind2
 	then
           convert_stacks l2r infos lft1 lft2 v1 v2 cuniv
         else raise NotConvertible
 
-    | (FConstruct (ind1,j1), FConstruct (ind2,j2)) ->
+    | (FConstruct ((ind1,j1),u1), FConstruct ((ind2,j2),u2)) ->
 	if Int.equal j1 j2 && eq_ind ind1 ind2
 	then
           convert_stacks l2r infos lft1 lft2 v1 v2 cuniv

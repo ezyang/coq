@@ -116,6 +116,9 @@ val subst_kn :
   substitution -> kernel_name -> kernel_name
 
 val subst_con :
+  substitution -> constant puniverses -> constant * constr
+
+val subst_con_kn :
   substitution -> constant -> constant * constr
 
 (** Here the semantics is completely unclear.

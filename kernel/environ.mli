@@ -119,7 +119,7 @@ val add_constant : constant -> constant_body -> env -> env
 (** Looks up in the context of global constant names 
    raises [Not_found] if the required path is not found *)
 val lookup_constant    : constant -> env -> constant_body
-val evaluable_constant : constant -> env -> bool
+val evaluable_constant : constant puniverses -> env -> bool
 
 (** {6 ... } *)
 (** [constant_value env c] raises [NotEvaluableConst Opaque] if
@@ -129,9 +129,17 @@ val evaluable_constant : constant -> env -> bool
 type const_evaluation_result = NoBody | Opaque
 exception NotEvaluableConst of const_evaluation_result
 
-val constant_value     : env -> constant -> constr
-val constant_type      : env -> constant -> constant_type
-val constant_opt_value : env -> constant -> constr option
+val constant_value : env -> constant puniverses -> constr * Univ.constraints
+val constant_type : env -> constant puniverses -> types * Univ.constraints
+val constant_opt_value : env -> constant puniverses -> (constr * Univ.constraints) option
+val constant_value_and_type : env -> constant puniverses -> 
+  types option * constr * Univ.constraints
+
+(* FIXME: remove *)
+val constant_value_unsafe : env -> constant puniverses -> constr
+val constant_type_unsafe : env -> constant puniverses -> types
+val constant_opt_value_unsafe : env -> constant puniverses -> constr option
+
 
 (** {5 Inductive types } *)
 

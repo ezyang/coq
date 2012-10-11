@@ -548,8 +548,7 @@ let hcons_mind = Hashcons.simple_hcons Hcn.generate hcons_kn
 let hcons_ind = Hashcons.simple_hcons Hind.generate hcons_mind
 let hcons_construct = Hashcons.simple_hcons Hconstruct.generate hcons_ind
 
-
-(*******)
+(*****************)
 
 type transparent_state = Id.Pred.t * Cpred.t
 
@@ -558,8 +557,8 @@ let full_transparent_state = (Id.Pred.full, Cpred.full)
 let var_full_transparent_state = (Id.Pred.full, Cpred.empty)
 let cst_full_transparent_state = (Id.Pred.empty, Cpred.full)
 
-type 'a tableKey =
-  | ConstKey of constant
+type ('a,'b) tableKey =
+  | ConstKey of 'b
   | VarKey of Id.t
   | RelKey of 'a
 
@@ -568,7 +567,7 @@ type inv_rel_key = int (* index in the [rel_context] part of environment
 			  starting by the end, {\em inverse}
 			  of de Bruijn indice *)
 
-type id_key = inv_rel_key tableKey
+type id_key = (inv_rel_key, constant) tableKey
 
 let eq_id_key ik1 ik2 =
   if ik1 == ik2 then true

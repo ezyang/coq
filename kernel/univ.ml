@@ -72,6 +72,15 @@ module UniverseLMap = Map.Make (UniverseLevel)
 module UniverseLSet = Set.Make (UniverseLevel)
 
 type universe_level = UniverseLevel.t
+type universe_list = universe_level list
+type universe_set = UniverseLSet.t
+
+type 'a puniverses = 'a * universe_list
+let out_punivs (a, _) = a
+
+
+let empty_universe_list = []
+let empty_universe_set = UniverseLSet.empty
 
 let compare_levels = UniverseLevel.compare
 
@@ -601,6 +610,51 @@ let is_empty_constraint = Constraint.is_empty
 
 let union_constraints = Constraint.union
 
+type universe_context = universe_list * constraints
+
+let empty_universe_context = ([], empty_constraint)
+let is_empty_universe_context (univs, cst) = 
+  univs = [] && is_empty_constraint cst
+
+type universe_subst = (universe_level * universe_level) list
+
+let subst_univs_level subst l = 
+  try List.assoc l subst
+  with Not_found -> l
+
+let subst_univs_universe subst u =
+  match u with
+  | Atom a -> 
+    let a' = subst_univs_level subst a in
+      if a' == a then u else Atom a'
+  | Max (gel, gtl) -> 
+    let gel' = CList.smartmap (subst_univs_level subst) gel in
+    let gtl' = CList.smartmap (subst_univs_level subst) gtl in
+      if gel == gel' && gtl == gtl' then u
+      else Max (gel, gtl)
+
+let subst_univs_constraint subst (u,d,v) =
+  (subst_univs_level subst u, d, subst_univs_level subst v)
+
+let subst_univs_constraints subst csts =
+  Constraint.fold 
+    (fun c -> Constraint.add (subst_univs_constraint subst c)) 
+    csts Constraint.empty 
+
+(* Substitute instance inst for ctx in csts *)
+let make_universe_subst inst (ctx, csts) = List.combine ctx inst
+let instantiate_univ_context subst (_, csts) = 
+  subst_univs_constraints subst csts
+
+type universe_context_set = universe_set * constraints
+
+let empty_universe_context_set = (UniverseLSet.empty, empty_constraint)
+let is_empty_universe_context_set (univs, cst) = 
+  UniverseLSet.is_empty univs && is_empty_constraint cst
+
+let union_universe_context_set (univs, cst) (univs', cst') =
+  UniverseLSet.union univs univs', union_constraints cst cst'
+
 type constraint_function =
     universe -> universe -> constraints -> constraints
 
@@ -1034,3 +1088,36 @@ module Hconstraints =
 
 let hcons_constraint = Hashcons.simple_hcons Hconstraint.generate hcons_univlevel
 let hcons_constraints = Hashcons.simple_hcons Hconstraints.generate hcons_constraint
+
+module Huniverse_list = 
+  Hashcons.Make(
+    struct
+      type t = universe_list
+      type u = universe_level -> universe_level
+      let hashcons huc s =
+	List.fold_left (fun a x -> huc x :: a) s []
+      let equal s s' = List.for_all2eq (==) s s'
+      let hash = Hashtbl.hash
+    end)
+
+let hcons_universe_list = 
+  Hashcons.simple_hcons Huniverse_list.generate hcons_univlevel
+let hcons_universe_context (v, c) = 
+  (hcons_universe_list v, hcons_constraints c)
+
+module Huniverse_set = 
+  Hashcons.Make(
+    struct
+      type t = universe_set
+      type u = universe_level -> universe_level
+      let hashcons huc s =
+	UniverseLSet.fold (fun x -> UniverseLSet.add (huc x)) s UniverseLSet.empty
+      let equal s s' =
+	UniverseLSet.equal s s'
+      let hash = Hashtbl.hash
+    end)
+
+let hcons_universe_set = 
+  Hashcons.simple_hcons Huniverse_set.generate hcons_univlevel
+let hcons_universe_context_set (v, c) = 
+  (hcons_universe_set v, hcons_constraints c)
