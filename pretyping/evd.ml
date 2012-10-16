@@ -201,8 +201,14 @@ module EvarInfoMap = struct
 end
 
 module EvarMap = struct
-  type t = EvarInfoMap.t * (Univ.UniverseLSet.t * Univ.universes)
-  let empty = EvarInfoMap.empty, (Univ.UniverseLSet.empty, Univ.initial_universes)
+  (* 2nd part used to check consistency on the fly. *)
+  type universe_context = Univ.universe_context_set * Univ.universes
+
+  let empty_universe_context =
+    Univ.empty_universe_context_set, Univ.initial_universes
+
+  type t = EvarInfoMap.t * universe_context
+  let empty = EvarInfoMap.empty, empty_universe_context
   let is_empty (sigma,_) = EvarInfoMap.is_empty sigma
   let has_undefined (sigma,_) = EvarInfoMap.has_undefined sigma
   let add (sigma,sm) k v = (EvarInfoMap.add sigma k v, sm)
@@ -231,8 +237,8 @@ module EvarMap = struct
         EvarInfoMap.is_defined sigma2 k))
 
   let merge e e' = fold e' (fun n v sigma -> add sigma n v) e
-  let add_constraints (sigma, (us, sm)) cstrs =
-    (sigma, (us, Univ.merge_constraints cstrs sm))
+  let add_constraints (sigma, (ctx, us)) cstrs =
+    (sigma, (Univ.add_constraints_ctx ctx cstrs, Univ.merge_constraints cstrs us))
 end
 
 (*******************************************************************)
@@ -496,11 +502,15 @@ let collect_evars c =
 (**********************************************************)
 (* Sort variables *)
 
-let new_univ_variable ({ evars = (sigma,(us,sm)) } as d) =
+let universe_context_set ({evars = (sigma, (ctx, us)) }) = ctx
+let universe_context ({evars = (sigma, (ctx, us)) }) =
+  Univ.context_of_universe_context_set ctx
+
+let new_univ_variable ({ evars = (sigma, ((vars, cst), us)) } as d) =
   let u = Termops.new_univ_level () in
-  let us' = Univ.UniverseLSet.add u us in
-    ({d with evars = (sigma, (us', sm))}, Univ.Universe.make u)
-  
+  let vars' = Univ.UniverseLSet.add u vars in
+    ({d with evars = (sigma, ((vars', cst), us))}, Univ.Universe.make u)
+
 let new_sort_variable d =
   let (d', u) = new_univ_variable d in
     (d', Type u)
@@ -543,7 +553,7 @@ let set_leq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
         add_constraints d cstr
       else raise (Univ.UniverseInconsistency (Univ.Le, u1, u2,[]))
 
-let is_univ_level_var us u =
+let is_univ_level_var (us, cst) u =
   match Univ.universe_level u with
   | Some u -> Univ.UniverseLSet.mem u us
   | None -> false
@@ -832,15 +842,9 @@ let pr_evar_map_t depth sigma =
           brk(0,1)++
           pr_evar_list (evar_dependency_closure n sigma)++fnl()
   and svs =
-    if Univ.UniverseLSet.is_empty uvs then mt ()
-    else str"UNIVERSE VARIABLES:"++brk(0,1)++
-      h 0 (prlist_with_sep fnl
-	     (fun u -> Univ.pr_uni_level u) (Univ.UniverseLSet.elements uvs))++fnl()
-  and cs =
-    if Univ.is_initial_universes univs then mt ()
-    else str"UNIVERSES:"++brk(0,1)++
-      h 0 (Univ.pr_universes univs)++fnl()
-  in evs ++ svs ++ cs
+    if Univ.is_empty_universe_context_set uvs then mt ()
+    else str"UNIVERSES:"++brk(0,1)++ h 0 (Univ.pr_universe_context_set uvs)
+  in evs ++ svs
 
 let print_env_short env =
   let pr_body n = function None -> pr_name n | Some b -> str "(" ++ pr_name n ++ str " := " ++ print_constr b ++ str ")" in

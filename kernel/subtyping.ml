@@ -94,10 +94,10 @@ let check_inductive cst env mp1 l info1 mp2 mib2 spec2 subst1 subst2 reso1 reso2
   let check_conv why cst f = check_conv_error error why cst f in
   let mib1 =
     match info1 with
-      | IndType ((_,0), mib) -> subst_mind subst1 mib
+      | IndType (((_,0), mib)) -> subst_mind_body subst1 mib
       | _ -> error (InductiveFieldExpected mib2)
   in
-  let mib2 =  subst_mind subst2 mib2 in
+  let mib2 =  subst_mind_body subst2 mib2 in
   let check_inductive_type cst name env t1 t2 =
 
     (* Due to sort-polymorphism in inductive types, the conclusions of
@@ -149,8 +149,11 @@ let check_inductive cst env mp1 l info1 mp2 mib2 spec2 subst1 subst2 reso1 reso2
       (* nparams done *)
       (* params_ctxt done because part of the inductive types *)
       (* Don't check the sort of the type if polymorphic *)
-      let cst = check_inductive_type cst p2.mind_typename env (type_of_inductive env (mib1,p1)) (type_of_inductive env (mib2,p2))
-      in
+      let u = fresh_universe_instance mib1.mind_universes in
+      let ty1, cst1 = constrained_type_of_inductive env ((mib1,p1),u) in
+      let ty2, cst2 = constrained_type_of_inductive env ((mib2,p2),u) in
+      let cst = union_constraints cst1 (union_constraints cst2 cst) in
+      let cst = check_inductive_type cst p2.mind_typename env ty1 ty2 in
 	cst
   in
   let check_cons_types i cst p1 p2 =
@@ -158,8 +161,9 @@ let check_inductive cst env mp1 l info1 mp2 mib2 spec2 subst1 subst2 reso1 reso2
       (fun cst id t1 t2 -> check_conv (NotConvertibleConstructorField id) cst conv env t1 t2)
       cst
       p2.mind_consnames
-      (arities_of_specif kn1 (mib1,p1))
-      (arities_of_specif kn1 (mib2,p2))
+(* FIXME *)
+      (arities_of_specif (kn1,[]) (mib1,p1))
+      (arities_of_specif (kn1,[]) (mib2,p2))
   in
   let check f test why = if not (test (f mib1) (f mib2)) then error (why (f mib2)) in
   check (fun mib -> mib.mind_finite) (==) (fun x -> FiniteInductiveFieldExpected x);
@@ -179,7 +183,7 @@ let check_inductive cst env mp1 l info1 mp2 mib2 spec2 subst1 subst2 reso1 reso2
   match mind_of_delta reso2 kn2  with
       | kn2' when eq_mind kn2 kn2' -> ()
       | kn2' -> 
-	  if not (eq_mind (mind_of_delta reso1 kn1) (subst_ind subst2 kn2')) then 
+	  if not (eq_mind (mind_of_delta reso1 kn1) (subst_mind subst2 kn2')) then 
 	    error NotEqualInductiveAliases
   end;
   (* we check that records and their field names are preserved. *)
@@ -269,8 +273,8 @@ let check_constant cst env mp1 l info1 cb2 spec2 subst1 subst2 =
       let cb1 = subst_const_body subst1 cb1 in
       let cb2 = subst_const_body subst2 cb2 in
       (* Start by checking types*)
-      let typ1 = Typeops.type_of_constant_type env cb1.const_type in
-      let typ2 = Typeops.type_of_constant_type env cb2.const_type in
+      let typ1 = cb1.const_type in
+      let typ2 = cb2.const_type in
       let cst = check_type cst env typ1 typ2 in
       (* Now we check the bodies:
 	 - A transparent constant can only be implemented by a compatible
@@ -297,8 +301,11 @@ let check_constant cst env mp1 l info1 cb2 spec2 subst1 subst2 =
        "name."));
       let () = assert (List.is_empty mind1.mind_hyps && List.is_empty cb2.const_hyps) in
       if constant_has_body cb2 then error DefinitionFieldExpected;
-      let arity1 = type_of_inductive env (mind1,mind1.mind_packets.(i)) in
-      let typ2 = Typeops.type_of_constant_type env cb2.const_type in
+      let u1 = fresh_universe_instance mind1.mind_universes in
+      let arity1,cst1 = constrained_type_of_inductive env ((mind1,mind1.mind_packets.(i)),u1) in
+      let (u2,subst2),cst2 = fresh_instance_from_context cb2.const_universes in
+      let typ2 = subst_univs_constr subst2 cb2.const_type in
+      let cst = union_constraints cst (union_constraints cst1 cst2) in
        check_conv NotConvertibleTypeField cst conv_leq env arity1 typ2
    | IndConstr (((kn,i),j) as cstr,mind1) ->
       ignore (Errors.error (
@@ -308,9 +315,18 @@ let check_constant cst env mp1 l info1 cb2 spec2 subst1 subst2 =
        "name."));
       let () = assert (List.is_empty mind1.mind_hyps && List.is_empty cb2.const_hyps) in
       if constant_has_body cb2 then error DefinitionFieldExpected;
-      let ty1 = type_of_constructor cstr (mind1,mind1.mind_packets.(i)) in
-      let ty2 = Typeops.type_of_constant_type env cb2.const_type in
-       check_conv NotConvertibleTypeField cst conv env ty1 ty2
+      let u1 = fresh_universe_instance mind1.mind_universes in
+      let ty1,cst1 = constrained_type_of_constructor (cstr,u1) (mind1,mind1.mind_packets.(i)) in
+      let (u2,subst2),cst2 = fresh_instance_from_context cb2.const_universes in
+      let typ2 = subst_univs_constr subst2 cb2.const_type in
+      let cst = union_constraints cst (union_constraints cst1 cst2) in
+       check_conv NotConvertibleTypeField cst conv env ty1 typ2
+
+
+
+      (* let ty1 = type_of_constructor cstr (mind1,mind1.mind_packets.(i)) in *)
+      (* let ty2 = Typeops.type_of_constant_type env cb2.const_type in *)
+      (*  check_conv NotConvertibleTypeField cst conv env ty1 ty2 *)
 
 let rec check_modules cst env msb1 msb2 subst1 subst2 =
   let mty1 = module_type_of_module None msb1 in

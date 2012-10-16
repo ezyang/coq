@@ -475,8 +475,8 @@ let unfold_head env (ids, csts) c =
 	(match Environ.named_body id env with
 	| Some b -> true, b
 	| None -> false, c)
-    | Const cst when Cset.mem cst csts ->
-	true, Environ.constant_value env cst
+    | Const (cst,u as c) when Cset.mem cst csts ->
+	true, Environ.constant_value_inenv env c
     | App (f, args) ->
 	(match aux f with
 	| true, f' -> true, Reductionops.whd_betaiota Evd.empty (mkApp (f', args))
@@ -538,7 +538,7 @@ TACTIC EXTEND autounfold_one
 TACTIC EXTEND autounfoldify
 | [ "autounfoldify" constr(x) ] -> [
     let db = match kind_of_term x with
-      | Const c -> Label.to_string (con_label c)
+      | Const (c,_) -> Label.to_string (con_label c)
       | _ -> assert false
     in autounfold ["core";db] onConcl ]
 END

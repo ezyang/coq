@@ -19,6 +19,12 @@ type sorts =
 
 type 'a puniverses = 'a Univ.puniverses
 
+val map_puniverses : ('a -> 'b) -> 'a puniverses -> 'b puniverses
+(** Simply type aliases *)
+type pconstant = constant puniverses
+type pinductive = inductive puniverses
+type pconstructor = constructor puniverses
+
 val set_sort  : sorts
 val prop_sort : sorts
 val type1_sort  : sorts

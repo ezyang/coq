@@ -108,6 +108,7 @@ let declare_instance_constant k pri global imps ?hook id term termtype =
 	const_entry_type   = Some termtype;
 	(* FIXME *)
 	const_entry_polymorphic = false;
+	const_entry_universes = Univ.empty_universe_context (* FIXME *);
 	const_entry_opaque = false }
     in DefinitionEntry entry, kind
   in

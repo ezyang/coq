@@ -43,7 +43,7 @@ module SearchBlacklist =
 
 let print_constructors indsp fn env nconstr =
   for i = 1 to nconstr do
-    fn (ConstructRef (indsp,i)) env (Inductiveops.type_of_constructor env (indsp,i))
+    fn (ConstructRef (indsp,i)) env (Inductiveops.type_of_constructor env ((indsp,i),[]))
   done
 
 let rec head_const c = match kind_of_term c with
@@ -71,7 +71,7 @@ let gen_crible refopt (fn : global_reference -> env -> constr -> unit) =
 	 with Not_found -> (* we are in a section *) ())
     | "CONSTANT" ->
 	let cst = Global.constant_of_delta_kn kn in
-	let typ = Typeops.type_of_constant env cst in
+	let typ = Typeops.type_of_constant_inenv env (cst,[]) (*FIXME*) in
         begin match refopt with
         | None ->
           fn (ConstRef cst) env typ

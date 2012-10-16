@@ -157,8 +157,8 @@ let add_constraints cst senv =
     univ = Univ.union_constraints cst senv.univ }
 
 let constraints_of_sfb = function
-  | SFBconst cb -> cb.const_constraints
-  | SFBmind mib -> mib.mind_constraints
+  | SFBconst cb -> constraints_of cb.const_universes
+  | SFBmind mib -> constraints_of mib.mind_universes
   | SFBmodtype mtb -> mtb.typ_constraints
   | SFBmodule mb -> mb.mod_constraints
 
@@ -246,14 +246,17 @@ let safe_push_named (id,_,_ as d) env =
     with Not_found -> () in
   Environ.push_named d env
 
+(* FIXME: no polymorphism allowed here. Is that what we really want? *)
 let push_named_def (id,b,topt) senv =
   let (c,typ,cst) = translate_local_def senv.env (b,topt) in
+  let cst = constraints_of cst in
   let senv' = add_constraints cst senv in
   let env'' = safe_push_named (id,Some c,typ) senv'.env in
   (cst, {senv' with env=env''})
 
 let push_named_assum (id,t) senv =
   let (t,cst) = translate_local_assum senv.env t in
+  let cst = constraints_of cst in
   let senv' = add_constraints cst senv in
   let env'' = safe_push_named (id,None,t) senv'.env in
   (cst, {senv' with env=env''})
@@ -896,4 +899,4 @@ let j_type j = j.uj_type
 
 let safe_infer senv = infer (env_of_senv senv)
 
-let typing senv = Typeops.typing (env_of_senv senv)
+let typing senv t = fst (Typeops.typing (env_of_senv senv) t)

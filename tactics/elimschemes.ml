@@ -21,15 +21,16 @@ open Termops
 open Ind_tables
 
 (* Induction/recursion schemes *)
+let get_fresh_constant env cte = (* FIXME *) cte, []
 
 let optimize_non_type_induction_scheme kind dep sort ind =
   if check_scheme kind ind then
     (* in case the inductive has a type elimination, generates only one
        induction scheme, the other ones share the same code with the
        apropriate type *)
-    let cte = find_scheme kind ind in
-    let c = mkConst cte in
-    let t = type_of_constant (Global.env()) cte in
+    let cte = get_fresh_constant (Global.env()) (find_scheme kind ind) in
+    let c = mkConstU cte in
+    let t = type_of_constant_inenv (Global.env()) cte in
     let (mib,mip) = Global.lookup_inductive ind in
     let npars =
       (* if a constructor of [ind] contains a recursive call, the scheme
@@ -41,10 +42,10 @@ let optimize_non_type_induction_scheme kind dep sort ind =
 	mib.mind_nparams in
     snd (weaken_sort_scheme (new_sort_in_family sort) npars c t)
   else
-    build_induction_scheme (Global.env()) Evd.empty ind dep sort
+    build_induction_scheme (Global.env()) Evd.empty (ind,[]) dep sort
 
 let build_induction_scheme_in_type dep sort ind =
-  build_induction_scheme (Global.env()) Evd.empty ind dep sort
+  build_induction_scheme (Global.env()) Evd.empty (ind,[]) dep sort
 
 let rect_scheme_kind_from_type =
   declare_individual_scheme_object "_rect_nodep"
@@ -81,7 +82,7 @@ let rec_dep_scheme_kind_from_type =
 (* Case analysis *)
 
 let build_case_analysis_scheme_in_type dep sort ind =
-  build_case_analysis_scheme (Global.env()) Evd.empty ind dep sort
+  build_case_analysis_scheme (Global.env()) Evd.empty (ind,[]) dep sort
 
 let case_scheme_kind_from_type =
   declare_individual_scheme_object "_case_nodep"

@@ -115,19 +115,19 @@ l'indice de la classe source dans la liste lp
 let get_source lp source =
   match source with
     | None ->
-	let (cl1,lv1) =
+	let (cl1,u1,lv1) =
           match lp with
 	    | [] -> raise Not_found
             | t1::_ -> find_class_type Evd.empty t1
         in
-	(cl1,lv1,1)
+	(cl1,u1,lv1,1)
     | Some cl ->
 	let rec aux = function
 	  | [] -> raise Not_found
 	  | t1::lt ->
 	      try
-		let cl1,lv1 = find_class_type Evd.empty t1 in
-		if cl_typ_eq cl cl1 then cl1,lv1,(List.length lt+1)
+		let cl1,u1,lv1 = find_class_type Evd.empty t1 in
+		if cl_typ_eq cl cl1 then cl1,u1,lv1,(List.length lt+1)
 		else raise Not_found
               with Not_found -> aux lt
 	in aux (List.rev lp)
@@ -136,7 +136,7 @@ let get_target t ind =
   if (ind > 1) then
     CL_FUN
   else
-    fst (find_class_type Evd.empty t)
+    pi1 (find_class_type Evd.empty t)
 
 let prods_of t =
   let rec aux acc d = match kind_of_term d with
@@ -179,7 +179,7 @@ let build_id_coercion idf_opt source =
   let vs = match source with
     | CL_CONST sp -> mkConst sp
     | _ -> error_not_transparent source in
-  let c = match constant_opt_value env (destConst vs) with
+  let c = match constant_opt_value_inenv env (destConst vs) with
     | Some c -> c
     | None -> error_not_transparent source in
   let lams,t = decompose_lam_assum c in
@@ -208,7 +208,7 @@ let build_id_coercion idf_opt source =
     match idf_opt with
       | Some idf -> idf
       | None ->
-	  let cl,_ = find_class_type Evd.empty t in
+	  let cl,u,_ = find_class_type Evd.empty t in
 	  Id.of_string ("Id_"^(ident_key_of_class source)^"_"^
                         (ident_key_of_class cl))
   in
@@ -218,6 +218,7 @@ let build_id_coercion idf_opt source =
         const_entry_secctx = None;
 	const_entry_type = Some typ_f;
 	const_entry_polymorphic = false;
+	const_entry_universes = Univ.empty_universe_context; (* FIXME *)
         const_entry_opaque = false } in
   let kn = declare_constant idf (constr_entry,IsDefinition IdentityCoercion) in
   ConstRef kn
@@ -244,7 +245,7 @@ let add_new_coercion_core coef stre source target isid =
   let tg,lp = prods_of t in
   let llp = List.length lp in
   if Int.equal llp 0 then raise (CoercionError NotAFunction);
-  let (cls,lvs,ind) =
+  let (cls,us,lvs,ind) =
     try
       get_source lp source
     with Not_found ->

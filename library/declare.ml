@@ -186,7 +186,9 @@ let declare_definition ?(internal=UserVerbose) ?(opaque=false) ?(kind=Decl_kinds
     { Entries.const_entry_body = body;
       const_entry_type = types;
       const_entry_opaque = opaque;
-      const_entry_secctx = None }
+      const_entry_secctx = None; (*FIXME*)
+      const_entry_polymorphic = false;
+      const_entry_universes = Univ.empty_universe_context}
   in
     declare_constant ~internal id
       (Entries.DefinitionEntry cb, Decl_kinds.IsDefinition kind) 
@@ -262,7 +264,9 @@ let dummy_inductive_entry (_,m) = ([],{
   mind_entry_params = [];
   mind_entry_record = false;
   mind_entry_finite = true;
-  mind_entry_inds = List.map dummy_one_inductive_entry m.mind_entry_inds })
+  mind_entry_inds = List.map dummy_one_inductive_entry m.mind_entry_inds;
+  mind_entry_polymorphic = false;
+  mind_entry_universes = Univ.empty_universe_context })
 
 type inductive_obj = Dischargedhypsmap.discharged_hyps * mutual_inductive_entry
 

@@ -37,19 +37,19 @@ let destConstRef = function ConstRef ind -> ind | _ -> failwith "destConstRef"
 let destIndRef = function IndRef ind -> ind | _ -> failwith "destIndRef"
 let destConstructRef = function ConstructRef ind -> ind | _ -> failwith "destConstructRef"
 
-let subst_constructor subst ((kn,i),j as ref) =
-  let kn' = subst_ind subst kn in
-    if kn==kn' then ref, mkConstruct ref
-    else ((kn',i),j), mkConstruct ((kn',i),j)
+let subst_constructor subst (ind,j as ref) =
+  let ind' = subst_ind subst ind in
+    if ind==ind' then ref, mkConstruct ref
+    else (ind',j), mkConstruct (ind',j)
 
 let subst_global subst ref = match ref with
   | VarRef var -> ref, mkVar var
   | ConstRef kn ->
-     let kn',t = subst_con subst kn in
+     let kn',t = subst_con_kn subst kn in
       if kn==kn' then ref, mkConst kn else ConstRef kn', t
-  | IndRef (kn,i) ->
-      let kn' = subst_ind subst kn in
-      if kn==kn' then ref, mkInd (kn,i) else IndRef(kn',i), mkInd (kn',i)
+  | IndRef ind ->
+      let ind' = subst_ind subst ind in
+      if ind==ind' then ref, mkInd ind else IndRef ind', mkInd ind'
   | ConstructRef ((kn,i),j as c) ->
       let c',t = subst_constructor subst c in
 	if c'==c then ref,t else ConstructRef c', t
@@ -61,9 +61,9 @@ let canonical_gr = function
   | VarRef id -> VarRef id
 
 let global_of_constr c = match kind_of_term c with
-  | Const sp -> ConstRef sp
-  | Ind ind_sp -> IndRef ind_sp
-  | Construct cstr_cp -> ConstructRef cstr_cp
+  | Const (sp,u) -> ConstRef sp
+  | Ind (ind_sp,u) -> IndRef ind_sp
+  | Construct (cstr_cp,u) -> ConstructRef cstr_cp
   | Var id -> VarRef id
   |  _ -> raise Not_found
 

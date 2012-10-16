@@ -322,16 +322,18 @@ val var_full_transparent_state : transparent_state
 val cst_full_transparent_state : transparent_state
 
 
-type ('a,'b) tableKey =
-  | ConstKey of 'b
+type 'a tableKey =
+  | ConstKey of 'a
   | VarKey of identifier
-  | RelKey of 'a
+  | RelKey of Int.t
 
 type inv_rel_key = int (** index in the [rel_context] part of environment
 			  starting by the end, {e inverse}
 			  of de Bruijn indice *)
 
-type id_key = (inv_rel_key,constant) tableKey
+val eq_table_key : ('a -> 'a -> bool) -> 'a tableKey -> 'a tableKey -> bool
+
+type id_key = constant tableKey
 
 val eq_id_key : id_key -> id_key -> bool
 

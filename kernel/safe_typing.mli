@@ -132,7 +132,7 @@ val j_type : judgment -> constr
    constraints to be added to the environment for the judgment to
    hold. It is guaranteed that the constraints are satisfiable
  *)
-val safe_infer : safe_environment -> constr -> judgment * Univ.constraints
+val safe_infer : safe_environment -> constr -> judgment Univ.in_universe_context_set
 
 val typing : safe_environment -> constr -> judgment
 

@@ -174,7 +174,7 @@ and subst_structure sub do_delta sign =
       SFBconst cb -> 
 	SFBconst (subst_const_body sub cb)
     | SFBmind mib -> 
-	SFBmind (subst_mind sub mib)
+	SFBmind (subst_mind_body sub mib)
     | SFBmodule mb -> 
 	SFBmodule (subst_module sub do_delta mb)
     | SFBmodtype mtb -> 
@@ -441,7 +441,7 @@ and strengthen_and_subst_struct
 	  resolve_out,item'::rest'
     | (l,SFBmind mib) :: rest ->
 	(*Same as constant*)
-	let item' = l,SFBmind (subst_mind subst mib) in
+	let item' = l,SFBmind (subst_mind_body subst mib) in
 	let resolve_out,rest' =
 	  strengthen_and_subst_struct rest subst
 	    mp_alias mp_from mp_to alias incl resolver in

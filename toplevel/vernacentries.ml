@@ -299,11 +299,7 @@ let print_namespace ns =
     print_list pr_id qn
   in
   let print_constant k body =
-    let t =
-      match body.Declarations.const_type with
-      | Declarations.PolymorphicArity (ctx,a) -> Term.mkArity (ctx, Term.Type a.Declarations.poly_level)
-      | Declarations.NonPolymorphicType t -> t
-    in
+    let t = body.Declarations.const_type in
     print_kn k ++ str":" ++ spc() ++ Printer.pr_type t
   in
   let matches mp = match match_modulepath ns mp with
@@ -1332,7 +1328,7 @@ let vernac_check_may_eval redexp glopt rc =
   let j =
     try
       Evarutil.check_evars env sigma sigma' c;
-      Arguments_renaming.rename_typing env c
+      fst (Arguments_renaming.rename_typing env c) (* FIXME *)
     with P.PretypeError (_,_,P.UnsolvableImplicit _)
       | Loc.Exc_located (_,P.PretypeError (_,_,P.UnsolvableImplicit _)) ->
       Evarutil.j_nf_evar sigma' (Retyping.get_judgment_of env sigma' c) in

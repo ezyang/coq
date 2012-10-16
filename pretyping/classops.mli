@@ -51,9 +51,9 @@ val class_info : cl_typ -> (cl_index * cl_info_typ)
 val class_exists : cl_typ -> bool
 val class_info_from_index : cl_index -> cl_typ * cl_info_typ
 
-(** [find_class_type env sigma c] returns the head reference of [c] and its
-   arguments *)
-val find_class_type : evar_map -> types -> cl_typ * constr list
+(** [find_class_type env sigma c] returns the head reference of [c],
+    its universe instance and its arguments *)
+val find_class_type : evar_map -> types -> cl_typ * Univ.universe_list * constr list
 
 (** raises [Not_found] if not convertible to a class *)
 val class_of : env -> evar_map -> types -> types * cl_index

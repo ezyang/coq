@@ -76,10 +76,10 @@ let disc_subset x =
   match kind_of_term x with
   | App (c, l) ->
       (match kind_of_term c with
-       Ind i ->
+       Ind (i,_) ->
 	 let len = Array.length l in
 	 let sigty = delayed_force sig_typ in
-	   if Int.equal len 2 && eq_ind i (Term.destInd sigty)
+	   if Int.equal len 2 && eq_ind i (fst (Term.destInd sigty))
 	   then
 	     let (a, b) = pair_of_array l in
 	       Some (a, b)
@@ -193,15 +193,15 @@ and coerce loc env isevars (x : Term.constr) (y : Term.constr)
 
       | App (c, l), App (c', l') ->
 	  (match kind_of_term c, kind_of_term c' with
-	   Ind i, Ind i' -> (* Inductive types *)
+	   Ind (i, u), Ind (i', u') -> (* Inductive types *)
 	     let len = Array.length l in
 	     let sigT = delayed_force sigT_typ in
 	     let prod = delayed_force prod_typ in
 	       (* Sigma types *)
 	       if Int.equal len (Array.length l') && Int.equal len 2 && eq_ind i i'
-		 && (eq_ind i (Term.destInd sigT) || eq_ind i (Term.destInd prod))
+		 && (eq_ind i (fst (Term.destInd sigT)) || eq_ind i (fst (Term.destInd prod)))
 	       then
-		 if eq_ind i (Term.destInd sigT)
+		 if eq_ind i (fst (Term.destInd sigT))
 		 then
 		   begin
 		     let (a, pb), (a', pb') =

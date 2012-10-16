@@ -81,7 +81,7 @@ val unfold_side_red : reds
 val unfold_red : evaluable_global_reference -> reds
 
 (***********************************************************************)
-type table_key = (inv_rel_key, constant puniverses) tableKey
+type table_key = constant puniverses tableKey
 
 type 'a infos
 val ref_value_cache: 'a infos -> table_key -> 'a option

@@ -278,7 +278,7 @@ let gen_subst_mp f sub mp1 mp2 =
     | None, Some (mp',resolve) -> Canonical, (f mp1 mp'), resolve
     | Some (mp1',_), Some (mp2',resolve2) -> Canonical, (f mp1' mp2'), resolve2
 
-let subst_ind sub mind =
+let subst_mind sub mind =
   let kn1,kn2 = user_mind mind, canonical_mind mind in
   let mp1,dir,l = repr_kn kn1 in
   let mp2,_,_ = repr_kn kn2 in
@@ -290,30 +290,56 @@ let subst_ind sub mind =
       | Canonical -> mind_of_delta2 resolve mind'
   with No_subst -> mind
 
-let subst_con0 sub (con,u) =
+let subst_ind sub ((mind,i) as t) =
+  let mind' = subst_mind sub mind in
+    if mind' == mind then t
+    else (mind',i)
+
+let subst_pind sub (ind,u as t) =
+  let ind' = subst_ind sub ind in
+    if ind' == ind then t
+    else (ind',u)
+
+let subst_con0 sub con =
   let kn1,kn2 = user_con con,canonical_con con in
   let mp1,dir,l = repr_kn kn1 in
   let mp2,_,_ = repr_kn kn2 in
   let rebuild_con mp1 mp2 = make_con_equiv mp1 mp2 dir l in
-  let dup con = con, mkConstU (con,u) in
   let side,con',resolve = gen_subst_mp rebuild_con sub mp1 mp2 in
   match constant_of_delta_with_inline resolve con' with
     | Some t ->
       (* In case of inlining, discard the canonical part (cf #2608) *)
-      constant_of_kn (user_con con'), t
+      constant_of_kn (user_con con'), Some t
     | None ->
       let con'' = match side with
 	| User -> constant_of_delta resolve con'
 	| Canonical -> constant_of_delta2 resolve con'
       in
-      if con'' == con then raise No_subst else dup con''
+      if con'' == con then raise No_subst else con'', None
 
-let subst_con sub con =
-  try subst_con0 sub con
-  with No_subst -> fst con, mkConstU con
+let subst_con sub (con,u as conu) =
+  try let con', can = subst_con0 sub con in
+      let can = match can with None -> mkConstU (con',u) | Some t -> t in
+	con', can
+  with No_subst -> con, mkConstU conu
 
 let subst_con_kn sub con =
   subst_con sub (con,[])
+
+let subst_pcon sub (con,u as pcon) = 
+  try let con', can = subst_con0 sub con in 
+	con',u
+  with No_subst -> pcon
+
+let subst_pcon_term sub (con,u as pcon) = 
+  try let con', can = subst_con0 sub con in 
+      let can = match can with None -> mkConstU (con',u) | Some t -> t in
+	(con',u), can
+  with No_subst -> pcon, mkConstU pcon
+
+let subst_constant sub con =
+  try fst (subst_con0 sub con)
+  with No_subst -> con
 
 (* Here the semantics is completely unclear.
    What does "Hint Unfold t" means when "t" is a parameter?
@@ -322,7 +348,7 @@ let subst_con_kn sub con =
    interpretation (i.e. an evaluable reference is never expanded). *)
 let subst_evaluable_reference subst = function
   | EvalVarRef id -> EvalVarRef id
-  | EvalConstRef kn -> EvalConstRef (fst (subst_con_kn subst kn))
+  | EvalConstRef kn -> EvalConstRef (subst_constant subst kn)
 
 let rec map_kn f f' c =
   let func = map_kn f f' in
@@ -392,7 +418,7 @@ let rec map_kn f f' c =
 
 let subst_mps sub c =
   if is_empty_subst sub then c
-  else map_kn (subst_ind sub) (subst_con0 sub) c
+  else map_kn (subst_mind sub) (subst_con sub) c
 
 let rec replace_mp_in_mp mpfrom mpto mp =
   match mp with

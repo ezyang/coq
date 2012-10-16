@@ -41,9 +41,9 @@ let cache_one_scheme kind (ind,const) =
 let cache_scheme (_,(kind,l)) =
   Array.iter (cache_one_scheme kind) l
 
-let subst_one_scheme subst ((mind,i),const) =
+let subst_one_scheme subst (ind,const) =
   (* Remark: const is a def: the result of substitution is a constant *)
-  ((subst_ind subst mind,i),fst (subst_con subst const))
+  (subst_ind subst ind,subst_constant subst const)
 
 let subst_scheme (subst,(kind,l)) =
   (kind,Array.map (subst_one_scheme subst) l)
@@ -129,6 +129,7 @@ let define internal id c =
         const_entry_secctx = None;
         const_entry_type = None;
 	const_entry_polymorphic = true;
+	const_entry_universes = Univ.empty_universe_context;
         const_entry_opaque = false },
       Decl_kinds.IsDefinition Scheme) in
   (match internal with

@@ -360,7 +360,7 @@ let rec mk_refgoals sigma goal goalacc conclty trm =
 	let (acc',hdty,sigma,applicand) =
 	  match kind_of_term f with
 	    | Ind _ | Const _
-		when (isInd f or has_polymorphic_type (destConst f)) ->
+		when (isInd f or has_polymorphic_type (fst (destConst f))) ->
 		(* Sort-polymorphism of definition and inductive types *)
 		goalacc,
                 type_of_global_reference_knowing_conclusion env sigma f conclty,
@@ -551,7 +551,7 @@ let prim_refiner r sigma goal =
      	let rec mk_sign sign = function
 	  | (f,n,ar)::oth ->
 	      let (sp',_)  = check_ind env n ar in
-	      if not (eq_mind sp sp') then
+	      if not (eq_ind sp sp') then
 		error ("Fixpoints should be on the same " ^
 		       "mutual inductive declaration.");
 	      if !check && mem_named_context f (named_context_of_val sign) then

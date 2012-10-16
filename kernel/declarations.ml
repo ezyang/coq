@@ -81,6 +81,7 @@ type constant_body = {
     const_body : constant_def;
     const_type : constant_type;
     const_body_code : Cemitcodes.to_patch_substituted;
+    const_polymorphic : bool; (** Is it polymorphic or not *)
     const_universes : universe_context }
 
 let body_of_constant cb = match cb.const_body with
@@ -122,6 +123,7 @@ let subst_const_body sub cb = {
   const_body = subst_const_def sub cb.const_body;
   const_type = subst_const_type sub cb.const_type;
   const_body_code = Cemitcodes.subst_to_patch_subst sub cb.const_body_code;
+  const_polymorphic = cb.const_polymorphic;
   const_universes = cb.const_universes}
 
 (* Hash-consing of [constant_body] *)
@@ -170,9 +172,9 @@ let eq_recarg r1 r2 = match r1, r2 with
 
 let subst_recarg sub r = match r with
   | Norec -> r
-  | Mrec (kn,i) -> let kn' = subst_ind sub kn in
+  | Mrec (kn,i) -> let kn' = subst_mind sub kn in
       if kn==kn' then r else Mrec (kn',i)
-  | Imbr (kn,i) -> let kn' = subst_ind sub kn in
+  | Imbr (kn,i) -> let kn' = subst_mind sub kn in
       if kn==kn' then r else Imbr (kn',i)
 
 type wf_paths = recarg Rtree.t
@@ -226,9 +228,6 @@ type one_inductive_body = {
 
  (* Arity sort, original user arity *)
     mind_arity : inductive_arity;
-
- (* Local universe variables and constraints *)
-    mind_universes : universe_context;
 
  (* Names of the constructors: [cij] *)
     mind_consnames : Id.t array;
@@ -295,8 +294,12 @@ type mutual_inductive_body = {
   (* The context of parameters (includes let-in declaration) *)
     mind_params_ctxt : rel_context;
 
+  (* Is it polymorphic or not *)
+    mind_polymorphic : bool;
+
+  (* Local universe variables and constraints *)
   (* Universes constraints enforced by the inductive declaration *)
-    mind_constraints : constraints;
+    mind_universes : universe_context;
 
   }
 
@@ -311,9 +314,6 @@ let subst_mind_packet sub mbp =
     mind_nf_lc = Array.smartmap (subst_mps sub) mbp.mind_nf_lc;
     mind_arity_ctxt = subst_rel_context sub mbp.mind_arity_ctxt;
     mind_arity = subst_indarity sub mbp.mind_arity;
-    (* FIXME: Really? No need to substitute in universe levels?
-       copying mind_constraints below *)
-    mind_universes = mbp.mind_universes;
     mind_user_lc = Array.smartmap (subst_mps sub) mbp.mind_user_lc;
     mind_nrealargs = mbp.mind_nrealargs;
     mind_nrealargs_ctxt = mbp.mind_nrealargs_ctxt;
@@ -323,7 +323,7 @@ let subst_mind_packet sub mbp =
     mind_nb_args = mbp.mind_nb_args;
     mind_reloc_tbl = mbp.mind_reloc_tbl }
 
-let subst_mind sub mib =
+let subst_mind_body sub mib =
   { mind_record = mib.mind_record ;
     mind_finite = mib.mind_finite ;
     mind_ntypes = mib.mind_ntypes ;
@@ -333,7 +333,10 @@ let subst_mind sub mib =
     mind_params_ctxt =
       map_rel_context (subst_mps sub) mib.mind_params_ctxt;
     mind_packets = Array.smartmap (subst_mind_packet sub) mib.mind_packets ;
-    mind_constraints = mib.mind_constraints  }
+    mind_polymorphic = mib.mind_polymorphic;
+    (* FIXME: Really? No need to substitute in universe levels?
+       copying mind_constraints before *)
+    mind_universes = mib.mind_universes }
 
 let hcons_indarity a =
   { mind_user_arity = hcons_constr a.mind_user_arity;
@@ -352,7 +355,7 @@ let hcons_mind mib =
   { mib with
     mind_packets = Array.smartmap hcons_mind_packet mib.mind_packets;
     mind_params_ctxt = hcons_rel_context mib.mind_params_ctxt;
-    mind_constraints = hcons_constraints mib.mind_constraints }
+    mind_universes = hcons_universe_context mib.mind_universes }
 
 (*s Modules: signature component specifications, module types, and
   module declarations *)

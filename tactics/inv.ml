@@ -484,7 +484,7 @@ let wrap_inv_error id = function
 	(strbrk "Inversion would require case analysis on sort " ++
 	pr_sort k ++
 	strbrk " which is not allowed for inductive definition " ++
-	pr_inductive (Global.env()) i ++ str ".")
+	pr_inductive (Global.env()) (fst i) ++ str ".")
   | e -> raise e
 
 (* The most general inversion tactic *)

@@ -236,7 +236,7 @@ val retract_coercible_metas : evar_map -> metabinding list * evar_map
 val subst_defined_metas : metabinding list -> constr -> constr option
 
 (*********************************************************
-   Sort variables *)
+   Sort/universe variables *)
 
 val new_univ_variable : evar_map -> evar_map * Univ.universe
 val new_sort_variable : evar_map -> evar_map * sorts
@@ -245,6 +245,8 @@ val whd_sort_variable : evar_map -> constr -> constr
 val set_leq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
 
+val universe_context_set : evar_map -> Univ.universe_context_set
+val universe_context : evar_map -> Univ.universe_context
 (********************************************************************
    constr with holes *)
 type open_constr = evar_map * constr

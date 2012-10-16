@@ -202,6 +202,7 @@ let declare_projections indsp ?(kind=StructureComponent) ?name coers fieldimpls 
                     const_entry_secctx = None;
                     const_entry_type = Some projtyp;
 		    const_entry_polymorphic = true;
+		    const_entry_universes = Univ.empty_universe_context (* FIXME *);
                     const_entry_opaque = false } in
 		  let k = (DefinitionEntry cie,IsDefinition kind) in
 		  let kn = declare_constant ~internal:KernelSilent fid k in
@@ -267,7 +268,9 @@ let declare_structure finite infer id idbuild paramimpls params arity fieldimpls
     { mind_entry_params = List.map degenerate_decl params;
       mind_entry_record = true;
       mind_entry_finite = finite != CoFinite;
-      mind_entry_inds = [mie_ind] } in
+      mind_entry_inds = [mie_ind];
+      mind_entry_polymorphic = false (* FIXME *);
+      mind_entry_universes = Evd.universe_context sign } in
   let kn = Command.declare_mutual_inductive_with_eliminations KernelVerbose mie [(paramimpls,[])] in
   let rsp = (kn,0) in (* This is ind path of idstruc *)
   let cstr = (rsp,1) in
@@ -306,6 +309,7 @@ let declare_class finite def infer id idbuild paramimpls params arity fieldimpls
             const_entry_secctx = None;
 	    const_entry_type = class_type;
 	    const_entry_polymorphic = true;
+	    const_entry_universes = Evd.universe_context sign (* FIXME *);
 	    const_entry_opaque = false }
 	in
 	let cst = Declare.declare_constant (snd id)
@@ -319,6 +323,7 @@ let declare_class finite def infer id idbuild paramimpls params arity fieldimpls
             const_entry_secctx = None;
 	    const_entry_type = Some proj_type;
 	    const_entry_polymorphic = true;
+	    const_entry_universes = Evd.universe_context sign (* FIXME *);
 	    const_entry_opaque = false }
 	in
 	let proj_cst = Declare.declare_constant proj_name

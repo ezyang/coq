@@ -83,6 +83,7 @@ let interp_definition bl p red_option c ctypopt =
           const_entry_secctx = None;
 	  const_entry_type = None;
 	  const_entry_polymorphic = p;
+	  const_entry_universes = Evd.universe_context !evdref;
           const_entry_opaque = false }
     | Some ctyp ->
 	let ty, impsty = interp_type_evars_impls ~impls ~evdref ~fail_evar:false env_bl ctyp in
@@ -100,6 +101,7 @@ let interp_definition bl p red_option c ctypopt =
           const_entry_secctx = None;
 	  const_entry_type = Some typ;
 	  const_entry_polymorphic = p;
+	  const_entry_universes = Evd.universe_context !evdref;
           const_entry_opaque = false }
   in
   red_constant_entry (rel_context_length ctx) ce red_option, !evdref, imps
@@ -326,7 +328,9 @@ let interp_mutual_inductive (paramsl,indl) notations finite =
   { mind_entry_params = List.map prepare_param ctx_params;
     mind_entry_record = false;
     mind_entry_finite = finite;
-    mind_entry_inds = entries },
+    mind_entry_inds = entries;
+    mind_entry_polymorphic = true (*FIXME*);
+    mind_entry_universes = Evd.universe_context evd },
     impls
 
 (* Very syntactical equality *)
@@ -506,6 +510,7 @@ let declare_fix kind f def t imps =
     const_entry_secctx = None;
     const_entry_type = Some t;
     const_entry_polymorphic = false;
+    const_entry_universes = Univ.empty_universe_context (*FIXME *);
     const_entry_opaque = false }
   in
   let kn = declare_constant f (DefinitionEntry ce,IsDefinition kind) in
@@ -701,6 +706,7 @@ let build_wellfounded (recname,n,bl,arityc,body) r measure notation =
 	    const_entry_type = Some ty;
 	    (* FIXME *)
 	    const_entry_polymorphic = false;
+	    const_entry_universes = Evd.universe_context !isevars;
 	    const_entry_opaque = false }
 	in 
 	let c = Declare.declare_constant recname (DefinitionEntry ce, IsDefinition Definition) in

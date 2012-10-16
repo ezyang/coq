@@ -353,7 +353,7 @@ let rec subst_pat subst pat =
   match pat with
   | PatVar _ -> pat
   | PatCstr (loc,((kn,i),j),cpl,n) ->
-      let kn' = subst_ind subst kn
+      let kn' = subst_mind subst kn
       and cpl' = List.smartmap (subst_pat subst) cpl in
         if kn' == kn && cpl' == cpl then pat else
           PatCstr (loc,((kn',i),j),cpl',n)
@@ -409,7 +409,7 @@ let rec subst_notation_constr subst bound raw =
         (fun (a,(n,signopt) as x) ->
 	  let a' = subst_notation_constr subst bound a in
 	  let signopt' = Option.map (fun ((indkn,i),nal as z) ->
-	    let indkn' = subst_ind subst indkn in
+	    let indkn' = subst_mind subst indkn in
 	    if indkn == indkn' then z else ((indkn',i),nal)) signopt in
 	  if a' == a && signopt' == signopt then x else (a',(n,signopt')))
         rl

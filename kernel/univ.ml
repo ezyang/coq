@@ -83,6 +83,7 @@ let empty_universe_list = []
 let empty_universe_set = UniverseLSet.empty
 
 let compare_levels = UniverseLevel.compare
+let eq_levels = UniverseLevel.equal
 
 (* An algebraic universe [universe] is either a universe variable
    [UniverseLevel.t] or a formal universe known to be greater than some
@@ -605,19 +606,61 @@ module Constraint = Set.Make(
 
 type constraints = Constraint.t
 
+(** A value with universe constraints. *)
+type 'a constrained = 'a * constraints
+
+(** A list of universes with universe constraints,
+    representiong local universe variables and constraints *)
+type universe_context = universe_list constrained
+
+(** A set of universes with universe constraints.
+    We linearize the set to a list after typechecking. 
+    Beware, representation could change.
+*)
+type universe_context_set = universe_set constrained
+
+(** A value in a universe context (resp. context set). *)
+type 'a in_universe_context = 'a * universe_context
+type 'a in_universe_context_set = 'a * universe_context_set
+
+(** A universe substitution, note that no algebraic universes are
+    involved *)
+type universe_subst = (universe_level * universe_level) list
+
+(** Constraints *)
 let empty_constraint = Constraint.empty
 let is_empty_constraint = Constraint.is_empty
-
 let union_constraints = Constraint.union
 
-type universe_context = universe_list * constraints
+let constraints_of (_, cst) = cst
 
+(** Universe contexts (variables as a list) *)
 let empty_universe_context = ([], empty_constraint)
 let is_empty_universe_context (univs, cst) = 
   univs = [] && is_empty_constraint cst
 
-type universe_subst = (universe_level * universe_level) list
+(** Universe contexts (variables as a set) *)
+let empty_universe_context_set = (UniverseLSet.empty, empty_constraint)
+let is_empty_universe_context_set (univs, cst) = 
+  UniverseLSet.is_empty univs && is_empty_constraint cst
 
+let union_universe_context_set (univs, cst) (univs', cst') =
+  UniverseLSet.union univs univs', union_constraints cst cst'
+
+let add_constraints_ctx (univs, cst) cst' =
+  univs, union_constraints cst cst'
+
+let context_of_universe_context_set (ctx, cst) =
+  (UniverseLSet.elements ctx, cst)
+
+(** Substitutions. *)
+
+let make_universe_subst inst (ctx, csts) = 
+  try List.combine ctx inst
+  with Invalid_argument _ -> 
+    anomaly ("Mismatched instance and context when building universe substitution")
+
+(** Substitution functions *)
 let subst_univs_level subst l = 
   try List.assoc l subst
   with Not_found -> l
@@ -641,19 +684,11 @@ let subst_univs_constraints subst csts =
     (fun c -> Constraint.add (subst_univs_constraint subst c)) 
     csts Constraint.empty 
 
-(* Substitute instance inst for ctx in csts *)
-let make_universe_subst inst (ctx, csts) = List.combine ctx inst
+(** Substitute instance inst for ctx in csts *)
 let instantiate_univ_context subst (_, csts) = 
   subst_univs_constraints subst csts
 
-type universe_context_set = universe_set * constraints
-
-let empty_universe_context_set = (UniverseLSet.empty, empty_constraint)
-let is_empty_universe_context_set (univs, cst) = 
-  UniverseLSet.is_empty univs && is_empty_constraint cst
-
-let union_universe_context_set (univs, cst) (univs', cst') =
-  UniverseLSet.union univs univs', union_constraints cst cst'
+(** Constraint functions. *)
 
 type constraint_function =
     universe -> universe -> constraints -> constraints
@@ -680,6 +715,9 @@ let enforce_eq u v c =
 
 let merge_constraints c g =
   Constraint.fold enforce_constraint c g
+
+let check_consistent_constraints (ctx,cstrs) cstrs' =
+  (* TODO *) ()
 
 (* Normalization *)
 
@@ -895,6 +933,15 @@ let fresh_level =
 
 let fresh_local_univ () = Atom (fresh_level ())
 
+let fresh_universe_instance (ctx, _) =
+  List.map (fun _ -> fresh_level ()) ctx
+
+let fresh_instance_from_context (vars, cst as ctx) =
+  let inst = fresh_universe_instance ctx in
+  let subst = List.combine vars inst in
+  let constraints = instantiate_univ_context subst ctx in
+    (inst, subst), constraints
+
 (* Miscellaneous functions to remove or test local univ assumed to
    occur only in the le constraints *)
 
@@ -1005,6 +1052,15 @@ let pr_constraints c =
 		       | Eq -> " = "
 		     in pp_std ++  pr_uni_level u1 ++ str op_str ++
 			  pr_uni_level u2 ++ fnl () )  c (str "")
+
+let pr_universe_list l = 
+  prlist_with_sep spc pr_uni_level l
+let pr_universe_set s = 
+  str"{" ++ pr_universe_list (UniverseLSet.elements s) ++ str"}"
+let pr_universe_context (ctx, cst) =
+  pr_universe_list ctx ++ str " |= " ++ v 1 (pr_constraints cst)
+let pr_universe_context_set (ctx, cst) = 
+  pr_universe_set ctx ++ str " |= " ++ v 1 (pr_constraints cst)
 
 (* Dumping constraints to a file *)
 

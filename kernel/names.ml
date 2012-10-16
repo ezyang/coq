@@ -419,11 +419,11 @@ let debug_string_of_mind mind =
   "(" ^ string_of_kn (fst mind) ^ "," ^ string_of_kn (snd mind) ^ ")"
 let debug_pr_mind con = str (debug_string_of_mind con)
 
-let ith_mutual_inductive (kn, _) i = (kn, i)
-let ith_constructor_of_inductive ind i = (ind, i)
-let inductive_of_constructor (ind, i) = ind
-let index_of_constructor (ind, i) = i
-
+let ith_mutual_inductive (kn,_) i = (kn,i)
+let ith_constructor_of_inductive ind i = (ind,i)
+let ith_constructor_of_pinductive (ind,u) i = ((ind,i),u)
+let inductive_of_constructor (ind,i) = ind
+let index_of_constructor (ind,i) = i
 let eq_ind (kn1, i1) (kn2, i2) = Int.equal i1 i2 && eq_mind kn1 kn2
 
 let eq_constructor (kn1, i1) (kn2, i2) = Int.equal i1 i2 && eq_ind kn1 kn2
@@ -557,25 +557,26 @@ let full_transparent_state = (Id.Pred.full, Cpred.full)
 let var_full_transparent_state = (Id.Pred.full, Cpred.empty)
 let cst_full_transparent_state = (Id.Pred.empty, Cpred.full)
 
-type ('a,'b) tableKey =
-  | ConstKey of 'b
+type 'a tableKey =
+  | ConstKey of 'a
   | VarKey of Id.t
-  | RelKey of 'a
-
+  | RelKey of Int.t
 
 type inv_rel_key = int (* index in the [rel_context] part of environment
 			  starting by the end, {\em inverse}
 			  of de Bruijn indice *)
 
-type id_key = (inv_rel_key, constant) tableKey
+type id_key = constant tableKey
 
-let eq_id_key ik1 ik2 =
-  if ik1 == ik2 then true
-  else match ik1,ik2 with
-  | ConstKey (u1, kn1), ConstKey (u2, kn2) ->
-    let ans = Int.equal (kn_ord u1 u2) 0 in
+let eq_constant_key (u1, kn1) (u2, kn2) =
+  let ans = Int.equal (kn_ord u1 u2) 0 in
     if ans then Int.equal (kn_ord kn1 kn2) 0
     else ans
+
+let eq_table_key fn ik1 ik2 =
+  if ik1 == ik2 then true
+  else match ik1,ik2 with
+  | ConstKey ck1, ConstKey ck2 -> fn ck1 ck2
   | VarKey id1, VarKey id2 ->
     Int.equal (Id.compare id1 id2) 0
   | RelKey k1, RelKey k2 -> Int.equal k1 k2
@@ -649,3 +650,5 @@ let eq_label = Label.equal
 let name_eq = Name.equal
 
 (** / End of compatibility layer for [Name] *)
+
+let eq_id_key = eq_table_key eq_constant_key

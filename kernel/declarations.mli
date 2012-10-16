@@ -60,6 +60,7 @@ type constant_body = {
     const_body : constant_def;
     const_type : types;
     const_body_code : to_patch_substituted;
+    const_polymorphic : bool; (** Is it polymorphic or not *)
     const_universes : universe_context }
 
 val subst_const_def : substitution -> constant_def -> constant_def
@@ -118,8 +119,6 @@ type one_inductive_body = {
 
     mind_arity : inductive_arity; (** Arity sort and original user arity *)
 
-    mind_universes : universe_context; (** Local universe variables and constraints *)
-
     mind_consnames : Id.t array; (** Names of the constructors: [cij] *)
 
     mind_user_lc : types array;
@@ -170,11 +169,13 @@ type mutual_inductive_body = {
 
     mind_params_ctxt : rel_context;  (** The context of parameters (includes let-in declaration) *)
 
-    mind_constraints : constraints;  (** Universes constraints enforced by the inductive declaration *)
+    mind_polymorphic : bool; (** Is it polymorphic or not *)
+
+    mind_universes : universe_context; (** Local universe variables and constraints *)
 
   }
 
-val subst_mind : substitution -> mutual_inductive_body -> mutual_inductive_body
+val subst_mind_body : substitution -> mutual_inductive_body -> mutual_inductive_body
 
 (** {6 Modules: signature component specifications, module types, and
   module declarations } *)

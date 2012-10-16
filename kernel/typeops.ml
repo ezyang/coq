@@ -18,8 +18,6 @@ open Reduction
 open Inductive
 open Type_errors
 
-type constrained_unsafe_judgment = unsafe_judgment * Univ.constraints
-
 let conv_leq l2r = default_conv CUMUL ~l2r
 
 let conv_leq_vecti env v1 v2 =
@@ -32,6 +30,11 @@ let conv_leq_vecti env v1 v2 =
     empty_constraint
     v1
     v2
+
+let univ_check_constraints (ctx,univ) (x, cst) =
+  (* TODO: simply check inclusion of cst in ctx *)
+  let univ' = merge_constraints cst univ in
+    x, (ctx, univ')
 
 (* This should be a type (a priori without intension to be an assumption) *)
 let type_judgment env j =
@@ -127,11 +130,25 @@ let check_hyps id env hyps =
 (* Type of constants *)
 
 let type_of_constant env cst = constant_type env cst
+let type_of_constant_inenv env cst = constant_type_inenv env cst
+let type_of_constant_knowing_parameters env t _ = t
+
+let fresh_type_of_constant_body cb = 
+  let (univ, subst), cst = fresh_instance_from_context cb.const_universes in
+    subst_univs_constr subst cb.const_type, cst
+
+let fresh_type_of_constant env c = 
+  fresh_type_of_constant_body (lookup_constant c env)
+
+let fresh_constant_instance env c =
+  let cb = lookup_constant c env in
+  let (univ, subst), cst = fresh_instance_from_context cb.const_universes in
+    ((c, univ), cst)
 
 let judge_of_constant env cst =
   let c = mkConstU cst in
   let ty, cu = type_of_constant env cst in
-    make_judge c ty, cu
+    (make_judge c ty, cu)
 
 (* Type of a lambda-abstraction. *)
 
@@ -275,7 +292,7 @@ let judge_of_cast env cj k tj =
 let judge_of_inductive env ind =
   let c = mkIndU ind in
   let (mib,mip) = lookup_mind_specif env (fst ind) in
-  let t,u = Inductive.type_of_inductive env ((mib,mip),snd ind) in
+  let t,u = Inductive.constrained_type_of_inductive env ((mib,mip),snd ind) in
     make_judge c t, u
 
 
@@ -288,27 +305,27 @@ let judge_of_constructor env c =
     let mib = lookup_mind kn env in
     check_args env constr mib.mind_hyps in
   let specif = lookup_mind_specif env (inductive_of_constructor (fst c)) in
-  let t,u = type_of_constructor c specif in
+  let t,u = constrained_type_of_constructor c specif in
     make_judge constr t, u
 
 (* Case. *)
 
-let check_branch_types env ind cj (lfj,explft) =
+let check_branch_types env (ind,u) cj (lfj,explft) =
   try conv_leq_vecti env (Array.map j_type lfj) explft
   with
       NotConvertibleVect i ->
-        error_ill_formed_branch env cj.uj_val (ind,i+1) lfj.(i).uj_type explft.(i)
+        error_ill_formed_branch env cj.uj_val ((ind,i+1),u) lfj.(i).uj_type explft.(i)
     | Invalid_argument _ ->
         error_number_branches env cj (Array.length explft)
 
 let judge_of_case env ci pj cj lfj =
-  let ((ind, u), _ as indspec) =
+  let (pind, _ as indspec) =
     try find_rectype env cj.uj_type
     with Not_found -> error_case_not_inductive env cj in
-  let _ = check_case_info env ind ci in
+  let _ = check_case_info env pind ci in
   let (bty,rslty,univ) =
     type_case_branches env indspec pj cj.uj_val in
-  let univ' = check_branch_types env ind cj (lfj,bty) in
+  let univ' = check_branch_types env pind cj (lfj,bty) in
   ({ uj_val  = mkCase (ci, (*nf_betaiota*) pj.uj_val, cj.uj_val,
                        Array.map j_val lfj);
      uj_type = rslty },
@@ -359,7 +376,7 @@ let rec execute env cstr cu =
 	(judge_of_variable env id, cu)
 
     | Const c ->
-        univ_combinator_cst cu (judge_of_constant env c)
+      univ_check_constraints cu (judge_of_constant env c)
 
     (* Lambda calculus operators *)
     | App (f,args) ->
@@ -394,7 +411,7 @@ let rec execute env cstr cu =
         let (j1,cu1) = execute env c1 cu in
         let (j2,cu2) = execute_type env c2 cu1 in
         let (_,cu3) =
-	  univ_combinator_cst cu2 (judge_of_cast env j1 DEFAULTcast j2) in
+	  univ_check_constraints cu2 (judge_of_cast env j1 DEFAULTcast j2) in
         let env1 = push_rel (name,Some j1.uj_val,j2.utj_val) env in
         let (j',cu4) = execute env1 c3 cu3 in
         (judge_of_letin env name j1 j2 j', cu4)
@@ -455,44 +472,43 @@ and execute_recdef env (names,lar,vdef) i cu =
 and execute_array env = Array.fold_map' (execute env)
 
 (* Derived functions *)
-let infer env ctx constr =
-  let (j,(cst,_)) =
-    execute env constr (ctx, universes env) in
-  assert (eq_constr j.uj_val constr);
-  (j, cst)
+let infer env constr =
+  let univs = (empty_universe_context_set, universes env) in
+  let (j,(cst,_)) = execute env constr univs in
+    assert (eq_constr j.uj_val constr);
+    j, cst
 
-let infer_type env ctx constr =
-  let (j,(cst,_)) =
-    execute_type env constr (ctx, universes env) in
-  (j, cst)
+let infer_type env constr =
+  let univs = (empty_universe_context_set, universes env) in
+  let (j,(cst,_)) = execute_type env constr univs in
+    j, cst
 
-let infer_v env ctx cv =
-  let (jv,(cst,_)) =
-    execute_array env cv (ctx, universes env) in
-  (jv, cst)
+let infer_v env cv =
+  let univs = (empty_universe_context_set, universes env) in
+  let (jv,(cst,_)) = execute_array env cv univs in
+    jv, cst
 
 (* Typing of several terms. *)
 
-let infer_local_decl env ctx id = function
+let infer_local_decl env id = function
   | LocalDef c ->
-      let (j,cst) = infer env ctx c in
+      let j, cst = infer env c in
       (Name id, Some j.uj_val, j.uj_type), cst
   | LocalAssum c ->
-      let (j,cst) = infer env ctx c in
+      let j, cst = infer env c in
       (Name id, None, assumption_of_judgment env j), cst
 
-let infer_local_decls env ctx decls =
+let infer_local_decls env decls =
   let rec inferec env = function
   | (id, d) :: l ->
-      let env, l, cst1 = inferec env l in
-      let d, cst2 = infer_local_decl env ctx id d in
-      push_rel d env, add_rel_decl d l, union_universe_context_set cst1 cst2
-  | [] -> env, empty_rel_context, ctx in
+      let (env, l), ctx = inferec env l in
+      let d, ctx' = infer_local_decl env id d in
+	(push_rel d env, add_rel_decl d l), union_universe_context_set ctx' ctx
+  | [] -> (env, empty_rel_context), empty_universe_context_set in
   inferec env decls
 
 (* Exported typing functions *)
 
-let typing env ctx c =
-  let (j,ctx) = infer env ctx c in
-  let _ = add_constraints (snd ctx) env in
-  j, ctx
+let typing env c =
+  let j, cst = infer env c in
+    j, cst

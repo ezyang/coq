@@ -722,8 +722,8 @@ let fold_match ?(force=false) env sigma c =
       
 let unfold_match env sigma sk app =
   match kind_of_term app with
-  | App (f', args) when eq_constr f' (mkConst sk) ->
-      let v = Environ.constant_value (Global.env ()) sk in
+  | App (f', args) when eq_constant (fst (destConst f')) sk ->
+      let v = Environ.constant_value_inenv (Global.env ()) (sk,[])(*FIXME*) in
 	Reductionops.whd_beta sigma (mkApp (v, args))
   | _ -> app
 
@@ -1765,9 +1765,11 @@ let declare_projection n instance_id r =
       const_entry_secctx = None;
       const_entry_type = Some typ;
       const_entry_polymorphic = false;
+      const_entry_universes = Univ.empty_universe_context (* FIXME *);
       const_entry_opaque = false }
   in
-    ignore(Declare.declare_constant n (Entries.DefinitionEntry cst, Decl_kinds.IsDefinition Decl_kinds.Definition))
+    ignore(Declare.declare_constant n 
+	   (Entries.DefinitionEntry cst, Decl_kinds.IsDefinition Decl_kinds.Definition))
 
 let build_morphism_signature m =
   let env = Global.env () in

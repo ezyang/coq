@@ -308,7 +308,7 @@ let use_metas_pattern_unification flags nb l =
      Array.for_all (fun c -> isRel c && destRel c <= nb) l
 
 let expand_key env = function
-  | Some (ConstKey cst) -> constant_opt_value env cst
+  | Some (ConstKey cst) -> constant_opt_value_inenv env cst
   | Some (VarKey id) -> (try named_body id env with Not_found -> None)
   | Some (RelKey _) -> None
   | None -> None
@@ -319,14 +319,19 @@ let subterm_restriction is_subterm flags =
 let key_of b flags f =
   if subterm_restriction b flags then None else
   match kind_of_term f with
-  | Const cst when is_transparent (ConstKey cst) &&
+  | Const (cst,u) when is_transparent (ConstKey cst) &&
         Cpred.mem cst (snd flags.modulo_delta) ->
-      Some (ConstKey cst)
+      Some (ConstKey (cst,u))
   | Var id when is_transparent (VarKey id) &&
         Id.Pred.mem id (fst flags.modulo_delta) ->
       Some (VarKey id)
   | _ -> None
 
+let translate_key = function
+  | ConstKey (cst,u) -> ConstKey cst
+  | VarKey id -> VarKey id
+  | RelKey n -> RelKey n
+  
 let oracle_order env cf1 cf2 =
   match cf1 with
   | None ->
@@ -336,7 +341,7 @@ let oracle_order env cf1 cf2 =
   | Some k1 ->
       match cf2 with
       | None -> Some true
-      | Some k2 -> Some (Conv_oracle.oracle_order false k1 k2)
+      | Some k2 -> Some (Conv_oracle.oracle_order false (translate_key k1) (translate_key k2))
 
 let do_reduce ts (env, nb) sigma c =
   zip (whd_betaiota_deltazeta_for_iota_state ts env sigma (c, empty_stack))
@@ -774,7 +779,7 @@ let applyHead env evd n c  =
     
 let is_mimick_head ts f =
   match kind_of_term f with
-  | Const c -> not (Closure.is_transparent_constant ts c)
+  | Const (c,u) -> not (Closure.is_transparent_constant ts c)
   | Var id -> not (Closure.is_transparent_variable ts id)
   | (Rel _|Construct _|Ind _) -> true
   | _ -> false

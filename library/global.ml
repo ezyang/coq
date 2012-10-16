@@ -112,6 +112,7 @@ let pack_module () =
 let lookup_named id = lookup_named id (env())
 let lookup_constant kn = lookup_constant kn (env())
 let lookup_inductive ind = Inductive.lookup_mind_specif (env()) ind
+let lookup_pinductive (ind,_) = Inductive.lookup_mind_specif (env()) ind
 let lookup_mind kn = lookup_mind kn (env())
 
 let lookup_module mp = lookup_module mp (env())
@@ -155,16 +156,20 @@ let env_of_context hyps =
 
 open Globnames
 
-let type_of_reference env = function
-  | VarRef id -> Environ.named_type id env
-  | ConstRef c -> Typeops.type_of_constant env c
+(* FIXME we compute and forget constraints here *)
+let type_of_reference_full env = function
+  | VarRef id -> Environ.named_type id env, Univ.empty_constraint
+  | ConstRef c -> Typeops.fresh_type_of_constant env c
   | IndRef ind ->
      let specif = Inductive.lookup_mind_specif env ind in
-      Inductive.type_of_inductive env specif
+       Inductive.fresh_type_of_inductive env specif
   | ConstructRef cstr ->
      let specif =
       Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
-       Inductive.type_of_constructor cstr specif
+       Inductive.fresh_type_of_constructor cstr specif
+
+let type_of_reference env g =
+  fst (type_of_reference_full env g)
 
 let type_of_global t = type_of_reference (env ()) t
 

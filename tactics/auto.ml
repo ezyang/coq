@@ -1068,8 +1068,8 @@ let unify_resolve_gen = function
 let expand_constructor_hints env lems =
   List.map_append (fun (sigma,lem) ->
     match kind_of_term lem with
-    | Ind ind ->
-	List.tabulate (fun i -> mkConstruct (ind,i+1)) (nconstructors ind)
+    | Ind (ind,u) ->
+	List.tabulate (fun i -> mkConstructU ((ind,i+1),u)) (nconstructors ind)
     | _ ->
 	[prepare_hint env (sigma,lem)]) lems
 

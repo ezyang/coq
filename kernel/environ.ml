@@ -150,6 +150,24 @@ let fold_named_context f env ~init =
 let fold_named_context_reverse f ~init env =
   Sign.fold_named_context_reverse f ~init:init (named_context env)
 
+
+(* Universe constraints *)
+
+let add_constraints c env =
+  if is_empty_constraint c then
+    env
+  else
+    let s = env.env_stratification in
+    { env with env_stratification =
+      { s with env_universes = merge_constraints c s.env_universes } }
+
+let set_engagement c env = (* Unsafe *)
+  { env with env_stratification =
+    { env.env_stratification with env_engagement = Some c } }
+
+let push_constraints_to_env (_,univs) env =
+  add_constraints univs env
+
 (* Global constants *)
 
 let lookup_constant = lookup_constant
@@ -197,15 +215,17 @@ let constant_value_and_type env (kn, u) =
     | Undef _ -> None
   in b', subst_univs_constr subst cb.const_type, cst
 
-(* TODO remove *)
+(* These functions should be called under the invariant that [env] 
+   already contains the constraints corresponding to the constant 
+   application. *)
 
 (* constant_type gives the type of a constant *)
-let constant_type_unsafe env (kn,u) =
+let constant_type_inenv env (kn,u) =
   let cb = lookup_constant kn env in
   let subst = make_universe_subst u cb.const_universes in
     subst_univs_constr subst cb.const_type
 
-let constant_value_unsafe env (kn,u) =
+let constant_value_inenv env (kn,u) =
   let cb = lookup_constant kn env in
   match cb.const_body with
     | Def l_body -> 
@@ -214,12 +234,12 @@ let constant_value_unsafe env (kn,u) =
     | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
     | Undef _ -> raise (NotEvaluableConst NoBody)
 
-let constant_opt_value_unsafe env cst =
-  try Some (constant_value_unsafe env cst)
+let constant_opt_value_inenv env cst =
+  try Some (constant_value_inenv env cst)
   with NotEvaluableConst _ -> None
 
 (* A global const is evaluable if it is defined and not opaque *)
-let evaluable_constant (kn,_) env =
+let evaluable_constant kn env =
   let cb = lookup_constant kn env in
     match cb.const_body with
     | Def _ -> true
@@ -235,20 +255,6 @@ let add_mind kn mib env =
     { env.env_globals with
 	env_inductives = new_inds } in
   { env with env_globals = new_globals }
-
-(* Universe constraints *)
-
-let add_constraints c env =
-  if is_empty_constraint c then
-    env
-  else
-    let s = env.env_stratification in
-    { env with env_stratification =
-      { s with env_universes = merge_constraints c s.env_universes } }
-
-let set_engagement c env = (* Unsafe *)
-  { env with env_stratification =
-    { env.env_stratification with env_engagement = Some c } }
 
 (* Lookup of section variables *)
 let lookup_constant_variables c env =

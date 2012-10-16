@@ -157,7 +157,7 @@ let ifOnHyp pred tac1 tac2 id gl =
   the elimination. *)
 
 type branch_args = {
-  ity        : inductive;   (* the type we were eliminating on *)
+  ity        : pinductive;   (* the type we were eliminating on *)
   largs      : constr list; (* its arguments *)
   branchnum  : int;         (* the branch number *)
   pred       : constr;      (* the predicate we used *)
@@ -197,7 +197,7 @@ let compute_induction_names n = function
   | Some (loc,_) ->
       user_err_loc (loc,"",str "Disjunctive/conjunctive introduction pattern expected.")
 
-let compute_construtor_signatures isrec (_,k as ity) =
+let compute_construtor_signatures isrec ((_,k as ity),u) =
   let rec analrec c recargs =
     match kind_of_term c, recargs with
     | Prod (_,_,c), recarg::rest ->
@@ -248,7 +248,7 @@ let general_elim_then_using mk_elim
       | _ ->
 	  let name_elim =
 	    match kind_of_term elim with
-	      | Const kn -> string_of_con kn
+	      | Const (kn,_) -> string_of_con kn
 	      | Var id -> Id.to_string id
 	      | _ -> "\b"
 	  in
@@ -286,7 +286,7 @@ let general_elim_then_using mk_elim
 (* computing the case/elim combinators *)
 
 let gl_make_elim ind gl =
-  Indrec.lookup_eliminator ind (elimination_sort_of_goal gl)
+  Indrec.lookup_eliminator (fst ind) (elimination_sort_of_goal gl)
 
 let gl_make_case_dep ind gl =
   pf_apply Indrec.build_case_analysis_scheme gl ind true
@@ -297,7 +297,7 @@ let gl_make_case_nodep ind gl =
     (elimination_sort_of_goal gl)
 
 let elimination_then_using tac predicate bindings c gl =
-  let (ind,t) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
+  let ((ind,u),t) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
   let indclause  = mk_clenv_from gl (c,t) in
   let isrec,mkelim =
     if (Global.lookup_mind (fst ind)).mind_record
@@ -305,7 +305,7 @@ let elimination_then_using tac predicate bindings c gl =
     else true,gl_make_elim
   in
   general_elim_then_using mkelim isrec
-    None tac predicate bindings ind indclause gl
+    None tac predicate bindings (ind,u) indclause gl
 
 let case_then_using =
   general_elim_then_using gl_make_case_dep false
