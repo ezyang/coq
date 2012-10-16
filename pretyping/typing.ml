@@ -26,12 +26,12 @@ let meta_type evd mv =
 
 let constant_type_knowing_parameters env cst jl =
   let paramstyp = Array.map (fun j -> j.uj_type) jl in
-  type_of_constant_knowing_parameters env (constant_type env cst) paramstyp
+  type_of_constant_knowing_parameters env (constant_type_inenv env cst) paramstyp
 
-let inductive_type_knowing_parameters env ind jl =
-  let (mib,mip) = lookup_mind_specif env ind in
+let inductive_type_knowing_parameters env (ind,u) jl =
+  let mspec = lookup_mind_specif env ind in
   let paramstyp = Array.map (fun j -> j.uj_type) jl in
-  Inductive.type_of_inductive_knowing_parameters env mip paramstyp
+  Inductive.type_of_inductive_knowing_parameters env (mspec,u) paramstyp
 
 let e_type_judgment env evdref j =
   match kind_of_term (whd_betadeltaiota env !evdref j.uj_type) with
@@ -68,12 +68,12 @@ let e_judge_of_apply env evdref funj argjv =
   in
   apply_rec 1 funj.uj_type (Array.to_list argjv)
 
-let e_check_branch_types env evdref ind cj (lfj,explft) =
+let e_check_branch_types env evdref (ind,u) cj (lfj,explft) =
   if not (Int.equal (Array.length lfj) (Array.length explft)) then
     error_number_branches env cj (Array.length explft);
   for i = 0 to Array.length explft - 1 do
     if not (Evarconv.e_cumul env evdref lfj.(i).uj_type explft.(i)) then
-      error_ill_formed_branch env cj.uj_val (ind,i+1) lfj.(i).uj_type explft.(i)
+      error_ill_formed_branch env cj.uj_val ((ind,i+1),u) lfj.(i).uj_type explft.(i)
   done
 
 let max_sort l =
@@ -103,7 +103,7 @@ let e_is_correct_arity env evdref c pj ind specif params =
   srec env pj.uj_type (List.rev arsign)
 
 let e_type_case_branches env evdref (ind,largs) pj c =
-  let specif = lookup_mind_specif env ind in
+  let specif = lookup_mind_specif env (fst ind) in
   let nparams = inductive_params specif in
   let (params,realargs) = List.chop nparams largs in
   let p = pj.uj_val in
@@ -124,10 +124,11 @@ let e_judge_of_case env evdref ci pj cj lfj =
   { uj_val  = mkCase (ci, pj.uj_val, cj.uj_val, Array.map j_val lfj);
     uj_type = rslty }
 
+(* FIXME: might depend on the level of actual parameters!*)
 let check_allowed_sort env sigma ind c p =
   let pj = Retyping.get_judgment_of env sigma p in
   let ksort = family_of_sort (sort_of_arity env sigma pj.uj_type) in
-  let specif = Global.lookup_inductive ind in
+  let specif = Global.lookup_inductive (fst ind) in
   let sorts = elim_sorts specif in
   if not (List.exists ((==) ksort) sorts) then
     let s = inductive_sort_family (snd specif) in

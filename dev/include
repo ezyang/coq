@@ -33,6 +33,11 @@
 #install_printer  (* constr_substituted *) ppsconstr;; 
 #install_printer  (* universe *)  ppuni;;
 #install_printer  (* universes *)  ppuniverses;;
+#install_printer  (* univ level *) ppuni_level;;
+#install_printer  (* univ context *) ppuniverse_context;;
+#install_printer  (* univ context set *) ppuniverse_context_set;;
+#install_printer  (* univ list *) ppuniverse_list;;
+
 #install_printer  (* type_judgement *) pptype;;
 #install_printer  (* judgement *) ppj;;
 

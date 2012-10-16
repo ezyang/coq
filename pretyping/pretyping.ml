@@ -382,7 +382,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 	  match tycon with
 	  | None -> []
 	  | Some ty ->
-	      let (ind, i) = destConstruct fj.uj_val in
+	      let ((ind, i), u) = destConstruct fj.uj_val in
 	      let npars = inductive_nparams ind in
 	  	if Int.equal npars 0 then []
 	  	else
@@ -390,7 +390,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 	  	    (* Does not treat partially applied constructors. *)
 		    let ty = evd_comb1 (Coercion.inh_coerce_to_prod loc env) evdref ty in
 	  	    let IndType (indf, args) = find_rectype env !evdref ty in
-	  	    let (ind',pars) = dest_ind_family indf in
+	  	    let ((ind',u'),pars) = dest_ind_family indf in
 	  	      if eq_ind ind ind' then pars
 	  	      else (* Let the usual code throw an error *) []
 	  	  with Not_found -> []
@@ -432,7 +432,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
             let f = whd_evar !evdref f in
               begin match kind_of_term f with
               | Ind _ | Const _
-		    when isInd f or has_polymorphic_type (destConst f)
+		    when isInd f or has_polymorphic_type (fst (destConst f))
 		      ->
 	          let sigma =  !evdref in
 		  let c = mkApp (f,Array.map (whd_evar sigma) args) in
@@ -535,7 +535,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 		 let f = it_mkLambda_or_LetIn fj.uj_val fsign in
 		 let v =
 		   let ind,_ = dest_ind_family indf in
-		   let ci = make_case_info env ind LetStyle in
+		   let ci = make_case_info env (fst ind) LetStyle in
 		     Typing.check_allowed_sort env !evdref ind cj.uj_val p;
 		     mkCase (ci, p, cj.uj_val,[|f|]) in
 		   { uj_val = v; uj_type = substl (realargs@[cj.uj_val]) ccl }
@@ -555,7 +555,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 		 let p = it_mkLambda_or_LetIn (lift (nar+1) ccl) psign in
 		 let v =
 		   let ind,_ = dest_ind_family indf in
-		   let ci = make_case_info env ind LetStyle in
+		   let ci = make_case_info env (fst ind) LetStyle in
 		     Typing.check_allowed_sort env !evdref ind cj.uj_val p;
 		     mkCase (ci, p, cj.uj_val,[|f|])
 		 in { uj_val = v; uj_type = ccl })
@@ -619,7 +619,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 	let b2 = f cstrs.(1) b2 in
 	let v =
 	  let ind,_ = dest_ind_family indf in
-	  let ci = make_case_info env ind IfStyle in
+	  let ci = make_case_info env (fst ind) IfStyle in
 	  let pred = nf_evar !evdref pred in
 	    Typing.check_allowed_sort env !evdref ind cj.uj_val pred;
 	    mkCase (ci, pred, cj.uj_val, [|b1;b2|])

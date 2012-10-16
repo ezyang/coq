@@ -56,7 +56,7 @@ let retype ?(polyprop=true) sigma =
         let (_,_,ty) = lookup_rel n env in
         lift n ty
     | Var id -> type_of_var env id
-    | Const cst -> Typeops.type_of_constant env cst
+    | Const cst -> Typeops.type_of_constant_inenv env cst
     | Evar ev -> Evd.existential_type sigma ev
     | Ind ind -> type_of_inductive env ind
     | Construct cstr -> type_of_constructor env cstr
@@ -129,12 +129,12 @@ let retype ?(polyprop=true) sigma =
     let argtyps = Array.map (fun c -> nf_evar sigma (type_of env c)) args in
     match kind_of_term c with
     | Ind ind ->
-      let (_,mip) = lookup_mind_specif env ind in
+      let mip = lookup_mind_specif env (fst ind) in
 	(try Inductive.type_of_inductive_knowing_parameters
-	       ~polyprop env mip argtyps
+	       ~polyprop env (mip,snd ind) argtyps
 	 with Reduction.NotArity -> anomaly "type_of: Not an arity")
     | Const cst ->
-      let t = constant_type env cst in
+      let t = constant_type_inenv env cst in
 	(try Typeops.type_of_constant_knowing_parameters env t argtyps
 	 with Reduction.NotArity -> anomaly "type_of: Not an arity")
     | Var id -> type_of_var env id
@@ -154,11 +154,11 @@ let type_of_global_reference_knowing_parameters env sigma c args =
 let type_of_global_reference_knowing_conclusion env sigma c conclty =
   let conclty = nf_evar sigma conclty in
   match kind_of_term c with
-    | Ind ind ->
+    | Ind (ind,u) ->
         let (_,mip) = Inductive.lookup_mind_specif env ind in
         type_of_inductive_knowing_conclusion env mip conclty
     | Const cst ->
-        let t = constant_type env cst in
+        let t = constant_type_inenv env cst in
         (* TODO *)
         Typeops.type_of_constant_knowing_parameters env t [||]
     | Var id -> type_of_var env id

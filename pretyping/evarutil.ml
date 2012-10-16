@@ -834,9 +834,9 @@ let make_projectable_subst aliases sigma evi args =
 	    let cstrs =
 	      let a',args = decompose_app_vect a in
 	      match kind_of_term a' with
-	      | Construct cstr ->
+	      | Construct (cstr,u) ->
 		  let l = try Constrmap.find cstr cstrs with Not_found -> [] in
-		  Constrmap.add cstr ((args,id)::l) cstrs
+		  Constrmap.add cstr ((u,args,id)::l) cstrs
 	      | _ -> cstrs in
 	    (rest,Id.Map.add id [a,normalize_alias_opt aliases a,id] all,cstrs)
 	| Some c, a::rest ->
@@ -951,11 +951,12 @@ let find_projectable_constructor env evd cstr k args cstr_subst =
     let l = Constrmap.find cstr cstr_subst in
     let args = Array.map (lift (-k)) args in
     let l =
-      List.filter (fun (args',id) ->
+      List.filter (fun (u,args',id) ->
 	(* is_conv is maybe too strong (and source of useless computation) *)
 	(* (at least expansion of aliases is needed) *)
+	(* FIXME: check universes ? *)
 	Array.for_all2 (is_conv env evd) args args') l in
-    List.map snd l
+    List.map pi3 l
   with Not_found ->
     []
 
@@ -1366,7 +1367,7 @@ exception CannotProject of bool list option
 let rec is_constrainable_in k (ev,(fv_rels,fv_ids) as g) t =
   let f,args = decompose_app_vect t in
   match kind_of_term f with
-  | Construct (ind,_) ->
+  | Construct ((ind,_),u) ->
       let params,_ = Array.chop (Inductiveops.inductive_nparams ind) args in
       Array.for_all (is_constrainable_in k g) params
   | Ind _ -> Array.for_all (is_constrainable_in k g) args
@@ -1641,7 +1642,7 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
 	match
 	  let c,args = decompose_app_vect t in
 	  match kind_of_term c with
-	  | Construct cstr when noccur_between 1 k t ->
+	  | Construct (cstr,u) when noccur_between 1 k t ->
 	    (* This is common case when inferring the return clause of match *)
 	    (* (currently rudimentary: we do not treat the case of multiple *)
             (*  possible inversions; we do not treat overlap with a possible *)

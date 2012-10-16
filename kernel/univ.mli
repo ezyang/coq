@@ -72,6 +72,8 @@ val is_type0m_univ : universe -> bool
 val is_univ_variable : universe -> bool
 
 val universe_level : universe -> universe_level option
+val compare_levels : universe_level -> universe_level -> int
+val eq_levels : universe_level -> universe_level -> bool
 
 (** The type of a universe *)
 val super : universe -> universe
@@ -95,34 +97,71 @@ val is_initial_universes : universes -> bool
 
 type constraints
 
-val empty_constraint : constraints
-val union_constraints : constraints -> constraints -> constraints
+(** A value with universe constraints. *)
+type 'a constrained = 'a * constraints
 
-val is_empty_constraint : constraints -> bool
+(** A list of universes with universe constraints,
+    representiong local universe variables and constraints *)
+type universe_context = universe_list constrained
 
-(** Local variables and graph *)
-type universe_context = universe_list * constraints 
+(** A set of universes with universe constraints.
+    We linearize the set to a list after typechecking. 
+    Beware, representation could change.
+*)
+type universe_context_set = universe_set constrained
 
+(** A value in a universe context (resp. context set). *)
+type 'a in_universe_context = 'a * universe_context
+type 'a in_universe_context_set = 'a * universe_context_set
+
+(** A universe substitution, note that no algebraic universes are
+    involved *)
 type universe_subst = (universe_level * universe_level) list
 
-(** Make a universe level substitution. *)
-val make_universe_subst : universe_list -> universe_context -> universe_subst
+(** Constraints *)
+val empty_constraint : constraints
+val is_empty_constraint : constraints -> bool
+val union_constraints : constraints -> constraints -> constraints
 
-val subst_univs_level : universe_subst -> universe_level -> universe_level
-val subst_univs_universe : universe_subst -> universe -> universe
-val subst_univs_constraints : universe_subst -> constraints -> constraints
+(** Constrained *)
+val constraints_of : 'a constrained -> constraints
 
-val instantiate_univ_context : universe_subst -> universe_context -> constraints
+(** Universe contexts (as lists) *)
+val empty_universe_context : universe_context
+val is_empty_universe_context : universe_context -> bool
+val fresh_universe_instance : universe_context -> universe_list
 
-type universe_context_set = universe_set * constraints 
 
+(** Universe contexts (as sets) *)
 val empty_universe_context_set : universe_context_set
 val is_empty_universe_context_set : universe_context_set -> bool
 val union_universe_context_set : universe_context_set -> universe_context_set -> 
   universe_context_set
+val add_constraints_ctx : universe_context_set -> constraints -> universe_context_set
 
-val empty_universe_context : universe_context
-val is_empty_universe_context : universe_context -> bool
+
+(** Arbitrary choice of linear order of the variables 
+    and normalization of the constraints *)
+val context_of_universe_context_set : universe_context_set -> universe_context
+
+(** Make a universe level substitution: the list must match the context variables. *)
+val make_universe_subst : universe_list -> universe_context -> universe_subst
+
+(** Get the instantiated graph. *)
+val instantiate_univ_context : universe_subst -> universe_context -> constraints
+
+(** Build a fresh instance for a given context, its associated substitution and 
+    the instantiated constraints. *)
+val fresh_instance_from_context : universe_context -> 
+  (universe_list * universe_subst) constrained
+
+(** Substitution of universes. *)
+val subst_univs_level : universe_subst -> universe_level -> universe_level
+val subst_univs_universe : universe_subst -> universe -> universe
+val subst_univs_constraints : universe_subst -> constraints -> constraints
+
+(** Raises universe inconsistency if not compatible. *)
+val check_consistent_constraints : universe_context_set -> constraints -> unit
 
 type constraint_function = universe -> universe -> constraints -> constraints
 
@@ -182,6 +221,10 @@ val pr_uni_level : universe_level -> Pp.std_ppcmds
 val pr_uni : universe -> Pp.std_ppcmds
 val pr_universes : universes -> Pp.std_ppcmds
 val pr_constraints : constraints -> Pp.std_ppcmds
+val pr_universe_list : universe_list -> Pp.std_ppcmds
+val pr_universe_set : universe_set -> Pp.std_ppcmds
+val pr_universe_context : universe_context -> Pp.std_ppcmds
+val pr_universe_context_set : universe_context_set -> Pp.std_ppcmds
 
 (** {6 Dumping to a file } *)
 

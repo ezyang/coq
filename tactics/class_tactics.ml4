@@ -233,8 +233,8 @@ let make_resolve_hyp env sigma st flags only_classes pri (id, _, cty) =
   let rec iscl env ty = 
     let ctx, ar = decompose_prod_assum ty in
       match kind_of_term (fst (decompose_app ar)) with
-      | Const c -> is_class (ConstRef c)
-      | Ind i -> is_class (IndRef i)
+      | Const (c,u) -> is_class (ConstRef c)
+      | Ind (i,u) -> is_class (IndRef i)
       | _ -> 
 	  let env' = Environ.push_rel_context ctx env in
 	  let ty' = whd_betadeltaiota env' ar in

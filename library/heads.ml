@@ -80,7 +80,7 @@ let kind_of_head env t =
         match pi2 (lookup_named id env) with
         | Some c -> aux k l c b
         | None -> NotImmediatelyComputableHead)
-  | Const cst ->
+  | Const (cst,_) ->
       (try on_subterm k l b (constant_head cst)
        with Not_found -> assert false)
   | Construct _ | CoFix _ ->
@@ -125,9 +125,10 @@ let kind_of_head env t =
   | x -> x
   in aux 0 [] t false
 
+(* FIXME: maybe change interface here *)
 let compute_head = function
 | EvalConstRef cst ->
-    (match constant_opt_value (Global.env()) cst with
+    (match constant_opt_value_inenv (Global.env()) (cst,[]) with
      | None -> RigidHead (RigidParameter cst)
      | Some c -> kind_of_head (Global.env()) c)
 | EvalVarRef id ->
@@ -152,8 +153,8 @@ let cache_head o =
 
 let subst_head_approximation subst = function
   | RigidHead (RigidParameter cst) as k ->
-      let cst,c = subst_con subst cst in
-      if isConst c && eq_constant (destConst c) cst then
+      let cst,c = subst_con_kn subst cst in
+      if isConst c && eq_constant (fst (destConst c)) cst then
         (* A change of the prefix of the constant *)
         k
       else

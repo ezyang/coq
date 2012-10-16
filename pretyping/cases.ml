@@ -1143,7 +1143,7 @@ let build_leaf pb =
 let build_branch current realargs deps (realnames,curname) pb arsign eqns const_info =
   (* We remember that we descend through constructor C *)
   let history =
-    push_history_pattern const_info.cs_nargs const_info.cs_cstr pb.history in
+    push_history_pattern const_info.cs_nargs (fst const_info.cs_cstr) pb.history in
 
   (* We prepare the matching on x1:T1 .. xn:Tn using some heuristic to *)
   (* build the name x1..xn from the names present in the equations *)
@@ -1220,7 +1220,7 @@ let build_branch current realargs deps (realnames,curname) pb arsign eqns const_
       let cur_alias = lift const_info.cs_nargs current in
       let ind =
         appvect (
-          applist (mkInd (inductive_of_constructor const_info.cs_cstr),
+          applist (mkIndU (inductive_of_constructor (fst const_info.cs_cstr), snd const_info.cs_cstr),
                    List.map (lift const_info.cs_nargs) const_info.cs_params),
           const_info.cs_concl_realargs) in
       Alias (aliasname,cur_alias,(ci,ind)) in
@@ -1277,7 +1277,7 @@ and match_current pb tomatch =
 	let mind,_ = dest_ind_family indf in
 	let cstrs = get_constructors pb.env indf in
 	let arsign, _ = get_arity pb.env indf in
-	let eqns,onlydflt = group_equations pb mind current cstrs pb.mat in
+	let eqns,onlydflt = group_equations pb (fst mind) current cstrs pb.mat in
         let no_cstr = Int.equal (Array.length cstrs) 0 in
 	if (not no_cstr || not (List.is_empty pb.mat)) && onlydflt  then
 	  shift_problem tomatch pb
@@ -1297,7 +1297,7 @@ and match_current pb tomatch =
 	  let (pred,typ) =
 	    find_predicate pb.caseloc pb.env pb.evdref
 	      pred current indt (names,dep) tomatch in
-	  let ci = make_case_info pb.env mind pb.casestyle in
+	  let ci = make_case_info pb.env (fst mind) pb.casestyle in
 	  let pred = nf_betaiota !(pb.evdref) pred in
 	  let case = mkCase (ci,pred,current,brvals) in
 	  Typing.check_allowed_sort pb.env !(pb.evdref) mind current pred;
@@ -1565,9 +1565,9 @@ let build_inversion_problem loc env sigma tms t =
     PatVar (Loc.ghost,Name id), ((id,t)::subst, id::avoid) in
   let rec reveal_pattern t (subst,avoid as acc) =
     match kind_of_term (whd_betadeltaiota env sigma t) with
-    | Construct cstr -> PatCstr (Loc.ghost,cstr,[],Anonymous), acc
+    | Construct (cstr,u) -> PatCstr (Loc.ghost,cstr,[],Anonymous), acc
     | App (f,v) when isConstruct f ->
-	let cstr = destConstruct f in
+	let cstr,u = destConstruct f in
 	let n = constructor_nrealargs env cstr in
 	let l = List.lastn n (Array.to_list v) in
 	let l,acc = List.fold_map' reveal_pattern l acc in
@@ -1688,7 +1688,7 @@ let extract_arity_signature ?(dolift=true) env0 tomatchl tmsign =
 	    str"Unexpected type annotation for a term of non inductive type."))
       | IsInd (term,IndType(indf,realargs),_) ->
           let indf' = if dolift then lift_inductive_family n indf else indf in
-	  let (ind,_) = dest_ind_family indf' in
+	  let ((ind,u),_) = dest_ind_family indf' in
 	  let nparams_ctxt,nrealargs_ctxt = inductive_nargs_env env0 ind in
 	  let arsign = fst (get_arity env0 indf') in
 	  let realnal =
@@ -1877,7 +1877,7 @@ let constr_of_pat env isevars arsign pat avoid =
 	  with Not_found -> error_case_not_inductive env 
 	    {uj_val = ty; uj_type = Typing.type_of env !isevars ty}
 	in
-	let ind, params = dest_ind_family indf in
+	let (ind,u), params = dest_ind_family indf in
 	if not (eq_ind ind cind) then error_bad_constructor_loc l cstr ind;
 	let cstrs = get_constructors env indf in
 	let ci = cstrs.(i-1) in
@@ -1898,7 +1898,7 @@ let constr_of_pat env isevars arsign pat avoid =
 	let args = List.rev args in
 	let patargs = List.rev patargs in
 	let pat' = PatCstr (l, cstr, patargs, alias) in
-	let cstr = mkConstruct ci.cs_cstr in
+	let cstr = mkConstructU ci.cs_cstr in
 	let app = applistc cstr (List.map (lift (List.length sign)) params) in
 	let app = applistc app args in
 	let apptype = Retyping.get_type_of env ( !isevars) app in

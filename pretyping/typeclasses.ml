@@ -156,7 +156,7 @@ let load_class (_, cl) =
 let cache_class = load_class
 
 let subst_class (subst,cl) =
-  let do_subst_con c = fst (Mod_subst.subst_con subst c)
+  let do_subst_con c = Mod_subst.subst_constant subst c
   and do_subst c = Mod_subst.subst_mps subst c
   and do_subst_gr gr = fst (subst_global subst gr) in
   let do_subst_ctx ctx = List.smartmap
@@ -165,7 +165,8 @@ let subst_class (subst,cl) =
   let do_subst_context (grs,ctx) =
     List.smartmap (Option.smartmap (fun (gr,b) -> do_subst_gr gr, b)) grs,
     do_subst_ctx ctx in
-  let do_subst_projs projs = List.smartmap (fun (x, y, z) -> (x, y, Option.smartmap do_subst_con z)) projs in
+  let do_subst_projs projs = List.smartmap (fun (x, y, z) -> 
+    (x, y, Option.smartmap do_subst_con z)) projs in
   { cl_impl = do_subst_gr cl.cl_impl;
     cl_context = do_subst_context cl.cl_context;
     cl_props = do_subst_ctx cl.cl_props;
@@ -388,9 +389,9 @@ let add_class cl =
 
 
 open Declarations
-
+(* FIXME: deal with universe instances *)
 let add_constant_class cst =
-  let ty = Typeops.type_of_constant (Global.env ()) cst in
+  let ty = Typeops.type_of_constant_inenv (Global.env ()) (cst,[]) in
   let ctx, arity = decompose_prod_assum ty in
   let tc = 
     { cl_impl = ConstRef cst;
@@ -407,7 +408,7 @@ let add_inductive_class ind =
     let ctx = oneind.mind_arity_ctxt in
     let ty = Inductive.type_of_inductive_knowing_parameters
       (push_rel_context ctx (Global.env ()))
-	  oneind (Termops.extended_rel_vect 0 ctx)
+        ((mind,oneind),[]) (Termops.extended_rel_vect 0 ctx)
     in
       { cl_impl = IndRef ind;
 	cl_context = List.map (const None) ctx, ctx;

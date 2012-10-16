@@ -244,14 +244,14 @@ let find_elim hdcncl lft2rgt dep cls args gl =
     || Flags.version_less_or_equal Flags.V8_2
   then
     match kind_of_term hdcncl with 
-      | Ind ind_sp -> 
+      | Ind (ind_sp,u) -> 
 	let pr1 = 
 	  lookup_eliminator ind_sp (elimination_sort_of_clause cls gl) 
 	in
         begin match lft2rgt, cls with
         | Some true, None
         | Some false, Some _ ->
-	  let c1 = destConst pr1 in 
+	  let c1,u = destConst pr1 in 
 	  let mp,dp,l = repr_con (constant_of_kn (canonical_con c1)) in 
 	  let l' = Label.of_id (add_suffix (Label.to_id l) "_r")  in 
 	  let c1' = Global.constant_of_delta_kn (make_kn mp dp l') in
@@ -283,7 +283,7 @@ let find_elim hdcncl lft2rgt dep cls args gl =
     | true, _, false -> rew_r2l_forward_dep_scheme_kind
   in
   match kind_of_term hdcncl with
-  | Ind ind -> mkConst (find_scheme scheme_name ind)
+  | Ind (ind,u) -> mkConst (find_scheme scheme_name ind)
   | _ -> assert false
 
 let type_of_clause gl = function
@@ -532,8 +532,7 @@ let find_positions env sigma t1 t2 =
     let hd1,args1 = whd_betadeltaiota_stack env sigma t1 in
     let hd2,args2 = whd_betadeltaiota_stack env sigma t2 in
     match (kind_of_term hd1, kind_of_term hd2) with
-
-      | Construct sp1, Construct sp2
+      | Construct (sp1,_), Construct (sp2,_)
           when Int.equal (List.length args1) (mis_constructor_nargs_env env sp1)
             ->
 	  let sorts = List.intersect sorts (allowed_sorts env (fst sp1)) in
@@ -644,7 +643,7 @@ let descend_then sigma env head dirn =
     try find_rectype env sigma (get_type_of env sigma head)
     with Not_found ->
       error "Cannot project on an inductive type derived from a dependency." in
-   let ind,_ = dest_ind_family indf in
+  let (ind,_),_ = dest_ind_family indf in
   let (mib,mip) = lookup_mind_specif env ind in
   let cstr = get_constructors env indf in
   let dirn_nlams = cstr.(dirn-1).cs_nargs in
@@ -693,7 +692,7 @@ let construct_discriminator sigma env dirn c sort =
       errorlabstrm "Equality.construct_discriminator"
 	(str "Cannot discriminate on inductive constructors with \
 		 dependent types.") in
-  let (ind,_) = dest_ind_family indf in
+  let ((ind,_),_) = dest_ind_family indf in
   let (mib,mip) = lookup_mind_specif env ind in
   let (true_0,false_0,sort_0) = build_coq_True(),build_coq_False(),Prop Null in
   let deparsign = make_arity_signature env true indf in
@@ -742,13 +741,13 @@ let gen_absurdity id gl =
 *)
 
 let ind_scheme_of_eq lbeq =
-  let (mib,mip) = Global.lookup_inductive (destInd lbeq.eq) in
+  let (mib,mip) = Global.lookup_pinductive (destInd lbeq.eq) in
   let kind = inductive_sort_family mip in
   (* use ind rather than case by compatibility *)
   let kind =
     if kind == InProp then Elimschemes.ind_scheme_kind_from_prop
     else Elimschemes.ind_scheme_kind_from_type in
-  mkConst (find_scheme kind (destInd lbeq.eq))
+  mkConst (find_scheme kind (fst (destInd lbeq.eq)))
 
 
 let discrimination_pf e (t,t1,t2) discriminator lbeq =
@@ -1136,8 +1135,8 @@ let injEq ipats (eq,_,(t,t1,t2) as u) eq_clause =
 (* if yes, check if the user has declared the dec principle *)
 (* and compare the fst arguments of the dep pair *)
         let new_eq_args = [|type_of env sigma (ar1.(3));ar1.(3);ar2.(3)|] in
-        if ( (eq_constr eqTypeDest (sigTconstr())) &&
-             (Ind_tables.check_scheme (!eq_dec_scheme_kind_name()) ind) &&
+        if ((eq_constr eqTypeDest (sigTconstr())) &&
+             (Ind_tables.check_scheme (!eq_dec_scheme_kind_name()) (fst ind)) &&
              (is_conv env sigma (ar1.(2)) (ar2.(2))))
               then (
 (* Require Import Eqdec_dec copied from vernac_require in vernacentries.ml*)
@@ -1148,7 +1147,7 @@ let injEq ipats (eq,_,(t,t1,t2) as u) eq_clause =
               tclTHENS (cut (mkApp (ceq,new_eq_args)) )
                [tclIDTAC; tclTHEN (apply (
                   mkApp(inj2,
-                        [|ar1.(0);mkConst (find_scheme (!eq_dec_scheme_kind_name()) ind);
+                        [|ar1.(0);mkConst (find_scheme (!eq_dec_scheme_kind_name()) (fst ind));
                           ar1.(1);ar1.(2);ar1.(3);ar2.(3)|])
                   )) (Auto.trivial [] [])
                 ]

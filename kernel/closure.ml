@@ -206,18 +206,22 @@ let unfold_red kn =
  * instantiations (cbv or lazy) are.
  *)
 
-type table_key = (inv_rel_key, constant puniverses) tableKey
+type table_key = constant puniverses tableKey
 
+
+let eq_pconstant (c,_) (c',_) =
+  eq_constant c c'
+  
 module IdKeyHash =
 struct
-  type t = id_key
-  let equal = Names.eq_id_key
+  type t = table_key
+  let equal = Names.eq_table_key eq_pconstant
   let hash = Hashtbl.hash
 end
 
 module KeyTable = Hashtbl.Make(IdKeyHash)
 
-let eq_table_key = Names.eq_id_key
+let eq_table_key = IdKeyHash.equal
 
 type 'a infos = {
   i_flags : reds;
@@ -246,7 +250,7 @@ let ref_value_cache info ref =
             | Some t -> lift n t
             end
 	| VarKey id -> List.assoc id info.i_vars
-	| ConstKey cst -> constant_value_unsafe info.i_env cst
+	| ConstKey cst -> constant_value_inenv info.i_env cst
     in
     let v = info.i_repr info body in
     KeyTable.add info.i_tab ref v;

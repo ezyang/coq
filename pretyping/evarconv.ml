@@ -41,9 +41,9 @@ let not_purely_applicative_stack args =
 
 let eval_flexible_term ts env c =
   match kind_of_term c with
-  | Const c ->
+  | Const (c,u as cu) ->
       if is_transparent_constant ts c
-      then constant_opt_value env c
+      then constant_opt_value_inenv env cu
       else None
   | Rel n ->
       (try let (_,v,_) = lookup_rel n env in Option.map (lift n) v
@@ -218,6 +218,10 @@ let ise_stack2 no_app env evd f sk1 sk2 =
 (* Make sure that the matching suffix is the all stack *)
 let exact_ise_stack2 env evd f sk1 sk2 =
   match ise_stack2 false env evd f sk1 sk2 with | None, out -> out | _ -> (evd, false)
+
+let eq_puniverses f (x,u) (y,v) = 
+  if f x y then try List.for_all2 Univ.eq_levels u v with _ -> false
+  else false
 
 let rec evar_conv_x ts env evd pbty term1 term2 =
   let term1 = whd_head_evar evd term1 in
@@ -478,12 +482,12 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	         evar_conv_x ts (push_rel (n,None,c) env) i pbty c'1 c'2)]
 
 	| Ind sp1, Ind sp2 ->
-	    if eq_ind sp1 sp2 then
+	    if eq_puniverses eq_ind sp1 sp2 then
               exact_ise_stack2 env evd (evar_conv_x ts) sk1 sk2
             else (evd, false)
 
 	| Construct sp1, Construct sp2 ->
-	    if eq_constructor sp1 sp2 then
+	    if eq_puniverses eq_constructor sp1 sp2 then
               exact_ise_stack2 env evd (evar_conv_x ts) sk1 sk2
             else (evd, false)
 

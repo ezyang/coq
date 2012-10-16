@@ -69,7 +69,7 @@ let find_mutually_recursive_statements thms =
       | Some (Some (_,id),CStructRec) ->
           let i,b,typ = lookup_rel_id id hyps in
           (match kind_of_term t with
-          | Ind (kn,_ as ind) when
+          | Ind ((kn,_ as ind), u) when
               let mind = Global.lookup_mind kn in
               mind.mind_finite && Option.is_empty b ->
               [ind,x,i],[]
@@ -86,7 +86,7 @@ let find_mutually_recursive_statements thms =
       let ind_hyps =
         List.flatten (List.map_i (fun i (_,b,t) ->
           match kind_of_term t with
-          | Ind (kn,_ as ind) when
+          | Ind ((kn,_ as ind),u) when
                 let mind = Global.lookup_mind kn in
                 mind.mind_finite && Option.is_empty b ->
               [ind,x,i]
@@ -96,7 +96,7 @@ let find_mutually_recursive_statements thms =
         let cclenv = push_rel_context hyps (Global.env()) in
         let whnf_ccl,_ = whd_betadeltaiota_stack cclenv Evd.empty ccl in
         match kind_of_term whnf_ccl with
-        | Ind (kn,_ as ind) when
+        | Ind ((kn,_ as ind),u) when
               let mind = Global.lookup_mind kn in
               Int.equal mind.mind_ntypes n && not mind.mind_finite ->
             [ind,x,0]
@@ -221,6 +221,7 @@ let save_remaining_recthms (local,p,kind) body opaq i (id,(t_i,(_,imps))) =
               const_entry_secctx = None;
               const_entry_type = Some t_i;
 	      const_entry_polymorphic = p;
+	      const_entry_universes = Univ.empty_universe_context;
               const_entry_opaque = opaq } in
           let kn = declare_constant id (DefinitionEntry const, k) in
           (Global,ConstRef kn,imps)

@@ -162,7 +162,7 @@ let is_flexible_reference env bound depth f =
     | Rel n when n >= bound+depth -> (* inductive type *) false
     | Rel n when n >= depth -> (* previous argument *) true
     | Rel n -> (* since local definitions have been expanded *) false
-    | Const kn ->
+    | Const (kn,_) ->
         let cb = Environ.lookup_constant kn env in
 	(match cb.const_body with Def _ -> true | _ -> false)
     | Var id ->
@@ -392,7 +392,7 @@ let compute_semi_auto_implicits env f manual t =
 
 let compute_constant_implicits flags manual cst =
   let env = Global.env () in
-  compute_semi_auto_implicits env flags manual (Typeops.type_of_constant env cst)
+  compute_semi_auto_implicits env flags manual (Typeops.type_of_constant_inenv env cst)
 
 (*s Inductives and constructors. Their implicit arguments are stored
    in an array, indexed by the inductive number, of pairs $(i,v)$ where
@@ -406,12 +406,13 @@ let compute_mib_implicits flags manual kn =
     Array.to_list
       (Array.map  (* No need to lift, arities contain no de Bruijn *)
         (fun mip ->
-	  (Name mip.mind_typename, None, type_of_inductive env (mib,mip)))
+	  (** No need to care about constraints here *)
+	  (Name mip.mind_typename, None, fst (fresh_type_of_inductive env (mib,mip))))
         mib.mind_packets) in
   let env_ar = push_rel_context ar env in
   let imps_one_inductive i mip =
     let ind = (kn,i) in
-    let ar = type_of_inductive env (mib,mip) in
+    let ar = fst (fresh_type_of_inductive env ((mib,mip))) in
     ((IndRef ind,compute_semi_auto_implicits env flags manual ar),
      Array.mapi (fun j c ->
        (ConstructRef (ind,j+1),compute_semi_auto_implicits env_ar flags manual c))
@@ -435,7 +436,7 @@ let compute_var_implicits flags manual id =
 
 let compute_global_implicits flags manual = function
   | VarRef id -> compute_var_implicits flags manual id
-  | ConstRef kn -> compute_constant_implicits flags manual kn
+  | ConstRef kn -> compute_constant_implicits flags manual (kn,[])
   | IndRef (kn,i) ->
       let ((_,imps),_) = (compute_mib_implicits flags manual kn).(i) in imps
   | ConstructRef ((kn,i),j) ->
@@ -553,7 +554,7 @@ let rebuild_implicits (req,l) =
   | ImplLocal -> assert false
   | ImplConstant (con,flags) ->
       let oldimpls = snd (List.hd l) in
-      let newimpls = compute_constant_implicits flags [] con in
+      let newimpls = compute_constant_implicits flags [] (con,[]) in
       req, [ConstRef con, List.map2 merge_impls oldimpls newimpls]
   | ImplMutualInductive (kn,flags) ->
       let newimpls = compute_all_mib_implicits flags [] kn in

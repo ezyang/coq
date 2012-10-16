@@ -33,6 +33,10 @@ let pr_name = function
 
 let pr_con sp = str(string_of_con sp)
 
+let pr_puniverses p u = 
+  if u = [] then p 
+  else p ++ str"(*" ++ prlist_with_sep spc Univ.pr_uni_level u ++ str"*)"
+
 let rec pr_constr c = match kind_of_term c with
   | Rel n -> str "#"++int n
   | Meta n -> str "Meta(" ++ int n ++ str ")"
@@ -60,10 +64,10 @@ let rec pr_constr c = match kind_of_term c with
   | Evar (e,l) -> hov 1
       (str"Evar#" ++ int e ++ str"{" ++
        prlist_with_sep spc pr_constr (Array.to_list l) ++str"}")
-  | Const c -> str"Cst(" ++ pr_con c ++ str")"
-  | Ind (sp,i) -> str"Ind(" ++ pr_mind sp ++ str"," ++ int i ++ str")"
-  | Construct ((sp,i),j) ->
-      str"Constr(" ++ pr_mind sp ++ str"," ++ int i ++ str"," ++ int j ++ str")"
+  | Const (c,u) -> str"Cst(" ++ pr_puniverses (pr_con c) u ++ str")"
+  | Ind ((sp,i),u) -> str"Ind(" ++ pr_puniverses (pr_mind sp ++ str"," ++ int i) u ++ str")"
+  | Construct (((sp,i),j),u) ->
+      str"Constr(" ++ pr_puniverses (pr_mind sp ++ str"," ++ int i ++ str"," ++ int j) u ++ str")"
   | Case (ci,p,c,bl) -> v 0
       (hv 0 (str"<"++pr_constr p++str">"++ cut() ++ str"Case " ++
              pr_constr c ++ str"of") ++ cut() ++
@@ -514,6 +518,13 @@ let occur_meta_or_existential c =
     | _ -> iter_constr occrec c
   in try occrec c; false with Occur -> true
 
+let occur_const s c =
+  let rec occur_rec c = match kind_of_term c with
+    | Const (sp,_) when sp=s -> raise Occur
+    | _ -> iter_constr occur_rec c
+  in
+  try occur_rec c; false with Occur -> true
+
 let occur_evar n c =
   let rec occur_rec c = match kind_of_term c with
     | Evar (sp,_) when Int.equal sp n -> raise Occur
@@ -877,10 +888,7 @@ let isGlobalRef c =
   | Const _ | Ind _ | Construct _ | Var _ -> true
   | _ -> false
 
-let has_polymorphic_type c =
-  match (Global.lookup_constant c).Declarations.const_type with
-  | Declarations.PolymorphicArity _ -> true
-  | _ -> false
+let has_polymorphic_type c = (Global.lookup_constant c).Declarations.const_polymorphic
 
 let base_sort_cmp pb s0 s1 =
   match (s0,s1) with

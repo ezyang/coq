@@ -63,11 +63,11 @@ let type_constructor mind mib typ params =
 
 
 let construct_of_constr const env tag typ =
-  let (mind,_ as ind), allargs = find_rectype_a env typ in
+  let ((mind,_ as ind), u) as indu, allargs = find_rectype_a env typ in
   (* spiwack : here be a branch for specific decompilation handled by retroknowledge *)
   try
     if const then
-      ((retroknowledge Retroknowledge.get_vm_decompile_constant_info env (Ind ind) tag),
+      ((retroknowledge Retroknowledge.get_vm_decompile_constant_info env (Ind indu) tag),
        typ) (*spiwack: this may need to be changed in case there are parameters in the
 	               type which may cause a constant value to have an arity.
 	               (type_constructor seems to be all about parameters actually)
@@ -88,10 +88,11 @@ let construct_of_constr_const env tag typ =
 
 let construct_of_constr_block = construct_of_constr false
 
+(* FIXME: treatment of universes *)
 let constr_type_of_idkey env idkey =
   match idkey with
   | ConstKey cst ->
-      mkConst cst, Typeops.type_of_constant env cst
+      mkConst cst, fst (Typeops.fresh_type_of_constant env cst)
   | VarKey id ->
       let (_,_,ty) = lookup_named id env in
       mkVar id, ty
@@ -101,7 +102,7 @@ let constr_type_of_idkey env idkey =
       mkRel n, lift n ty
 
 let type_of_ind env ind =
-  type_of_inductive env (Inductive.lookup_mind_specif env ind)
+  fst (fresh_type_of_inductive env (Inductive.lookup_mind_specif env ind))
 
 let build_branches_type env (mind,_ as _ind) mib mip params dep p =
   let rtbl = mip.mind_reloc_tbl in
@@ -110,7 +111,7 @@ let build_branches_type env (mind,_ as _ind) mib mip params dep p =
   let build_one_branch i cty =
     let typi = type_constructor mind mib cty params in
     let decl,indapp = decompose_prod_assum typi in
-    let ind,cargs = find_rectype_a env indapp in
+    let ((ind,u),cargs) = find_rectype_a env indapp in
     let nparams = Array.length params in
     let carity = snd (rtbl.(i)) in
     let crealargs = Array.sub cargs nparams (Array.length cargs - nparams) in
@@ -179,7 +180,7 @@ and nf_stk env c t stk  =
       let _,_,codom = try decompose_prod env typ with _ -> exit 120 in
       nf_stk env (mkApp(fa,[|c|])) (subst1 c codom) stk
   | Zswitch sw :: stk ->
-      let (mind,_ as ind),allargs = find_rectype_a env t in
+      let ((mind,_ as ind), u), allargs = find_rectype_a env t in
       let (mib,mip) = Inductive.lookup_mind_specif env ind in
       let nparams = mib.mind_nparams in
       let params,realargs = Util.Array.chop nparams allargs in

@@ -121,6 +121,7 @@ let define id internal c t =
         const_entry_secctx = None;
         const_entry_type = t;
 	const_entry_polymorphic = true;
+	const_entry_universes = Univ.empty_universe_context; (* FIXME *)
         const_entry_opaque = false },
       Decl_kinds.IsDefinition Scheme) in
   definition_message id;
@@ -289,6 +290,7 @@ let declare_sym_scheme ind =
 
 (* Scheme command *)
 
+let smart_global_inductive y = smart_global_inductive y
 let rec split_scheme l =
  let env = Global.env() in
  match l with
@@ -346,7 +348,7 @@ let do_mutual_induction_scheme lnamedepindsort =
   and env0 = Global.env() in
   let lrecspec =
     List.map
-      (fun (_,dep,ind,sort) -> (ind,dep,interp_elimination_sort sort))
+      (fun (_,dep,ind,sort) -> ((ind,[])(*FIXME*),dep,interp_elimination_sort sort))
       lnamedepindsort
   in
   let listdecl = Indrec.build_mutual_induction_scheme env0 sigma lrecspec in
@@ -403,7 +405,9 @@ let fold_left' f = function
   | hd :: tl -> List.fold_left f hd tl
 
 let build_combined_scheme env schemes =
-  let defs = List.map (fun cst -> (cst, Typeops.type_of_constant env cst)) schemes in
+  let defs = List.map (fun cst -> 
+    let c, cst = Typeops.fresh_constant_instance env cst in
+      (c, Typeops.type_of_constant_inenv env c)) schemes in
 (*   let nschemes = List.length schemes in *)
   let find_inductive ty =
     let (ctx, arity) = decompose_prod ty in
@@ -411,7 +415,7 @@ let build_combined_scheme env schemes =
       match kind_of_term last with
 	| App (ind, args) ->
 	    let ind = destInd ind in
-	    let (_,spec) = Inductive.lookup_mind_specif env ind in
+	    let (_,spec) = Inductive.lookup_mind_specif env (fst ind) in
 	      ctx, ind, spec.mind_nrealargs
 	| _ -> ctx, destInd last, 0
   in
@@ -422,8 +426,8 @@ let build_combined_scheme env schemes =
   let coqand = Coqlib.build_coq_and () and coqconj = Coqlib.build_coq_conj () in
   let relargs = rel_vect 0 prods in
   let concls = List.rev_map
-    (fun (cst, t) ->
-      mkApp(mkConst cst, relargs),
+    (fun (cst, t) -> (* FIXME *)
+      mkApp(mkConstU cst, relargs),
       snd (decompose_prod_n prods t)) defs in
   let concl_bod, concl_typ =
     fold_left'

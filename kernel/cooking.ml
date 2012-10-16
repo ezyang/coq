@@ -69,7 +69,7 @@ let update_case_info ci modlist =
       | App (f,l) -> (destInd f, Array.length l)
       | Ind ind -> ind, 0
       | _ -> assert false in
-    { ci with ci_ind = ind; ci_npar = ci.ci_npar + n }
+    { ci with ci_ind = fst ind; ci_npar = ci.ci_npar + n }
   with Not_found ->
     ci
 
@@ -84,19 +84,19 @@ let expmod_constr modlist c =
       | Case (ci,p,t,br) ->
 	  map_constr substrec (mkCase (update_case_info ci modlist,p,t,br))
 
-      | Ind ind ->
+      | Ind (ind,u) ->
 	  (try
 	    share (IndRef ind) modlist
 	   with
 	    | Not_found -> map_constr substrec c)
 
-      | Construct cstr ->
+      | Construct (cstr,u) ->
 	  (try
 	    share (ConstructRef cstr) modlist
 	   with
 	    | Not_found -> map_constr substrec c)
 
-      | Const cst ->
+      | Const (cst,u) ->
 	  (try
 	    share (ConstRef cst) modlist
 	   with
@@ -141,14 +141,13 @@ let cook_constant env r =
     Sign.fold_named_context (fun (h,_,_) hyps ->
       List.filter (fun (id,_,_) -> not (Id.equal id h)) hyps)
       hyps ~init:cb.const_hyps in
-  let typ = match cb.const_type with
-    | NonPolymorphicType t ->
-	let typ = abstract_constant_type (expmod_constr r.d_modlist t) hyps in
-	NonPolymorphicType typ
-    | PolymorphicArity (ctx,s) ->
-	let t = mkArity (ctx,Type s.poly_level) in
-	let typ = abstract_constant_type (expmod_constr r.d_modlist t) hyps in
-	let j = make_judge (constr_of_def body) typ in
-	Typeops.make_polymorphic env j
+  let typ = 
+    abstract_constant_type (expmod_constr r.d_modlist cb.const_type) hyps 
   in
-  (body, typ, cb.const_universes, const_hyps)
+  (*   | PolymorphicArity (ctx,s) -> *)
+  (* 	let t = mkArity (ctx,Type s.poly_level) in *)
+  (* 	let typ = abstract_constant_type (expmod_constr r.d_modlist t) hyps in *)
+  (* 	let j = make_judge (constr_of_def body) typ in *)
+  (* 	Typeops.make_polymorphic env j *)
+  (* in *)
+  (body, typ, cb.const_polymorphic, cb.const_universes, const_hyps)

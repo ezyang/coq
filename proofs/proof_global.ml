@@ -272,6 +272,7 @@ let close_proof () =
                       const_entry_type = Some t;
 		      (* FIXME *)
 		      const_entry_polymorphic = false;
+		      const_entry_universes = Univ.empty_universe_context;
 		      const_entry_opaque = true })
       proofs_and_types
     in

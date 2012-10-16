@@ -363,7 +363,7 @@ let interp_reference ist env = function
 let pf_interp_reference ist gl = interp_reference ist (pf_env gl)
 
 let coerce_to_inductive = function
-  | VConstr ([],c) when isInd c -> destInd c
+  | VConstr ([],c) when isInd c -> fst (destInd c)
   | _ -> raise (CannotCoerceTo "an inductive type")
 
 let interp_inductive ist = function
@@ -372,7 +372,7 @@ let interp_inductive ist = function
 
 let coerce_to_evaluable_ref env v =
   let ev = match v with
-    | VConstr ([],c) when isConst c -> EvalConstRef (destConst c)
+    | VConstr ([],c) when isConst c -> EvalConstRef (fst (destConst c))
     | VConstr ([],c) when isVar c -> EvalVarRef (destVar c)
     | VIntroPattern (IntroIdentifier id) when List.mem id (ids_of_context env)
 	-> EvalVarRef id
@@ -1944,7 +1944,6 @@ let hide_interp t ot gl =
   match ot with
   | None -> t gl
   | Some t' -> (tclTHEN t t') gl
-
 
 (***************************************************************************)
 (* Other entry points *)

@@ -79,12 +79,13 @@ val pack_module : unit -> module_body
 
 
 (** Queries *)
-val lookup_named     : variable -> named_declaration
-val lookup_constant  : constant -> constant_body
-val lookup_inductive : inductive -> mutual_inductive_body * one_inductive_body
-val lookup_mind      : mutual_inductive -> mutual_inductive_body
-val lookup_module    : module_path -> module_body
-val lookup_modtype   : module_path -> module_type_body
+val lookup_named      : variable -> named_declaration
+val lookup_constant   : constant -> constant_body
+val lookup_inductive  : inductive -> mutual_inductive_body * one_inductive_body
+val lookup_pinductive : pinductive -> mutual_inductive_body * one_inductive_body
+val lookup_mind       : mutual_inductive -> mutual_inductive_body
+val lookup_module     : module_path -> module_body
+val lookup_modtype    : module_path -> module_type_body
 val constant_of_delta_kn : kernel_name -> constant
 val mind_of_delta_kn : kernel_name -> mutual_inductive
 val exists_objlabel  : Label.t -> bool

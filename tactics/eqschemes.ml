@@ -341,7 +341,7 @@ let build_l2r_rew_scheme dep env ind kind =
 		     [|mkRel 1|]]) in
   let s = mkSort (new_sort_in_family kind) in
   let ci = make_case_info (Global.env()) ind RegularStyle in
-  let cieq = make_case_info (Global.env()) (destInd eq) RegularStyle in
+  let cieq = make_case_info (Global.env()) (fst (destInd eq)) RegularStyle in
   let applied_PC =
     mkApp (mkVar varP,Array.append (extended_rel_vect 1 realsign)
            (if dep then [|cstr (2*nrealargs+1) 1|] else [||])) in
@@ -587,7 +587,7 @@ let fix_r2l_forward_rew_scheme c =
 (**********************************************************************)
 
 let build_r2l_rew_scheme dep env ind k =
-  build_case_analysis_scheme env Evd.empty ind dep k
+  build_case_analysis_scheme env Evd.empty (ind,[]) (* FIXME *) dep k
 
 (**********************************************************************)
 (* Register the rewriting schemes                                     *)

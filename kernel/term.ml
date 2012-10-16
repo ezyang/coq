@@ -102,6 +102,11 @@ type ('constr, 'types) pcofixpoint =
     int * ('constr, 'types) prec_declaration
 type 'a puniverses = 'a * universe_level list
 
+(** Simply type aliases *)
+type pconstant = constant puniverses
+type pinductive = inductive puniverses
+type pconstructor = constructor puniverses
+
 (* [Var] is used for named variables and [Rel] for variables as
    de Bruijn indices. *)
 type ('constr, 'types) kind_of_term =
@@ -115,9 +120,9 @@ type ('constr, 'types) kind_of_term =
   | Lambda    of Name.t * 'types * 'constr
   | LetIn     of Name.t * 'constr * 'types * 'constr
   | App       of 'constr * 'constr array
-  | Const     of constant puniverses
-  | Ind       of inductive puniverses
-  | Construct of constructor puniverses
+  | Const     of pconstant
+  | Ind       of pinductive
+  | Construct of pconstructor
   | Case      of case_info * 'constr * 'constr * 'constr array
   | Fix       of ('constr, 'types) pfixpoint
   | CoFix     of ('constr, 'types) pcofixpoint
@@ -198,6 +203,7 @@ let mkConstructU c = Construct c
 let mkCase (ci, p, c, ac) = Case (ci, p, c, ac)
 
 let out_punivs (a, _) = a
+let map_puniverses f (x,u) = (f x, u)
 
 (* If recindxs = [|i1,...in|]
       funnames = [|f1,...fn|]
@@ -1267,8 +1273,8 @@ let equals_constr t1 t2 =
     | App (c1,l1), App (c2,l2) -> c1 == c2 & array_eqeq l1 l2
     | Evar (e1,l1), Evar (e2,l2) -> Int.equal e1 e2 & array_eqeq l1 l2
     | Const c1, Const c2 -> c1 == c2
-    | Ind (sp1,i1), Ind (sp2,i2) -> sp1 == sp2 && Int.equal i1 i2
-    | Construct ((sp1,i1),j1), Construct ((sp2,i2),j2) ->
+    | Ind ((sp1,i1),u1), Ind ((sp2,i2),u2) -> sp1 == sp2 && Int.equal i1 i2
+    | Construct (((sp1,i1),j1),u1), Construct (((sp2,i2),j2),u2) ->
       sp1 == sp2 && Int.equal i1 i2 && Int.equal j1 j2
     | Case (ci1,p1,c1,bl1), Case (ci2,p2,c2,bl2) ->
       ci1 == ci2 & p1 == p2 & c1 == c2 & array_eqeq bl1 bl2

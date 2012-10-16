@@ -10,6 +10,7 @@ open Names
 open Term
 open Declarations
 open Sign
+open Univ
 
 (** Unsafe environments. We define here a datatype for environments.
    Since typing is not yet defined, it is not possible to check the
@@ -119,7 +120,7 @@ val add_constant : constant -> constant_body -> env -> env
 (** Looks up in the context of global constant names 
    raises [Not_found] if the required path is not found *)
 val lookup_constant    : constant -> env -> constant_body
-val evaluable_constant : constant puniverses -> env -> bool
+val evaluable_constant : constant -> env -> bool
 
 (** {6 ... } *)
 (** [constant_value env c] raises [NotEvaluableConst Opaque] if
@@ -129,16 +130,19 @@ val evaluable_constant : constant puniverses -> env -> bool
 type const_evaluation_result = NoBody | Opaque
 exception NotEvaluableConst of const_evaluation_result
 
-val constant_value : env -> constant puniverses -> constr * Univ.constraints
-val constant_type : env -> constant puniverses -> types * Univ.constraints
+val constant_value : env -> constant puniverses -> constr constrained
+val constant_type : env -> constant puniverses -> types constrained
+
 val constant_opt_value : env -> constant puniverses -> (constr * Univ.constraints) option
 val constant_value_and_type : env -> constant puniverses -> 
   types option * constr * Univ.constraints
 
-(* FIXME: remove *)
-val constant_value_unsafe : env -> constant puniverses -> constr
-val constant_type_unsafe : env -> constant puniverses -> types
-val constant_opt_value_unsafe : env -> constant puniverses -> constr option
+(* These functions should be called under the invariant that [env] 
+   already contains the constraints corresponding to the constant 
+   application. *)
+val constant_value_inenv : env -> constant puniverses -> constr
+val constant_type_inenv : env -> constant puniverses -> types
+val constant_opt_value_inenv : env -> constant puniverses -> constr option
 
 
 (** {5 Inductive types } *)
@@ -162,6 +166,8 @@ val lookup_modtype : module_path -> env -> module_type_body
 (** {5 Universe constraints } *)
 
 val add_constraints : Univ.constraints -> env -> env
+
+val push_constraints_to_env : 'a Univ.constrained -> env -> env
 
 val set_engagement : engagement -> env -> env
 

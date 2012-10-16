@@ -16,16 +16,16 @@ open Entries
 open Typeops
 
 val translate_local_def : env -> constr * types option ->
-  constr * types * Univ.constraints
+  constr * types * universe_context_set
 
 val translate_local_assum : env -> types ->
-  types * Univ.constraints
+  types * universe_context_set
 
 val infer_declaration : env -> constant_entry ->
-  constant_def * constant_type * universe_context * Sign.section_context option
+  constant_def * constant_type * bool * universe_context * Sign.section_context option
 
 val build_constant_declaration : env -> 'a ->
-  constant_def * constant_type * universe_context * Sign.section_context option -> 
+  constant_def * constant_type * bool * universe_context * Sign.section_context option -> 
     constant_body
 
 val translate_constant : env -> constant -> constant_entry -> constant_body

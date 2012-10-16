@@ -85,6 +85,11 @@ val pr_constructor         : env -> constructor -> std_ppcmds
 val pr_inductive           : env -> inductive -> std_ppcmds
 val pr_evaluable_reference : evaluable_global_reference -> std_ppcmds
 
+val pr_pconstant           : env -> pconstant -> std_ppcmds
+val pr_pinductive          : env -> pinductive -> std_ppcmds
+val pr_pconstructor        : env -> pconstructor -> std_ppcmds
+
+
 (** Contexts *)
 
 val pr_ne_context_of       : std_ppcmds -> env -> std_ppcmds

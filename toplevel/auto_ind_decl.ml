@@ -158,11 +158,11 @@ let build_beq_scheme kn =
                 t  a) eq_input lnamesparrec
  in
  let make_one_eq cur =
-  let ind = kn,cur in
+  let ind = (kn,cur),[] (* FIXME *) in
   (* current inductive we are working on *)
-  let cur_packet = mib.mind_packets.(snd ind) in
+  let cur_packet = mib.mind_packets.(snd (fst ind)) in
   (* Inductive toto : [rettyp] := *)
-  let rettyp = Inductive.type_of_inductive env (mib,cur_packet) in
+  let rettyp = Inductive.type_of_inductive env ((mib,cur_packet),[]) in
   (* split rettyp in a list without the non rec params and the last ->
   e.g. Inductive vec (A:Set) : nat -> Set := ... will do [nat] *)
   let rettyp_l = quick_chop nparrec (deconstruct_type rettyp) in
@@ -181,7 +181,7 @@ let build_beq_scheme kn =
         | Var x -> mkVar (Id.of_string ("eq_"^(Id.to_string x)))
         | Cast (x,_,_) -> aux (applist (x,a))
         | App _ -> assert false
-        | Ind (kn',i as ind') -> if eq_mind kn kn' then mkRel(eqA-nlist-i+nb_ind-1)
+        | Ind ((kn',i as ind'),u) -> if eq_mind kn kn' then mkRel(eqA-nlist-i+nb_ind-1)
                         else ( try
 			  let a = Array.of_list a in
                           let eq = mkConst (find_scheme (!beq_scheme_kind_aux()) (kn',i))
@@ -192,15 +192,15 @@ let build_beq_scheme kn =
                             in if Array.equal eq_constr args [||] then eq
                                else mkApp (eq,Array.append
                                       (Array.map (fun x->lift lifti x) a) eqa)
-                         with Not_found -> raise(EqNotFound (ind',ind))
+                         with Not_found -> raise(EqNotFound (ind',fst ind))
                         )
         | Sort _  -> raise InductiveWithSort
         | Prod _ -> raise InductiveWithProduct
         | Lambda _-> raise (EqUnknown "Lambda")
         | LetIn _ -> raise (EqUnknown "LetIn")
         | Const kn ->
-	    (match Environ.constant_opt_value env kn with
-	      | None -> raise (ParameterWithoutEquality kn)
+	    (match Environ.constant_opt_value_inenv env kn with
+	      | None -> raise (ParameterWithoutEquality (fst kn))
 	      | Some c -> aux (applist (c,a)))
         | Construct _ -> raise (EqUnknown "Construct")
         | Case _ -> raise (EqUnknown "Case")
@@ -215,14 +215,14 @@ let build_beq_scheme kn =
   let do_predicate rel_list n =
      List.fold_left (fun a b -> mkLambda(Anonymous,b,a))
       (mkLambda (Anonymous,
-                 mkFullInd ind (n+3+(List.length rettyp_l)+nb_ind-1),
+                 mkFullInd (fst ind) (*FIXME*) (n+3+(List.length rettyp_l)+nb_ind-1),
                  bb))
       (List.rev rettyp_l) in
   (* make_one_eq *)
   (* do the [| C1 ... =>  match Y with ... end
                ...
                Cn => match Y with ... end |]  part *)
-    let ci = make_case_info env ind MatchStyle in
+    let ci = make_case_info env (fst ind) MatchStyle in
     let constrs n = get_constructors env (make_ind_family (ind,
       extended_rel_list (n+nb_ind-1) mib.mind_params_ctxt)) in
     let constrsi = constrs (3+nparrec) in
@@ -268,8 +268,8 @@ let build_beq_scheme kn =
 				  mkVar (Id.of_string "Y") ,ar2))
 			 (constrsi.(i).cs_args))
 	done;
-        mkNamedLambda (Id.of_string "X") (mkFullInd ind (nb_ind-1+1))  (
-          mkNamedLambda (Id.of_string "Y") (mkFullInd ind (nb_ind-1+2))  (
+        mkNamedLambda (Id.of_string "X") (mkFullInd (fst ind) (*FIXME*) (nb_ind-1+1))  (
+          mkNamedLambda (Id.of_string "Y") (mkFullInd (fst ind) (nb_ind-1+2))  (
  	    mkCase (ci, do_predicate rel_list 0,mkVar (Id.of_string "X"),ar)))
     in (* build_beq_scheme *)
     let names = Array.make nb_ind Anonymous and
@@ -327,8 +327,8 @@ let do_replace_lb lb_scheme_key aavoid narg gls p q =
   with _ -> (* if this happen then the args have to be already declared as a
               Parameter*)
       (
-        let mp,dir,lbl = repr_con (destConst v) in
-          mkConst (make_con mp dir (Label.make (
+        let mp,dir,lbl = repr_con (fst (destConst v)) in
+          mkConst (make_con mp dir (mk_label (
           if Int.equal offset 1 then ("eq_"^(Label.to_string lbl))
                        else ((Label.to_string lbl)^"_lb")
         )))
@@ -337,7 +337,7 @@ let do_replace_lb lb_scheme_key aavoid narg gls p q =
   let type_of_pq = pf_type_of gls p in
     let u,v = destruct_ind type_of_pq
     in let lb_type_of_p =
-        try mkConst (find_scheme lb_scheme_key u)
+        try mkConst (find_scheme lb_scheme_key (fst u))
         with Not_found ->
           (* spiwack: the format of this error message should probably
 	              be improved. *)
@@ -358,7 +358,7 @@ let do_replace_lb lb_scheme_key aavoid narg gls p q =
             in [Equality.replace p q ; apply app ; Auto.default_auto]
 
 (* used in the bool -> leib side *)
-let do_replace_bl bl_scheme_key ind gls aavoid narg lft rgt =
+let do_replace_bl bl_scheme_key (ind,u as indu) gls aavoid narg lft rgt =
   let avoid = Array.of_list aavoid in
   let do_arg v offset =
   try
@@ -374,8 +374,8 @@ let do_replace_bl bl_scheme_key ind gls aavoid narg lft rgt =
   with _ -> (* if this happen then the args have to be already declared as a
               Parameter*)
       (
-        let mp,dir,lbl = repr_con (destConst v) in
-          mkConst (make_con mp dir (Label.make (
+        let mp,dir,lbl = repr_con (fst (destConst v)) in
+          mkConst (make_con mp dir (mk_label (
           if Int.equal offset 1 then ("eq_"^(Label.to_string lbl))
                        else ((Label.to_string lbl)^"_bl")
         )))
@@ -389,12 +389,12 @@ let do_replace_bl bl_scheme_key ind gls aavoid narg lft rgt =
         else (
           let u,v = try  destruct_ind tt1
           (* trick so that the good sequence is returned*)
-                with _ -> ind,[||]
-          in if eq_ind u ind
+                with _ -> indu,[||]
+          in if eq_ind (fst u) ind
              then (Equality.replace t1 t2)::(Auto.default_auto)::(aux q1 q2)
              else (
                let bl_t1 =
-               try mkConst (find_scheme bl_scheme_key u)
+               try mkConst (find_scheme bl_scheme_key (fst u))
                with Not_found ->
 		 (* spiwack: the format of this error message should probably
 	                     be improved. *)
@@ -427,11 +427,11 @@ let do_replace_bl bl_scheme_key ind gls aavoid narg lft rgt =
   and (ind2,ca2) = try destApp rgt with
     _ -> error "replace failed."
   in
-  let (sp1,i1) = try destInd ind1 with
-    _ -> (try fst (destConstruct ind1) with _ ->
+  let (sp1,i1) = try fst (destInd ind1) with
+    _ -> (try fst (fst (destConstruct ind1)) with _ ->
                 error "The expected type is an inductive one.")
-  and (sp2,i2) = try destInd ind2 with
-    _ -> (try fst (destConstruct ind2)  with _ ->
+  and (sp2,i2) = try fst (destInd ind2) with
+    _ -> (try fst (fst (destConstruct ind2)) with _ ->
                 error "The expected type is an inductive one.")
   in
     if not (eq_mind sp1 sp2) || not (Int.equal i1 i2)
@@ -557,7 +557,7 @@ repeat ( apply andb_prop in z;let z1:= fresh "Z" in destruct z as [z1 z]).
                       match (kind_of_term gl) with
                       | App (c,ca) -> (
                         match (kind_of_term c) with
-                        | Ind indeq ->
+                        | Ind (indeq,u) ->
                             if eq_gr (IndRef indeq) Coqlib.glob_eq
                             then (
                               tclTHENSEQ ((do_replace_bl bl_scheme_key ind gls
@@ -587,7 +587,7 @@ let make_bl_scheme mind =
     context_chop (nparams-nparrec) mib.mind_params_ctxt in
   [|Pfedit.build_by_tactic (Global.env())
     (compute_bl_goal ind lnamesparrec nparrec)
-    (compute_bl_tact (!bl_scheme_kind_aux()) ind lnamesparrec nparrec)|]
+    (compute_bl_tact (!bl_scheme_kind_aux()) (ind,[])(*FIXME*) lnamesparrec nparrec)|]
 
 let bl_scheme_kind = declare_mutual_scheme_object "_dec_bl" make_bl_scheme
 

@@ -92,7 +92,7 @@ let finish_evar_resolution env initial_sigma c =
 
 let string_of_inductive c =
   try match kind_of_term c with
-  | Ind ind_sp ->
+  | Ind (ind_sp,u) ->
       let (mib,mip) = Global.lookup_inductive ind_sp in
       Id.to_string mip.mind_typename
   | _ -> raise Bound
@@ -809,7 +809,7 @@ exception IsRecord
 let is_record mind = (Global.lookup_mind (fst mind)).mind_record
 
 let find_eliminator c gl =
-  let (ind,t) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
+  let ((ind,u),t) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
   if is_record ind then raise IsRecord;
   let c = lookup_eliminator ind (elimination_sort_of_goal gl) in
   {elimindex = None; elimbody = (c,NoBindings)}
@@ -903,7 +903,7 @@ let make_projection sigma params cstr sign elim i n c =
       (* goes from left to right when i increases! *)
       match List.nth l i with
       | Some proj ->
-	  let t = Typeops.type_of_constant (Global.env()) proj in
+	  let t = Typeops.type_of_constant_inenv (Global.env()) (proj,[]) (* FIXME *) in
 	  let args = extended_rel_vect 0 sign in
 	  Some (beta_applist (mkConst proj,params),prod_applist t (params@[mkApp (c,args)]))
       | None -> None
@@ -913,7 +913,7 @@ let make_projection sigma params cstr sign elim i n c =
 
 let descend_in_conjunctions tac exit c gl =
   try
-    let (ind,t) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
+    let ((ind,u),t) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
     let sign,ccl = decompose_prod_assum t in
     match match_with_tuple ccl with
     | Some (_,_,isrec) ->
@@ -926,7 +926,7 @@ let descend_in_conjunctions tac exit c gl =
 	let elim =
 	  try DefinedRecord (Recordops.lookup_projections ind)
 	  with Not_found ->
-	    let elim = pf_apply build_case_analysis_scheme gl ind false sort in
+	    let elim = pf_apply build_case_analysis_scheme gl (ind,u) false sort in
 	    NotADefinedRecordUseScheme elim in
 	tclFIRST
 	  (List.tabulate (fun i gl ->
@@ -1220,13 +1220,16 @@ let check_number_of_constructors expctdnumopt i nconstr =
   end;
   if i > nconstr then error "Not enough constructors."
 
+(* FIXME: MOVE *)
+let ith_constructor_of_pinductive (ind,u) i = ((ind,i), u)
+
 let constructor_tac with_evars expctdnumopt i lbind gl =
   let cl = pf_concl gl in
   let (mind,redcl) = pf_reduce_to_quantified_ind gl cl in
   let nconstr =
-    Array.length (snd (Global.lookup_inductive mind)).mind_consnames in
+    Array.length (snd (Global.lookup_pinductive mind)).mind_consnames in
   check_number_of_constructors expctdnumopt i nconstr;
-  let cons = mkConstruct (ith_constructor_of_inductive mind i) in
+  let cons = mkConstructU (ith_constructor_of_pinductive mind i) in
   let apply_tac = general_apply true false with_evars (dloc,(cons,lbind)) in
   (tclTHENLIST
      [convert_concl_no_check redcl DEFAULTcast; intros; apply_tac]) gl
@@ -1242,7 +1245,7 @@ let any_constructor with_evars tacopt gl =
   let t = match tacopt with None -> tclIDTAC | Some t -> t in
   let mind = fst (pf_reduce_to_quantified_ind gl (pf_concl gl)) in
   let nconstr =
-    Array.length (snd (Global.lookup_inductive mind)).mind_consnames in
+    Array.length (snd (Global.lookup_pinductive mind)).mind_consnames in
   if Int.equal nconstr 0 then error "The type has no constructors.";
   tclFIRST
     (List.map
@@ -1294,7 +1297,7 @@ let error_unexpected_extra_pattern loc nb pat =
 let intro_or_and_pattern loc b ll l' tac id gl =
     let c = mkVar id in
     let ind,_ = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
-    let nv = mis_constr_nargs ind in
+    let nv = mis_constr_nargs (Univ.out_punivs ind) in
     let bracketed = b || not (List.is_empty l') in
     let rec adjust_names_length nb n = function
       | [] when Int.equal n 0 or not bracketed -> []
@@ -2316,8 +2319,8 @@ let ids_of_constr ?(all=false) vars c =
     | Var id -> Id.Set.add id vars
     | App (f, args) -> 
 	(match kind_of_term f with
-	| Construct (ind,_)
-	| Ind ind ->
+	| Construct ((ind,_),_)
+	| Ind (ind,_) ->
             let (mib,mip) = Global.lookup_inductive ind in
 	      Array.fold_left_from
 		(if all then 0 else mib.Declarations.mind_nparams)
@@ -2328,8 +2331,8 @@ let ids_of_constr ?(all=false) vars c =
     
 let decompose_indapp f args =
   match kind_of_term f with
-  | Construct (ind,_) 
-  | Ind ind ->
+  | Construct ((ind,_),_)
+  | Ind (ind,_) ->
       let (mib,mip) = Global.lookup_inductive ind in
       let first = mib.Declarations.mind_nparams_rec in
       let pars, args = Array.chop first args in
@@ -2812,7 +2815,7 @@ let guess_elim isrec hyp0 gl =
   let mind,_ = pf_reduce_to_quantified_ind gl tmptyp0 in
   let s = elimination_sort_of_goal gl in
   let elimc =
-    if isrec && not (is_record mind) then lookup_eliminator mind s
+    if isrec && not (is_record (fst mind)) then lookup_eliminator (fst mind) s
     else
       if use_dependent_propositions_elimination () &&
 	dependent_no_evar (mkVar hyp0) (pf_concl gl)
@@ -2821,7 +2824,7 @@ let guess_elim isrec hyp0 gl =
       else
 	pf_apply build_case_analysis_scheme_default gl mind s in
   let elimt = pf_type_of gl elimc in
-  ((elimc, NoBindings), elimt), mkInd mind
+  ((elimc, NoBindings), elimt), mkIndU mind
 
 let given_elim hyp0 (elimc,lbind as e) gl =
   let tmptyp0 = pf_get_hyp_typ gl hyp0 in
@@ -3271,7 +3274,7 @@ let elim_scheme_type elim t gl =
 
 let elim_type t gl =
   let (ind,t) = pf_reduce_to_atomic_ind gl t in
-  let elimc = lookup_eliminator ind (elimination_sort_of_goal gl) in
+  let elimc = lookup_eliminator (fst ind) (elimination_sort_of_goal gl) in
   elim_scheme_type elimc t gl
 
 let case_type t gl =

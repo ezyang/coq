@@ -371,7 +371,7 @@ let get_obligation_body expand obl =
   let c = Option.get obl.obl_body in
     if expand && obl.obl_status == Evar_kinds.Expand then
       match kind_of_term c with
-      | Const c -> constant_value (Global.env ()) c
+      | Const c -> constant_value_inenv (Global.env ()) c
       | _ -> c
     else c
 
@@ -510,6 +510,7 @@ let declare_definition prg =
       const_entry_type = Some typ;
       (* FIXME *)
       const_entry_polymorphic = false;
+      const_entry_universes = Univ.empty_universe_context;
       const_entry_opaque = false }
   in
     progmap_remove prg;
@@ -589,6 +590,7 @@ let declare_obligation prg obl body =
           const_entry_secctx = None;
 	  const_entry_type = Some ty;
 	  const_entry_polymorphic = false;
+	  const_entry_universes = Univ.empty_universe_context;
 	  const_entry_opaque = opaque }
       in
       let constant = Declare.declare_constant obl.obl_name
@@ -759,7 +761,7 @@ let rec solve_obligation prg num tac =
 		    match obl.obl_status with
 		    | Evar_kinds.Expand ->
 			if not transparent then error_not_transp ()
-			else constant_value (Global.env ()) cst
+			else constant_value_inenv (Global.env ()) (cst,[]) (* FIXME *)
 		    | Evar_kinds.Define opaque ->
 			if not opaque && not transparent then error_not_transp ()
 			else Globnames.constr_of_global gr

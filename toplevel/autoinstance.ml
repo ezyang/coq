@@ -183,10 +183,11 @@ let declare_record_instance gr ctx params =
              const_entry_secctx = None;
 	     const_entry_type=None;
 	     const_entry_polymorphic = true;
+	     const_entry_universes = Univ.empty_universe_context;
 	     const_entry_opaque=false } in
   let cst = Declare.declare_constant ident
     (DefinitionEntry ce,Decl_kinds.IsDefinition Decl_kinds.StructureComponent) in
-  new_instance_message ident (Typeops.type_of_constant (Global.env()) cst) def
+  new_instance_message ident (Typeops.type_of_constant_inenv (Global.env()) (cst,[])) def
 
 let declare_class_instance gr ctx params =
   let ident = make_instance_ident gr in
@@ -201,6 +202,7 @@ let declare_class_instance gr ctx params =
        const_entry_body = def;
        (* FIXME *)
        const_entry_polymorphic = false;
+       const_entry_universes = Univ.empty_universe_context;
        const_entry_opaque = false } in
   try
   let cst = Declare.declare_constant ident
