@@ -160,10 +160,12 @@ val interp_context_gen : (env -> glob_constr -> types) ->
   evar_map -> env -> local_binder list -> internalization_env * ((env * rel_context) * Impargs.manual_implicits)
   
 val interp_context : ?global_level:bool -> ?impl_env:internalization_env ->
-  evar_map -> env -> local_binder list -> internalization_env * ((env * rel_context) * Impargs.manual_implicits)
+  evar_map -> env -> local_binder list -> 
+  internalization_env * ((env * rel_context) * Impargs.manual_implicits)
 
 val interp_context_evars : ?global_level:bool -> ?impl_env:internalization_env ->
-  evar_map ref -> env -> local_binder list -> internalization_env * ((env * rel_context) * Impargs.manual_implicits)
+  evar_map ref -> env -> local_binder list -> 
+  internalization_env * ((env * rel_context) * Impargs.manual_implicits)
 
 (** Locating references of constructions, possibly via a syntactic definition 
    (these functions do not modify the glob file) *)

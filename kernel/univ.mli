@@ -155,6 +155,9 @@ val instantiate_univ_context : universe_subst -> universe_context -> constraints
 val fresh_instance_from_context : universe_context -> 
   (universe_list * universe_subst) constrained
 
+val fresh_instance_from : universe_context -> 
+  universe_list in_universe_context_set
+
 (** Substitution of universes. *)
 val subst_univs_level : universe_subst -> universe_level -> universe_level
 val subst_univs_universe : universe_subst -> universe -> universe
@@ -167,6 +170,7 @@ type constraint_function = universe -> universe -> constraints -> constraints
 
 val enforce_leq : constraint_function
 val enforce_eq : constraint_function
+val enforce_eq_level : universe_level -> universe_level -> constraints -> constraints
 
 (** {6 ... } *)
 (** Merge of constraints in a universes graph.

@@ -42,6 +42,10 @@ val e_new_evar :
 val new_type_evar :
   ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> evar_map -> env -> evar_map * constr
 
+val e_new_type_evar : evar_map ref ->
+  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> env -> constr
+
+
 (** Create a fresh evar in a context different from its definition context:
    [new_evar_instance sign evd ty inst] creates a new evar of context
    [sign] and type [ty], [inst] is a mapping of the evar context to
@@ -142,6 +146,12 @@ val gather_dependent_evars : evar_map -> evar list -> (Int.Set.t option) Int.Map
 val undefined_evars_of_term : evar_map -> constr -> Int.Set.t
 val undefined_evars_of_named_context : evar_map -> named_context -> Int.Set.t
 val undefined_evars_of_evar_info : evar_map -> evar_info -> Int.Set.t
+
+(** {6 Universes} *)
+
+val fresh_constant_instance : env -> evar_map -> constant -> evar_map * pconstant
+val fresh_inductive_instance : env -> evar_map -> inductive -> evar_map * pinductive
+val fresh_constructor_instance : env -> evar_map -> constructor -> evar_map * pconstructor
 
 (** {6 Value/Type constraints} *)
 

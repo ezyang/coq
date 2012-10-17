@@ -42,6 +42,9 @@ val type_of_inductive_knowing_parameters : env -> ?polyprop:bool -> mind_specif 
 
 val fresh_type_of_inductive : env -> mind_specif -> types constrained
 
+val fresh_inductive_instance : env -> inductive -> pinductive in_universe_context_set
+val fresh_constructor_instance : env -> constructor -> pconstructor in_universe_context_set
+
 val elim_sorts : mind_specif -> sorts_family list
 
 (** Return type as quoted by the user *)

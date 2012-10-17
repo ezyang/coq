@@ -264,15 +264,17 @@ let close_proof () =
   try
     let id = get_current_proof_name () in
     let p = give_me_the_proof () in
-    let proofs_and_types = Proof.return p in
+    let proofs_and_types, ctx = Proof.return p in
     let section_vars = Proof.get_used_variables p in
+    let { compute_guard=cg ; strength=str ; hook=hook } =
+      Idmap.find id !proof_info
+    in
     let entries = List.map
       (fun (c,t) -> { Entries.const_entry_body = c;
                       const_entry_secctx = section_vars;
                       const_entry_type = Some t;
-		      (* FIXME *)
-		      const_entry_polymorphic = false;
-		      const_entry_universes = Univ.empty_universe_context;
+		      const_entry_polymorphic = Util.pi2 str;
+		      const_entry_universes = ctx;
 		      const_entry_opaque = true })
       proofs_and_types
     in

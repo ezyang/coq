@@ -220,12 +220,12 @@ let notations_key_table = ref Gmapl.empty
 let prim_token_key_table = Hashtbl.create 7
 
 let glob_prim_constr_key = function
-  | GApp (_,GRef (_,ref),_) | GRef (_,ref) -> RefKey (canonical_gr ref)
+  | GApp (_,GRef (_,ref,_),_) | GRef (_,ref,_) -> RefKey (canonical_gr ref)
   | _ -> Oth
 
 let glob_constr_keys = function
-  | GApp (_,GRef (_,ref),_) -> [RefKey (canonical_gr ref); Oth]
-  | GRef (_,ref) -> [RefKey (canonical_gr ref)]
+  | GApp (_,GRef (_,ref,_),_) -> [RefKey (canonical_gr ref); Oth]
+  | GRef (_,ref,_) -> [RefKey (canonical_gr ref)]
   | _ -> [Oth]
 
 let cases_pattern_key = function
@@ -454,7 +454,7 @@ let uninterp_prim_token_ind_pattern ind args =
     if not b then raise Notation_ops.No_match;
     let args' = List.map
       (fun x -> snd (glob_constr_of_closed_cases_pattern x)) args in
-    let ref = GRef (Loc.ghost,ref) in
+    let ref = GRef (Loc.ghost,ref,None) in
     match numpr (GApp (Loc.ghost,ref,args')) with
       | None -> raise Notation_ops.No_match
       | Some n -> (sc,n)

@@ -197,12 +197,12 @@ let save_remaining_recthms (local,p,kind) body opaq i (id,(t_i,(_,imps))) =
       | Local ->
           let impl=false in (* copy values from Vernacentries *)
           let k = IsAssumption Conjectural in
-          let c = SectionLocalAssum (t_i,impl) in
+          let c = SectionLocalAssum (fst t_i,impl) in (* FIXME *)
 	  let _ = declare_variable id (Lib.cwd(),c,k) in
           (Local,VarRef id,imps)
       | Global ->
           let k = IsAssumption Conjectural in
-          let kn = declare_constant id (ParameterEntry (None,t_i,None), k) in
+          let kn = declare_constant id (ParameterEntry (None,fst t_i (*FIXME *),None), k) in
           (Global,ConstRef kn,imps))
   | Some body ->
       let k = Kindops.logical_kind_of_goal_kind kind in
@@ -212,16 +212,16 @@ let save_remaining_recthms (local,p,kind) body opaq i (id,(t_i,(_,imps))) =
         | _ -> anomaly "Not a proof by induction" in
       match local with
       | Local ->
-	  let c = SectionLocalDef (body_i, Some t_i, opaq) in
+	  let c = SectionLocalDef (body_i, Some (fst t_i) (*FIXME *), opaq) in
 	  let _ = declare_variable id (Lib.cwd(), c, k) in
           (Local,VarRef id,imps)
       | Global ->
           let const =
             { const_entry_body = body_i;
               const_entry_secctx = None;
-              const_entry_type = Some t_i;
+              const_entry_type = Some (fst t_i);
 	      const_entry_polymorphic = p;
-	      const_entry_universes = Univ.empty_universe_context;
+	      const_entry_universes = Univ.context_of_universe_context_set (snd t_i); (*FIXME *)
               const_entry_opaque = opaq } in
           let kn = declare_constant id (DefinitionEntry const, k) in
           (Global,ConstRef kn,imps)
@@ -259,12 +259,13 @@ let set_start_hook = (:=) start_hook
 
 let start_proof id kind c ?init_tac ?(compute_guard=[]) hook =
   let sign = initialize_named_context_for_proof () in
-  !start_hook c;
+  !start_hook (fst c);
   Pfedit.start_proof id kind sign c ?init_tac ~compute_guard hook
 
+(* FIXME: forgetting about the universes here *)
 let rec_tac_initializer finite guard thms snl =
   if finite then
-    match List.map (fun (id,(t,_)) -> (id,t)) thms with
+    match List.map (fun (id,(t,_)) -> (id,fst t)) thms with
     | (id,_)::l -> Hiddentac.h_mutual_cofix id l
     | _ -> assert false
   else
@@ -272,7 +273,7 @@ let rec_tac_initializer finite guard thms snl =
     let nl = match snl with 
      | None -> List.map succ (List.map List.last guard)
      | Some nl -> nl
-    in match List.map2 (fun (id,(t,_)) n -> (id,n,t)) thms nl with
+    in match List.map2 (fun (id,(t,_)) n -> (id,n,fst t)) thms nl with
        | (id,n,_)::l -> Hiddentac.h_mutual_fix id n l
        | _ -> assert false
 
@@ -328,6 +329,9 @@ let start_proof_com kind thms hook =
        guard)))
     thms in
   let recguard,thms,snl = look_for_possibly_mutual_statements thms in
+  let thms = List.map (fun (n, (t, info)) -> (n, ((t, Evd.universe_context_set !evdref), info)))
+    thms
+  in
   start_proof_with_initialization kind recguard thms snl hook
 
 (* Admitted *)

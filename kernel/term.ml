@@ -1158,22 +1158,26 @@ let strip_lam_n n t = snd (decompose_lam_n n t)
 let subst_univs_constr subst c =
   if subst = [] then c
   else 
-    let f = List.map (Univ.subst_univs_level subst) in
+    let f = CList.smartmap (Univ.subst_univs_level subst) in
     let changed = ref false in
     let rec aux t = 
       match kind_of_term t with
       | Const (c, u) -> 
         let u' = f u in 
-	  if u' = u then t
+	  if u' == u then t
 	  else (changed := true; mkConstU (c, u'))
       | Ind (i, u) ->
         let u' = f u in 
-	  if u' = u then t
+	  if u' == u then t
 	  else (changed := true; mkIndU (i, u'))
       | Construct (c, u) ->
          let u' = f u in 
-	   if u' = u then t
+	   if u' == u then t
 	   else (changed := true; mkConstructU (c, u'))
+      | Sort (Type u) -> 
+         let u' = subst_univs_universe subst u in
+	   if u' == u then t else 
+	     (changed := true; mkSort (Type u'))
       | _ -> map_constr aux t
     in 
     let c' = aux c in

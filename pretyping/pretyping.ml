@@ -231,7 +231,22 @@ let evar_kind_of_term sigma c =
 (*************************************************************************)
 (* Main pretyping function                                               *)
 
-let pretype_ref loc evdref env = function
+(* Check with universe list? *)
+let pretype_global env evd gr us =
+  match gr with
+  | VarRef id -> evd, mkVar id
+  | ConstRef sp -> 
+     let evd, c = with_context_set evd (Typeops.fresh_constant_instance env sp) in
+       evd, mkConstU c
+  | ConstructRef sp ->
+     let evd, c = with_context_set evd (Inductive.fresh_constructor_instance env sp) in
+       evd, mkConstructU c
+  | IndRef sp -> 
+     let evd, c = with_context_set evd (Inductive.fresh_inductive_instance env sp) in
+       evd, mkIndU c
+
+let pretype_ref loc evdref env ref us =
+  match ref with
   | VarRef id ->
       (* Section variable *)
       (try let (_,_,ty) = lookup_named id env in make_judge (mkVar id) ty
@@ -241,8 +256,9 @@ let pretype_ref loc evdref env = function
             variables *)
          Pretype_errors.error_var_not_found_loc loc id)
   | ref ->
-      let c = constr_of_global ref in
-      make_judge c (Retyping.get_type_of env Evd.empty c)
+      let evd, c = pretype_global env !evdref ref us in
+	evdref := evd;
+	make_judge c (Retyping.get_type_of env evd c)
 
 let pretype_sort evdref = function
   | GProp -> judge_of_prop
@@ -256,9 +272,9 @@ let new_type_evar evdref env loc =
 (* in environment [env], with existential variables [evdref] and *)
 (* the type constraint tycon *)
 let rec pretype (tycon : type_constraint) env evdref lvar = function
-  | GRef (loc,ref) ->
+  | GRef (loc,ref,us) ->
       inh_conv_coerce_to_tycon loc env evdref
-	(pretype_ref loc evdref env ref)
+	(pretype_ref loc evdref env ref us)
 	tycon
 
   | GVar (loc, id) ->
@@ -705,11 +721,6 @@ let pretype_gen expand_evar fail_evar resolve_classes evdref env lvar kind c =
     let c = if expand_evar then nf_evar !evdref c' else c' in
       if fail_evar then check_evars env Evd.empty !evdref c;
       c
-
-(* TODO: comment faire remonter l'information si le typage a resolu des
-   variables du sigma original. il faudrait que la fonction de typage
-   retourne aussi le nouveau sigma...
-*)
 
 let understand_judgment sigma env c =
   let evdref = ref sigma in

@@ -222,8 +222,8 @@ and constr_notation_substitution_eq (e1, el1, bl1) (e2, el2, bl2) =
   List.equal (List.equal local_binder_eq) bl1 bl2
 
 let constr_loc = function
-  | CRef (Ident (loc,_)) -> loc
-  | CRef (Qualid (loc,_)) -> loc
+  | CRef (Ident (loc,_),_) -> loc
+  | CRef (Qualid (loc,_),_) -> loc
   | CFix (loc,_,_) -> loc
   | CCoFix (loc,_,_) -> loc
   | CProdN (loc,_,_) -> loc
@@ -273,8 +273,8 @@ let local_binders_loc bll = match bll with
 
 (** Pseudo-constructors *)
 
-let mkIdentC id  = CRef (Ident (Loc.ghost, id))
-let mkRefC r     = CRef r
+let mkIdentC id  = CRef (Ident (Loc.ghost, id),None)
+let mkRefC r     = CRef (r,None)
 let mkCastC (a,k)  = CCast (Loc.ghost,a,k)
 let mkLambdaC (idl,bk,a,b) = CLambdaN (Loc.ghost,[idl,bk,a],b)
 let mkLetInC (id,a,b)   = CLetIn (Loc.ghost,id,a,b)
@@ -325,13 +325,13 @@ let coerce_reference_to_id = function
         str "This expression should be a simple identifier.")
 
 let coerce_to_id = function
-  | CRef (Ident (loc,id)) -> (loc,id)
+  | CRef (Ident (loc,id),_) -> (loc,id)
   | a -> Errors.user_err_loc
         (constr_loc a,"coerce_to_id",
          str "This expression should be a simple identifier.")
 
 let coerce_to_name = function
-  | CRef (Ident (loc,id)) -> (loc,Name id)
+  | CRef (Ident (loc,id),_) -> (loc,Name id)
   | CHole (loc,_) -> (loc,Anonymous)
   | a -> Errors.user_err_loc
         (constr_loc a,"coerce_to_name",
@@ -340,10 +340,10 @@ let coerce_to_name = function
 let rec raw_cases_pattern_expr_of_glob_constr looked_for = function
   | GVar (loc,id) -> RCPatAtom (loc,Some id)
   | GHole (loc,_) -> RCPatAtom (loc,None)
-  | GRef (loc,g) ->
+  | GRef (loc,g,_) ->
     looked_for g;
     RCPatCstr (loc, g,[],[])
-  | GApp (loc,GRef (_,g),l) ->
+  | GApp (loc,GRef (_,g,_),l) ->
     looked_for g;
     RCPatCstr (loc, g,List.map (raw_cases_pattern_expr_of_glob_constr looked_for) l,[])
   | _ -> raise Not_found

@@ -178,7 +178,8 @@ let build_sym_scheme env ind =
 
 let sym_scheme_kind =
   declare_individual_scheme_object "_sym_internal"
-  (fun ind -> build_sym_scheme (Global.env() (* side-effect! *)) ind)
+  (fun ind -> (build_sym_scheme (Global.env() (* side-effect! *)) ind,
+	       Univ.empty_universe_context))
 
 (**********************************************************************)
 (* Build the involutivity of symmetry for an inductive type           *)
@@ -238,7 +239,8 @@ let build_sym_involutive_scheme env ind =
 
 let sym_involutive_scheme_kind =
   declare_individual_scheme_object "_sym_involutive"
-  (fun ind -> build_sym_involutive_scheme (Global.env() (* side-effect! *)) ind)
+  (fun ind -> build_sym_involutive_scheme (Global.env() (* side-effect! *)) ind,
+  Univ.empty_universe_context)
 
 (**********************************************************************)
 (* Build the left-to-right rewriting lemma for conclusion associated  *)
@@ -300,7 +302,7 @@ let sym_involutive_scheme_kind =
 (*                                                                    *)
 (**********************************************************************)
 
-let build_l2r_rew_scheme dep env ind kind =
+let build_l2r_rew_scheme dep env (ind,u) kind =
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env ind in
   let sym = mkConst (find_scheme sym_scheme_kind ind) in
@@ -410,7 +412,7 @@ let build_l2r_rew_scheme dep env ind kind =
 (* abstract over them in P.                                           *)
 (**********************************************************************)
 
-let build_l2r_forward_rew_scheme dep env ind kind =
+let build_l2r_forward_rew_scheme dep env (ind,u) kind =
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env ind in
   let cstr n p =
@@ -497,7 +499,7 @@ let build_l2r_forward_rew_scheme dep env ind kind =
 (* statement but no need for symmetry of the equality.                *)
 (**********************************************************************)
 
-let build_r2l_forward_rew_scheme dep env ind kind =
+let build_r2l_forward_rew_scheme dep env (ind,u) kind =
   let ((mib,mip as specif),constrargs,realsign,nrealargs) =
     get_non_sym_eq_data env ind in
   let cstr n =
@@ -551,11 +553,12 @@ let build_r2l_forward_rew_scheme dep env ind kind =
 (*                                                                    *)
 (**********************************************************************)
 
-let fix_r2l_forward_rew_scheme c =
+let fix_r2l_forward_rew_scheme (c, ctx') =
   let t = Retyping.get_type_of (Global.env()) Evd.empty c in
   let ctx,_ = decompose_prod_assum t in
   match ctx with
   | hp :: p :: ind :: indargs ->
+     let c' = 
       my_it_mkLambda_or_LetIn indargs
 	(mkLambda_or_LetIn (map_rel_declaration (liftn (-1) 1) p)
 	  (mkLambda_or_LetIn (map_rel_declaration (liftn (-1) 2) hp)
@@ -563,6 +566,7 @@ let fix_r2l_forward_rew_scheme c =
 	      (Reductionops.whd_beta Evd.empty
 		(applist (c,
 	          extended_rel_list 3 indargs @ [mkRel 1;mkRel 3;mkRel 2]))))))
+      in c', ctx'
   | _ -> anomaly "Ill-formed non-dependent left-to-right rewriting scheme"
 
 (**********************************************************************)
@@ -585,9 +589,15 @@ let fix_r2l_forward_rew_scheme c =
 (*          (H:I q1..qm a1..an),                                      *)
 (*          P b1..bn C -> P a1..an H                                  *)
 (**********************************************************************)
-
+ 
 let build_r2l_rew_scheme dep env ind k =
-  build_case_analysis_scheme env Evd.empty (ind,[]) (* FIXME *) dep k
+  let sigma, indu = Evarutil.fresh_inductive_instance env (Evd.from_env env) ind in
+    build_case_analysis_scheme env sigma indu dep k, Evd.universe_context sigma
+
+let build_l2r_rew_scheme = poly_scheme build_l2r_rew_scheme
+let build_l2r_forward_rew_scheme = poly_scheme build_l2r_forward_rew_scheme
+let build_r2l_rew_scheme = build_r2l_rew_scheme
+let build_r2l_forward_rew_scheme = poly_scheme build_r2l_forward_rew_scheme
 
 (**********************************************************************)
 (* Register the rewriting schemes                                     *)
@@ -726,4 +736,5 @@ let build_congr env (eq,refl) ind =
 let congr_scheme_kind = declare_individual_scheme_object "_congr"
   (fun ind ->
     (* May fail if equality is not defined *)
-    build_congr (Global.env()) (get_coq_eq ()) ind)
+    (build_congr (Global.env()) (get_coq_eq ()) ind,
+    Univ.empty_universe_context))

@@ -297,7 +297,7 @@ let reset_tmp_scope env = {env with tmp_scope = None}
 
 let set_scope env = function
   | CastConv (GSort _) -> set_type_scope env
-  | CastConv (GRef (_,ref) | GApp (_,GRef (_,ref),_)) ->
+  | CastConv (GRef (_,ref,_) | GApp (_,GRef (_,ref,_),_)) ->
       {env with tmp_scope = compute_scope_of_global ref}
   | _ -> env
 
@@ -406,7 +406,7 @@ let intern_generalized_binder ?(global_level=false) intern_type lvar
 	  let name =
 	    let id =
 	      match ty with
-	      | CApp (_, (_, CRef (Ident (loc,id))), _) -> id
+	      | CApp (_, (_, CRef (Ident (loc,id),_)), _) -> id
 	      | _ -> Id.of_string "H"
 	    in Implicit_quantifiers.make_fresh ids' (Global.env ()) id
 	  in Name name
@@ -609,7 +609,7 @@ let intern_var genv (ltacvars,ntnvars) namedctx loc id =
   try
     let ty,expl_impls,impls,argsc = Id.Map.find id genv.impls in
     let expl_impls = List.map
-      (fun id -> CRef (Ident (loc,id)), Some (loc,ExplByName id)) expl_impls in
+      (fun id -> CRef (Ident (loc,id),None), Some (loc,ExplByName id)) expl_impls in
     let tys = string_of_ty ty in
     Dumpglob.dump_reference loc "<>" (Id.to_string id) tys;
     GVar (loc,id), make_implicits_list impls, argsc, expl_impls
@@ -644,15 +644,15 @@ let intern_var genv (ltacvars,ntnvars) namedctx loc id =
 	let impls = implicits_of_global ref in
 	let scopes = find_arguments_scope ref in
 	Dumpglob.dump_reference loc "<>" (string_of_qualid (Decls.variable_secpath id)) "var";
-	GRef (loc, ref), impls, scopes, []
+	GRef (loc, ref, None), impls, scopes, []
       with _ ->
 	(* [id] a goal variable *)
 	GVar (loc,id), [], [], []
 
 let find_appl_head_data = function
-  | GRef (_,ref) as x -> x,implicits_of_global ref,find_arguments_scope ref,[]
-  | GApp (_,GRef (_,ref),l) as x
-      when l != [] && Flags.version_strictly_greater Flags.V8_2 ->
+  | GRef (_,ref,_) as x -> x,implicits_of_global ref,find_arguments_scope ref,[]
+  | GApp (_,GRef (_,ref,_),l) as x
+      when l != [] & Flags.version_strictly_greater Flags.V8_2 ->
       let n = List.length l in
       x,List.map (drop_first_implicits n) (implicits_of_global ref),
       List.skipn_at_least n (find_arguments_scope ref),[]
@@ -686,7 +686,7 @@ let intern_reference ref =
 let intern_qualid loc qid intern env lvar args =
   match intern_extended_global_of_qualid (loc,qid) with
   | TrueGlobal ref ->
-      GRef (loc, ref), args
+      GRef (loc, ref, None), args
   | SynDef sp ->
       let (ids,c) = Syntax_def.search_syntactic_definition sp in
       let nids = List.length ids in
@@ -699,7 +699,7 @@ let intern_qualid loc qid intern env lvar args =
 (* Rule out section vars since these should have been found by intern_var *)
 let intern_non_secvar_qualid loc qid intern env lvar args =
   match intern_qualid loc qid intern env lvar args with
-    | GRef (loc, VarRef id),_ -> error_global_not_found_loc loc qid
+    | GRef (loc, VarRef id, None),_ -> error_global_not_found_loc loc qid
     | r -> r
 
 let intern_applied_reference intern env namedctx lvar args = function
@@ -1202,7 +1202,7 @@ let merge_impargs l args =
 
 let check_projection isproj nargs r =
   match (r,isproj) with
-  | GRef (loc, ref), Some _ ->
+  | GRef (loc, ref, _), Some _ ->
       (try
 	let n = Recordops.find_projection_nparams ref + 1 in
 	if not (Int.equal nargs n) then
@@ -1217,7 +1217,7 @@ let get_implicit_name n imps =
   Some (Impargs.name_of_implicit (List.nth imps (n-1)))
 
 let set_hole_implicit i b = function
-  | GRef (loc,r) | GApp (_,GRef (loc,r),_) -> (loc,Evar_kinds.ImplicitArg (r,i,b))
+  | GRef (loc,r,_) | GApp (_,GRef (loc,r,_),_) -> (loc,Evar_kinds.ImplicitArg (r,i,b))
   | GVar (loc,id) -> (loc,Evar_kinds.ImplicitArg (VarRef id,i,b))
   | _ -> anomaly "Only refs have implicits"
 
@@ -1263,7 +1263,7 @@ let extract_explicit_arg imps args =
 
 let internalize sigma globalenv env allow_patvar lvar c =
   let rec intern env = function
-    | CRef ref as x ->
+    | CRef (ref,us) as x ->
 	let (c,imp,subscopes,l),_ =
 	  intern_applied_reference intern env (Environ.named_context globalenv) lvar [] ref in
 	(match intern_impargs c env imp subscopes l with
@@ -1361,7 +1361,7 @@ let internalize sigma globalenv env allow_patvar lvar c =
     | CDelimiters (loc, key, e) ->
 	intern {env with tmp_scope = None;
 		  scopes = find_delimiters_scope loc key :: env.scopes} e
-    | CAppExpl (loc, (isproj,ref), args) ->
+    | CAppExpl (loc, (isproj,ref,us), args) ->
         let (f,_,args_scopes,_),args =
 	  let args = List.map (fun a -> (a,None)) args in
 	  intern_applied_reference intern env (Environ.named_context globalenv) lvar args ref in
@@ -1376,7 +1376,8 @@ let internalize sigma globalenv env allow_patvar lvar c =
           | _ -> isproj,f,args in
 	let (c,impargs,args_scopes,l),args =
           match f with
-            | CRef ref -> intern_applied_reference intern env (Environ.named_context globalenv) lvar args ref
+            | CRef (ref,us) -> 
+	       intern_applied_reference intern env (Environ.named_context globalenv) lvar args ref
             | CNotation (loc,ntn,([],[],[])) ->
                 let c = intern_notation intern env lvar loc ntn ([],[],[]) in
                 find_appl_head_data c, args
@@ -1398,7 +1399,7 @@ let internalize sigma globalenv env allow_patvar lvar c =
 	    | None -> user_err_loc (loc, "intern", str"No constructor inference.")
 	    | Some (n, constrname, args) ->
 		let pars = List.make n (CHole (loc, None)) in
-		let app = CAppExpl (loc, (None, constrname), List.rev_append pars args) in
+		let app = CAppExpl (loc, (None, constrname,None), List.rev_append pars args) in
 	  intern env app
 	end
     | CCases (loc, sty, rtnpo, tms, eqns) ->
@@ -1505,7 +1506,7 @@ let internalize sigma globalenv env allow_patvar lvar c =
     (* the "as" part *)
     let extra_id,na = match tm', na with
       | GVar (loc,id), None when not (List.mem_assoc id (snd lvar)) -> Some id,(loc,Name id)
-      | GRef (loc, VarRef id), None -> Some id,(loc,Name id)
+      | GRef (loc, VarRef id, _), None -> Some id,(loc,Name id)
       | _, None -> None,(Loc.ghost,Anonymous)
       | _, Some (loc,na) -> None,(loc,na) in
     (* the "in" part *)
@@ -1679,7 +1680,7 @@ let interp_open_constr_patvar sigma env c =
     | GPatVar (loc,(_,id)) ->
 	( try Gmap.find id !evars
 	  with Not_found ->
-	    let ev = Evarutil.e_new_evar sigma env (Termops.new_Type()) in
+	    let ev = Evarutil.e_new_type_evar sigma env in
 	    let ev = Evarutil.e_new_evar sigma env ev in
 	    let rev = GEvar (loc,(fst (Term.destEvar ev)),None) (*TODO*) in
 	    evars := Gmap.add id rev !evars;

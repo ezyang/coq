@@ -194,7 +194,7 @@ let inversion_scheme env sigma t sort dep_option inv_op =
     errorlabstrm "lemma_inversion"
     (str"Computed inversion goal was not closed in initial signature.");
   *)
-  let pf = Proof.start [invEnv,invGoal] in
+  let pf = Proof.start [invEnv,(invGoal,Evd.universe_context_set sigma)] in
   Proof.run_tactic env (Proofview.V82.tactic (tclTHEN intro (onLastHypId inv_op))) pf;
   let pfterm = List.hd (Proof.partial_proof pf) in
   let global_named_context = Global.named_context () in

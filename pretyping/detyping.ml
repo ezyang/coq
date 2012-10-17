@@ -392,7 +392,7 @@ let rec detype (isgoal:bool) avoid env t =
 	GEvar (dl, n, None)
     | Var id ->
 	(try
-	  let _ = Global.lookup_named id in GRef (dl, VarRef id)
+	  let _ = Global.lookup_named id in GRef (dl, VarRef id,None)
 	 with _ ->
 	  GVar (dl, id))
     | Sort s -> GSort (dl,detype_sort s)
@@ -409,14 +409,14 @@ let rec detype (isgoal:bool) avoid env t =
 	GApp (dl,detype isgoal avoid env f,
               Array.map_to_list (detype isgoal avoid env) args)
 	(* FIXME, should we really forget universes here ? *)
-    | Const (sp,u) -> GRef (dl, ConstRef sp)
+    | Const (sp,u) -> GRef (dl, ConstRef sp,Some u)
     | Evar (ev,cl) ->
         GEvar (dl, ev,
                Some (List.map (detype isgoal avoid env) (Array.to_list cl)))
     | Ind (ind_sp,u) ->
-	GRef (dl, IndRef ind_sp)
+	GRef (dl, IndRef ind_sp,Some u)
     | Construct (cstr_sp,u) ->
-	GRef (dl, ConstructRef cstr_sp)
+	GRef (dl, ConstructRef cstr_sp,Some u)
     | Case (ci,p,c,bl) ->
 	let comp = computable p (ci.ci_pp_info.ind_nargs) in
 	detype_case comp (detype isgoal avoid env)
@@ -588,7 +588,7 @@ let rec subst_cases_pattern subst pat =
 
 let rec subst_glob_constr subst raw =
   match raw with
-  | GRef (loc,ref) ->
+  | GRef (loc,ref,u) ->
       let ref',t = subst_global subst ref in
 	if ref' == ref then raw else
          detype false [] [] t

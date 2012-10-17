@@ -46,9 +46,9 @@ let mkLambda_string s t c = mkLambda (Name (Id.of_string s), t, c)
 (* Building case analysis schemes *)
 (* Christine Paulin, 1996 *)
 
-let mis_make_case_com dep env sigma pind (mib,mip as specif) kind =
-  let lnamespar = List.map
-    (fun (n, c, t) -> (n, c, Termops.refresh_universes t))
+let mis_make_case_com dep env sigma (ind, u as pind) (mib,mip as specif) kind =
+  let usubst = Univ.make_universe_subst u mib.mind_universes in
+  let lnamespar = Sign.subst_univs_context usubst
     mib.mind_params_ctxt
   in
 
@@ -261,13 +261,13 @@ let context_chop k ctx =
     | (_, []) -> failwith "context_chop"
   in chop_aux [] (k,ctx)
 
-
 (* Main function *)
-let mis_make_indrec env sigma listdepkind mib =
+let mis_make_indrec env sigma listdepkind mib u =
   let nparams = mib.mind_nparams in
-  let nparrec = mib. mind_nparams_rec in
+  let nparrec = mib.mind_nparams_rec in
+  let usubst = Univ.make_universe_subst u mib.mind_universes in
   let lnonparrec,lnamesparrec =
-    context_chop (nparams-nparrec) mib.mind_params_ctxt in
+    context_chop (nparams-nparrec) (Sign.subst_univs_context usubst mib.mind_params_ctxt) in
   let nrec = List.length listdepkind in
   let depPvec =
     Array.make mib.mind_ntypes (None : (bool * constr) option) in
@@ -532,12 +532,12 @@ let build_mutual_induction_scheme env sigma = function
 	   lrecspec)
       in
       let _ = check_arities listdepkind in
-      mis_make_indrec env sigma listdepkind mib
+      mis_make_indrec env sigma listdepkind mib u
   | _ -> anomaly "build_induction_scheme expects a non empty list of inductive types"
 
 let build_induction_scheme env sigma pind dep kind =
   let (mib,mip) = lookup_mind_specif env (fst pind) in
-  List.hd (mis_make_indrec env sigma [(pind,mib,mip,dep,kind)] mib)
+  List.hd (mis_make_indrec env sigma [(pind,mib,mip,dep,kind)] mib (snd pind))
 
 (*s Eliminations. *)
 

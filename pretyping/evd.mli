@@ -126,6 +126,8 @@ type evar_map
 val progress_evar_map : evar_map -> evar_map -> bool
 
 val empty : evar_map
+val from_env : ?ctx:Univ.universe_context_set -> env -> evar_map
+
 val is_empty : evar_map -> bool
 (** [has_undefined sigma] is [true] if and only if
     there are uninstantiated evars in [sigma]. *)
@@ -244,9 +246,15 @@ val is_sort_variable : evar_map -> sorts -> bool
 val whd_sort_variable : evar_map -> constr -> constr
 val set_leq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
+val set_eq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
 
 val universe_context_set : evar_map -> Univ.universe_context_set
 val universe_context : evar_map -> Univ.universe_context
+
+val merge_context_set : evar_map -> Univ.universe_context_set -> evar_map
+
+val with_context_set : evar_map -> 'a Univ.in_universe_context_set -> evar_map * 'a
+
 (********************************************************************
    constr with holes *)
 type open_constr = evar_map * constr

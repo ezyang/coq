@@ -106,7 +106,7 @@ let glob_constr_of_notation_constr_with_binders loc g f e = function
   | NSort x -> GSort (loc,x)
   | NHole x  -> GHole (loc,x)
   | NPatVar n -> GPatVar (loc,(false,n))
-  | NRef x -> GRef (loc,x)
+  | NRef x -> GRef (loc,x,None)
 
 let glob_constr_of_notation_constr loc x =
   let rec aux () x =
@@ -146,15 +146,26 @@ let split_at_recursive_part c =
 let on_true_do b f c = if b then (f c; b) else b
 
 let compare_glob_constr f add t1 t2 = match t1,t2 with
+<<<<<<< HEAD
   | GRef (_,r1), GRef (_,r2) -> eq_gr r1 r2
   | GVar (_,v1), GVar (_,v2) -> on_true_do (Id.equal v1 v2) add (Name v1)
   | GApp (_,f1,l1), GApp (_,f2,l2) -> f f1 f2 && List.for_all2eq f l1 l2
+=======
+  | GRef (_,r1,_), GRef (_,r2,_) -> eq_gr r1 r2
+  | GVar (_,v1), GVar (_,v2) -> on_true_do (id_eq v1 v2) add (Name v1)
+  | GApp (_,f1,l1), GApp (_,f2,l2) -> f f1 f2 & List.for_all2eq f l1 l2
+>>>>>>> - Add externalisation code for universe level instances.
   | GLambda (_,na1,bk1,ty1,c1), GLambda (_,na2,bk2,ty2,c2)
     when Name.equal na1 na2 && Constrexpr_ops.binding_kind_eq bk1 bk2 ->
     on_true_do (f ty1 ty2 & f c1 c2) add na1
   | GProd (_,na1,bk1,ty1,c1), GProd (_,na2,bk2,ty2,c2)
+<<<<<<< HEAD
     when Name.equal na1 na2 && Constrexpr_ops.binding_kind_eq bk1 bk2 ->
       on_true_do (f ty1 ty2 & f c1 c2) add na1
+=======
+    when name_eq na1 na2 && Constrexpr_ops.binding_kind_eq bk1 bk2 ->
+    on_true_do (f ty1 ty2 & f c1 c2) add na1
+>>>>>>> - Add externalisation code for universe level instances.
   | GHole _, GHole _ -> true
   | GSort (_,s1), GSort (_,s2) -> glob_sort_eq s1 s2
   | GLetIn (_,na1,b1,c1), GLetIn (_,na2,b2,c2) when Name.equal na1 na2 ->
@@ -288,7 +299,7 @@ let notation_constr_and_vars_of_glob_constr a =
   | GCast (_,c,k) -> NCast (aux c,Miscops.map_cast_type aux k)
   | GSort (_,s) -> NSort s
   | GHole (_,w) -> NHole w
-  | GRef (_,r) -> NRef r
+  | GRef (_,r,_) -> NRef r
   | GPatVar (_,(_,n)) -> NPatVar n
   | GEvar _ ->
       error "Existential variables not allowed in notations."
@@ -635,7 +646,7 @@ let rec match_ inner u alp (tmetas,blmetas as metas) sigma a1 a2 =
 
   (* Matching compositionally *)
   | GVar (_,id1), NVar id2 when alpha_var id1 id2 alp -> sigma
-  | GRef (_,r1), NRef r2 when (eq_gr r1 r2) -> sigma
+  | GRef (_,r1,_), NRef r2 when (eq_gr r1 r2) -> sigma
   | GPatVar (_,(_,n1)), NPatVar n2 when Id.equal n1 n2 -> sigma
   | GApp (loc,f1,l1), NApp (f2,l2) ->
       let n1 = List.length l1 and n2 = List.length l2 in

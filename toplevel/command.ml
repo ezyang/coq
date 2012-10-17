@@ -53,8 +53,8 @@ let rec complete_conclusion a cs = function
 	user_err_loc (loc,"",
 	  strbrk"Cannot infer the non constant arguments of the conclusion of "
 	  ++ pr_id cs ++ str ".");
-      let args = List.map (fun id -> CRef(Ident(loc,id))) params in
-      CAppExpl (loc,(None,Ident(loc,name)),List.rev args)
+      let args = List.map (fun id -> CRef(Ident(loc,id),None)) params in
+      CAppExpl (loc,(None,Ident(loc,name),None),List.rev args)
   | c -> c
 
 (* Commands of the interface *)
@@ -797,10 +797,11 @@ let interp_fixpoint l ntns = check_recursive true (interp_recursive true l ntns)
 let interp_cofixpoint l ntns = check_recursive false (interp_recursive false l ntns)
     
 let declare_fixpoint ((fixnames,fixdefs,fixtypes),fiximps) indexes ntns =
+  let ctx = Univ.empty_universe_context_set in
   if List.mem None fixdefs then
     (* Some bodies to define by proof *)
     let thms =
-      List.map3 (fun id t (len,imps,_) -> (id,(t,(len,imps)))) fixnames fixtypes fiximps in
+      List.map3 (fun id t (len,imps,_) -> (id,((t,ctx),(len,imps)))) fixnames fixtypes fiximps in
     let init_tac =
       Some (List.map (Option.cata Tacmach.refine_no_check Tacticals.tclIDTAC)
         fixdefs) in
@@ -822,10 +823,11 @@ let declare_fixpoint ((fixnames,fixdefs,fixtypes),fiximps) indexes ntns =
   List.iter Metasyntax.add_notation_interpretation ntns
 
 let declare_cofixpoint ((fixnames,fixdefs,fixtypes),fiximps) ntns =
+  let ctx = Univ.empty_universe_context_set in (*FIXME *)
   if List.mem None fixdefs then
     (* Some bodies to define by proof *)
     let thms =
-      List.map3 (fun id t (len,imps,_) -> (id,(t,(len,imps)))) fixnames fixtypes fiximps in
+      List.map3 (fun id t (len,imps,_) -> (id,((t,ctx),(len,imps)))) fixnames fixtypes fiximps in
     let init_tac =
       Some (List.map (Option.cata Tacmach.refine_no_check Tacticals.tclIDTAC)
         fixdefs) in
@@ -925,7 +927,7 @@ let do_program_fixpoint l =
 	     
     | [(n, CMeasureRec (m, r))], [(((_,id),_,bl,typ,def),ntn)] ->
 	build_wellfounded (id, n, bl, typ, out_def def)
-	  (Option.default (CRef lt_ref) r) m ntn
+	  (Option.default (CRef (lt_ref,None)) r) m ntn
 	  
     | _, _ when List.for_all (fun (n, ro) -> ro == CStructRec) g ->
 	let fixl,ntns = extract_fixpoint_components true l in

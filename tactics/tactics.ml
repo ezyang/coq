@@ -3523,7 +3523,8 @@ let abstract_subproof id tac gl =
     try flush_and_check_evars (project gl) concl
     with Uninstantiated_evar _ ->
       error "\"abstract\" cannot handle existentials." in
-  let const = Pfedit.build_constant_by_tactic id secsign concl
+  let const = Pfedit.build_constant_by_tactic id secsign 
+    (concl, Evd.universe_context_set (project gl))
     (tclCOMPLETE (tclTHEN (tclDO (List.length sign) intro) tac)) in
   let cd = Entries.DefinitionEntry const in
   let lem = mkConst (Declare.declare_constant ~internal:Declare.KernelSilent id (cd,IsProof Lemma)) in

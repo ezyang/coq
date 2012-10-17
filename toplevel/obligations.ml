@@ -730,7 +730,7 @@ let rec string_of_list sep f = function
 let solve_by_tac evi t =
   let id = Id.of_string "H" in
   try
-    Pfedit.start_proof id goal_kind evi.evar_hyps evi.evar_concl
+    Pfedit.start_proof id goal_kind evi.evar_hyps (evi.evar_concl, Univ.empty_universe_context_set)
     (fun _ _ -> ());
     Pfedit.by (tclCOMPLETE t);
     let _,(const,_,_,_) = Pfedit.cook_proof ignore in
@@ -752,7 +752,8 @@ let rec solve_obligation prg num tac =
       match deps_remaining obls obl.obl_deps with
       | [] ->
 	  let obl = subst_deps_obl obls obl in
-	    Lemmas.start_proof obl.obl_name (kind_of_opacity obl.obl_status) obl.obl_type
+	    Lemmas.start_proof obl.obl_name (kind_of_opacity obl.obl_status) 
+	      (obl.obl_type, Univ.empty_universe_context_set) (* FIXME *)
 	      (fun strength gr ->
 		let cst = match gr with ConstRef cst -> cst | _ -> assert false in
 		let obl =
