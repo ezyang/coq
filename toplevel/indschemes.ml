@@ -113,7 +113,7 @@ let _ =
 
 (* Util *)
 
-let define id internal c t =
+let define id internal ctx c t =
   let f = declare_constant ~internal in
   let kn = f id
     (DefinitionEntry
@@ -121,7 +121,7 @@ let define id internal c t =
         const_entry_secctx = None;
         const_entry_type = t;
 	const_entry_polymorphic = true;
-	const_entry_universes = Univ.empty_universe_context; (* FIXME *)
+	const_entry_universes = Evd.universe_context ctx; (* FIXME *)
         const_entry_opaque = false },
       Decl_kinds.IsDefinition Scheme) in
   definition_message id;
@@ -344,18 +344,19 @@ requested
 
 let do_mutual_induction_scheme lnamedepindsort =
   let lrecnames = List.map (fun ((_,f),_,_,_) -> f) lnamedepindsort
-  and sigma = Evd.empty
   and env0 = Global.env() in
-  let lrecspec =
-    List.map
-      (fun (_,dep,ind,sort) -> ((ind,[])(*FIXME*),dep,interp_elimination_sort sort))
-      lnamedepindsort
+  let sigma, lrecspec =
+    List.fold_left
+      (fun (evd, l) (_,dep,ind,sort) -> 
+        let evd, indu = Evarutil.fresh_inductive_instance env0 evd ind in
+          (evd, (indu,dep,interp_elimination_sort sort) :: l))
+    (Evd.from_env env0,[]) lnamedepindsort
   in
   let listdecl = Indrec.build_mutual_induction_scheme env0 sigma lrecspec in
   let declare decl fi lrecref =
-    let decltype = Retyping.get_type_of env0 Evd.empty decl in
-    let decltype = refresh_universes decltype in
-    let cst = define fi UserVerbose decl (Some decltype) in
+    let decltype = Retyping.get_type_of env0 sigma decl in
+    (* let decltype = refresh_universes decltype in *)
+    let cst = define fi UserVerbose sigma decl (Some decltype) in
     ConstRef cst :: lrecref
   in
   let _ = List.fold_right2 declare listdecl lrecnames [] in
@@ -405,7 +406,7 @@ let fold_left' f = function
   | hd :: tl -> List.fold_left f hd tl
 
 let build_combined_scheme env schemes =
-  let defs = List.map (fun cst -> 
+  let defs = List.map (fun cst -> (* FIXME *)
     let c, cst = Typeops.fresh_constant_instance env cst in
       (c, Typeops.type_of_constant_inenv env c)) schemes in
 (*   let nschemes = List.length schemes in *)
@@ -452,7 +453,7 @@ let do_combined_scheme name schemes =
       schemes
   in
   let body,typ = build_combined_scheme (Global.env ()) csts in
-  ignore (define (snd name) UserVerbose body (Some typ));
+  ignore (define (snd name) UserVerbose Evd.empty body (Some typ));
   fixpoint_message None [snd name]
 
 (**********************************************************************)

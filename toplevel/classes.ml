@@ -121,7 +121,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
     ?(generalize=true)
     ?(tac:Proof_type.tactic option) ?(hook:(global_reference -> unit) option) pri =
   let env = Global.env() in
-  let evars = ref Evd.empty in
+  let evars = ref (Evd.from_env env) in
   let tclass, ids =
     match bk with
     | Implicit ->
@@ -299,7 +299,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	    else
 	      (Flags.silently 
 	       (fun () ->
-		Lemmas.start_proof id kind termtype
+		Lemmas.start_proof id kind (termtype, Univ.empty_universe_context_set)
 		(fun _ -> instance_hook k pri global imps ?hook);
 		if not (Option.is_empty term) then 
 		  Pfedit.by (!refine_ref (evm, Option.get term))

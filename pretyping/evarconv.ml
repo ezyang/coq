@@ -219,9 +219,13 @@ let ise_stack2 no_app env evd f sk1 sk2 =
 let exact_ise_stack2 env evd f sk1 sk2 =
   match ise_stack2 false env evd f sk1 sk2 with | None, out -> out | _ -> (evd, false)
 
-let eq_puniverses f (x,u) (y,v) = 
-  if f x y then try List.for_all2 Univ.eq_levels u v with _ -> false
-  else false
+let eq_puniverses evd f (x,u) (y,v) =
+  if f x y then 
+    let evdref = ref evd in
+      try List.iter2 (fun x y -> evdref := Evd.set_eq_level !evdref x y) u v;
+	  (!evdref, true)
+      with _ -> (evd, false)
+  else (evd, false)
 
 let rec evar_conv_x ts env evd pbty term1 term2 =
   let term1 = whd_head_evar evd term1 in
@@ -348,7 +352,7 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	ise_try evd [f1; f2]
 
 	| _, _ ->
-	let f1 i =
+	let f1 i = (* FIXME will unfold polymorphic constants always *)
 	  if eq_constr term1 term2 then
 	    exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
 	  else
@@ -496,14 +500,14 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	         evar_conv_x ts (push_rel (n,None,c) env) i pbty c'1 c'2)]
 
 	| Ind sp1, Ind sp2 ->
-	    if eq_puniverses eq_ind sp1 sp2 then
-              exact_ise_stack2 env evd (evar_conv_x ts) sk1 sk2
-            else (evd, false)
+	     ise_and evd
+	       [(fun i -> eq_puniverses i eq_ind sp1 sp2);
+		(fun i -> exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2)]
 
 	| Construct sp1, Construct sp2 ->
-	    if eq_puniverses eq_constructor sp1 sp2 then
-              exact_ise_stack2 env evd (evar_conv_x ts) sk1 sk2
-            else (evd, false)
+	     ise_and evd
+	       [(fun i -> eq_puniverses i eq_constructor sp1 sp2);
+		(fun i -> exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2)]
 
 	| Fix ((li1, i1),(_,tys1,bds1 as recdef1)), Fix ((li2, i2),(_,tys2,bds2)) -> (* Partially applied fixs *)
 	  if Int.equal i1 i2 && Array.equal Int.equal li1 li2 then

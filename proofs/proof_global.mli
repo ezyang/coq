@@ -55,7 +55,7 @@ val give_me_the_proof : unit -> Proof.proof
 type lemma_possible_guards = int list list
 val start_proof : Names.Id.t -> 
                           Decl_kinds.goal_kind ->
-                          (Environ.env * Term.types) list  ->
+                          (Environ.env * Term.types Univ.in_universe_context_set) list  ->
                           ?compute_guard:lemma_possible_guards -> 
                           unit Tacexpr.declaration_hook -> 
                           unit

@@ -142,8 +142,8 @@ let fresh_type_of_constant env c =
 
 let fresh_constant_instance env c =
   let cb = lookup_constant c env in
-  let (univ, subst), cst = fresh_instance_from_context cb.const_universes in
-    ((c, univ), cst)
+  let inst, ctx = fresh_instance_from cb.const_universes in
+    ((c, inst), ctx)
 
 let judge_of_constant env cst =
   let c = mkConstU cst in

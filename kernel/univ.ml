@@ -713,6 +713,9 @@ let enforce_eq u v c =
       if UniverseLevel.equal u v then c else Constraint.add (u,Eq,v) c
     | _ -> anomaly "A universe comparison can only happen between variables"
 
+let enforce_eq_level u v c =
+  if UniverseLevel.equal u v then c else Constraint.add (u,Eq,v) c
+  
 let merge_constraints c g =
   Constraint.fold enforce_constraint c g
 
@@ -941,6 +944,16 @@ let fresh_instance_from_context (vars, cst as ctx) =
   let subst = List.combine vars inst in
   let constraints = instantiate_univ_context subst ctx in
     (inst, subst), constraints
+
+let fresh_universe_set_instance (ctx, _) =
+  List.fold_left (fun s _ -> UniverseLSet.add (fresh_level ()) s) UniverseLSet.empty ctx
+
+let fresh_instance_from (vars, cst as ctx) =
+  let ctx' = fresh_universe_set_instance ctx in
+  let inst = UniverseLSet.elements ctx' in
+  let subst = List.combine vars inst in
+  let constraints = instantiate_univ_context subst ctx in
+    inst, (ctx', constraints)
 
 (* Miscellaneous functions to remove or test local univ assumed to
    occur only in the le constraints *)

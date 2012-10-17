@@ -359,6 +359,11 @@ let e_new_evar evdref env ?(src=(Loc.ghost,Evar_kinds.InternalHole)) ?filter ?ca
   evdref := evd';
   ev
 
+let e_new_type_evar evdref ?src ?filter env =
+  let evd', e = new_type_evar ?src ?filter !evdref env in
+    evdref := evd';
+    e
+
 (*------------------------------------*
  * Restricting existing evars         *
  *------------------------------------*)
@@ -1920,6 +1925,20 @@ let check_evars env initial_sigma sigma c =
 		    error_unsolvable_implicit loc env sigma evi k None)
       | _ -> iter_constr proc_rec c
   in proc_rec c
+
+
+(****************************************)
+(* Operations on universes              *)
+(****************************************)
+
+let fresh_constant_instance env evd c = 
+  Evd.with_context_set evd (Typeops.fresh_constant_instance env c)
+
+let fresh_inductive_instance env evd i =
+  Evd.with_context_set evd (Inductive.fresh_inductive_instance env i)
+
+let fresh_constructor_instance env evd c =
+  Evd.with_context_set evd (Inductive.fresh_constructor_instance env c)
 
 (****************************************)
 (* Operations on value/type constraints *)

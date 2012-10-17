@@ -75,7 +75,7 @@ val current_proof_depth: unit -> int
 type lemma_possible_guards = Proof_global.lemma_possible_guards
 
 val start_proof :
-  Id.t -> goal_kind -> named_context_val -> constr ->
+  Id.t -> goal_kind -> named_context_val -> constr Univ.in_universe_context_set ->
   ?init_tac:tactic -> ?compute_guard:lemma_possible_guards -> 
   unit declaration_hook -> unit
 
@@ -165,9 +165,10 @@ val instantiate_nth_evar_com : int -> Constrexpr.constr_expr -> unit
 
 (** [build_by_tactic typ tac] returns a term of type [typ] by calling [tac] *)
 
-val build_constant_by_tactic : Id.t -> named_context_val -> types -> tactic ->
+val build_constant_by_tactic : Id.t -> named_context_val -> 
+  types Univ.in_universe_context_set -> tactic ->
   Entries.definition_entry
-val build_by_tactic : env -> types -> tactic -> constr
+val build_by_tactic : env -> types Univ.in_universe_context_set -> tactic -> constr
 
 (** Declare the default tactic to fill implicit arguments *)
 

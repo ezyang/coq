@@ -1573,11 +1573,11 @@ TACTIC EXTEND GenRew
     [ cl_rewrite_clause_newtac_tac c o AllOccurrences None ]
 END
 
-let mkappc s l = CAppExpl (Loc.ghost,(None,(Libnames.Ident (Loc.ghost,Id.of_string s))),l)
+let mkappc s l = CAppExpl (Loc.ghost,(None,(Libnames.Ident (Loc.ghost,Id.of_string s)),None),l)
 
 let declare_an_instance n s args =
   ((Loc.ghost,Name n), Explicit,
-  CAppExpl (Loc.ghost, (None, Qualid (Loc.ghost, qualid_of_string s)),
+  CAppExpl (Loc.ghost, (None, Qualid (Loc.ghost, qualid_of_string s),None),
 	   args))
 
 let declare_instance a aeq n s = declare_an_instance n s [a;aeq]
@@ -1841,7 +1841,7 @@ let add_morphism_infer (glob,poly) m n =
       let kind = Decl_kinds.Global, false, Decl_kinds.DefinitionBody Decl_kinds.Instance in
 	Flags.silently
 	  (fun () ->
-	    Lemmas.start_proof instance_id kind instance
+	    Lemmas.start_proof instance_id kind (instance, Univ.empty_universe_context_set (*FIXME*))
 	      (fun _ -> function
 		Globnames.ConstRef cst ->
 		  add_instance (Typeclasses.new_instance (Lazy.force proper_class) None
@@ -1856,7 +1856,7 @@ let add_morphism (glob, poly) binders m s n =
   let instance =
     ((Loc.ghost,Name instance_id), Explicit,
     CAppExpl (Loc.ghost,
-	     (None, Qualid (Loc.ghost, Libnames.qualid_of_string "Coq.Classes.Morphisms.Proper")),
+	     (None, Qualid (Loc.ghost, Libnames.qualid_of_string "Coq.Classes.Morphisms.Proper"),None),
 	     [cHole; s; m]))
   in
   let tac = Tacinterp.interp <:tactic<add_morphism_tactic>> in

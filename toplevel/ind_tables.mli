@@ -22,8 +22,8 @@ type mutual
 type individual
 type 'a scheme_kind
 
-type mutual_scheme_object_function = mutual_inductive -> constr array
-type individual_scheme_object_function = inductive -> constr
+type mutual_scheme_object_function = mutual_inductive -> constr array Univ.in_universe_context
+type individual_scheme_object_function = inductive -> constr Univ.in_universe_context
 
 (** Main functions to register a scheme builder *)
 
@@ -50,3 +50,10 @@ val define_mutual_scheme : mutual scheme_kind -> Declare.internal_flag (** inter
 val find_scheme : 'a scheme_kind -> inductive -> constant
 
 val check_scheme : 'a scheme_kind -> inductive -> bool
+
+val poly_scheme : (bool -> Environ.env -> pinductive -> sorts_family -> 'a) ->
+  bool -> Environ.env -> inductive -> sorts_family -> 'a Univ.in_universe_context
+
+val poly_evd_scheme : (bool -> Environ.env -> Evd.evar_map -> pinductive -> sorts_family -> 'a) ->
+  bool -> Environ.env -> inductive -> sorts_family -> 'a Univ.in_universe_context
+

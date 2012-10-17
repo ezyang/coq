@@ -247,7 +247,7 @@ let rec glob_of_pat =
 	    add_params (pred n) (GHole(Loc.ghost,
 				       Evar_kinds.TomatchTypeParameter(ind,n))::q) in
 	    let args = List.map glob_of_pat lpat in
-	      glob_app(loc,GRef(Loc.ghost,Globnames.ConstructRef cstr),
+	      glob_app(loc,GRef(Loc.ghost,Globnames.ConstructRef cstr,None),
 		   add_params mind.Declarations.mind_nparams args)
 
 let prod_one_hyp = function
@@ -334,7 +334,7 @@ let interp_cases info sigma env params (pat:cases_pattern_expr) hyps =
 	     (if expected = 0 then str "none" else int expected) ++ spc () ++
 	     str "expected.") in
   let app_ind =
-    let rind = GRef (Loc.ghost,Globnames.IndRef pinfo.per_ind) in
+    let rind = GRef (Loc.ghost,Globnames.IndRef pinfo.per_ind,None) in
     let rparams = List.map detype_ground pinfo.per_params in
     let rparams_rec =
       List.map

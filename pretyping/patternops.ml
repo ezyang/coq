@@ -304,7 +304,7 @@ let rec pat_of_raw metas vars = function
        with Not_found -> PVar id)
   | GPatVar (_,(false,n)) ->
       metas := n::!metas; PMeta (Some n)
-  | GRef (_,gr) ->
+  | GRef (_,gr,_) ->
       PRef (canonical_gr gr)
   (* Hack pour ne pas réécrire une interprétation complète des patterns*)
   | GApp (_, GPatVar (_,(true,n)), cl) ->

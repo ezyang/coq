@@ -209,6 +209,8 @@ module EvarMap = struct
 
   type t = EvarInfoMap.t * universe_context
   let empty = EvarInfoMap.empty, empty_universe_context
+  let from_env_and_context e c = EvarInfoMap.empty, (c, universes e)
+
   let is_empty (sigma,_) = EvarInfoMap.is_empty sigma
   let has_undefined (sigma,_) = EvarInfoMap.has_undefined sigma
   let add (sigma,sm) k v = (EvarInfoMap.add sigma k v, sm)
@@ -415,6 +417,9 @@ let empty =  {
   metas=Metamap.empty
 }
 
+let from_env ?(ctx=Univ.empty_universe_context_set) e = 
+  { empty with evars = EvarMap.from_env_and_context e ctx }
+
 let has_undefined evd =
   EvarMap.has_undefined evd.evars
 
@@ -506,6 +511,13 @@ let universe_context_set ({evars = (sigma, (ctx, us)) }) = ctx
 let universe_context ({evars = (sigma, (ctx, us)) }) =
   Univ.context_of_universe_context_set ctx
 
+let merge_context_set ({evars = (sigma, (ctx, us))} as d) ctx' = 
+  {d with evars = (sigma, (Univ.union_universe_context_set ctx ctx', 
+			   Univ.merge_constraints (snd ctx') us))}
+
+let with_context_set d (a, ctx) = 
+  (merge_context_set d ctx, a)
+
 let new_univ_variable ({ evars = (sigma, ((vars, cst), us)) } as d) =
   let u = Termops.new_univ_level () in
   let vars' = Univ.UniverseLSet.add u vars in
@@ -575,6 +587,9 @@ let set_eq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
       | Type u, Type v when is_univ_var_or_set u && is_univ_var_or_set v ->
 	  add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint)
       | _, _ -> raise (Univ.UniverseInconsistency (Univ.Eq, u1, u2, []))
+
+let set_eq_level ({evars = (sigma, (us, sm))} as d) u1 u2 =
+  add_constraints d (Univ.enforce_eq_level u1 u2 Univ.empty_constraint)
 	    
 (**********************************************************)
 (* Accessing metas *)

@@ -40,12 +40,17 @@ let optimize_non_type_induction_scheme kind dep sort ind =
 	mib.mind_nparams_rec
       else
 	mib.mind_nparams in
-    snd (weaken_sort_scheme (new_sort_in_family sort) npars c t)
+    (snd (weaken_sort_scheme (new_sort_in_family sort) npars c t),
+     Univ.empty_universe_context) (* FIXME *)
   else
-    build_induction_scheme (Global.env()) Evd.empty (ind,[]) dep sort
+    let env = Global.env () in
+    let sigma, indu = Evarutil.fresh_inductive_instance env (Evd.from_env env) ind in
+      build_induction_scheme env sigma indu dep sort, Evd.universe_context sigma
 
 let build_induction_scheme_in_type dep sort ind =
-  build_induction_scheme (Global.env()) Evd.empty (ind,[]) dep sort
+  let env = Global.env () in
+  let sigma, indu = Evarutil.fresh_inductive_instance env (Evd.from_env env) ind in
+    build_induction_scheme env sigma indu dep sort, Evd.universe_context sigma
 
 let rect_scheme_kind_from_type =
   declare_individual_scheme_object "_rect_nodep"
@@ -82,7 +87,8 @@ let rec_dep_scheme_kind_from_type =
 (* Case analysis *)
 
 let build_case_analysis_scheme_in_type dep sort ind =
-  build_case_analysis_scheme (Global.env()) Evd.empty (ind,[]) dep sort
+  poly_evd_scheme (fun dep env sigma ind k -> build_case_analysis_scheme env sigma ind dep k)
+    dep (Global.env()) ind sort
 
 let case_scheme_kind_from_type =
   declare_individual_scheme_object "_case_nodep"
