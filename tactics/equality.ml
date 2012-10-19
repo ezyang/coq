@@ -251,19 +251,19 @@ let find_elim hdcncl lft2rgt dep cls args gl =
         begin match lft2rgt, cls with
         | Some true, None
         | Some false, Some _ ->
-	  let c1,u = destConst pr1 in 
+	  let c1 = destConstRef pr1 in 
 	  let mp,dp,l = repr_con (constant_of_kn (canonical_con c1)) in 
 	  let l' = Label.of_id (add_suffix (Label.to_id l) "_r")  in 
 	  let c1' = Global.constant_of_delta_kn (make_kn mp dp l') in
 	  begin 
 	    try 
 	      let _ = Global.lookup_constant c1' in
-	      mkConst c1'
+		c1'
 	    with Not_found -> 
 	      let rwr_thm = Label.to_string l' in 
 	      error ("Cannot find rewrite principle "^rwr_thm^".")
 	  end
-	| _ -> pr1
+	| _ -> destConstRef pr1
         end
       | _ -> 
 	  (* cannot occur since we checked that we are in presence of 
@@ -283,7 +283,7 @@ let find_elim hdcncl lft2rgt dep cls args gl =
     | true, _, false -> rew_r2l_forward_dep_scheme_kind
   in
   match kind_of_term hdcncl with
-  | Ind (ind,u) -> mkConst (find_scheme scheme_name ind)
+  | Ind (ind,u) -> (find_scheme scheme_name ind)
   | _ -> assert false
 
 let type_of_clause gl = function
@@ -295,9 +295,10 @@ let leibniz_rewrite_ebindings_clause cls lft2rgt tac sigma c t l with_evars frze
   let dep_fun = if isatomic then dependent else dependent_no_evar in
   let dep = dep_proof_ok && dep_fun c (type_of_clause gl cls) in
   let elim = find_elim hdcncl lft2rgt dep cls (snd (decompose_app t)) gl in
-  general_elim_clause with_evars frzevars tac cls sigma c t l
-    (match lft2rgt with None -> false | Some b -> b)
-    {elimindex = None; elimbody = (elim,NoBindings)} gl
+    pf_constr_of_global (ConstRef elim) (fun c -> 
+    general_elim_clause with_evars frzevars tac cls sigma c t l
+      (match lft2rgt with None -> false | Some b -> b)
+      {elimindex = None; elimbody = (c,NoBindings)}) gl
 
 let adjust_rewriting_direction args lft2rgt =
   match args with
@@ -442,6 +443,9 @@ let rewriteRL = general_rewrite false AllOccurrences true true
    tac : Used to prove the equality c1 = c2
    gl : goal *)
 
+let tclPUSHCONTEXT ctx gl = 
+  Refiner.tclEVARS (Evd.merge_context_set (project gl) ctx) gl
+
 let multi_replace clause c2 c1 unsafe try_prove_eq_opt gl =
   let try_prove_eq =
     match try_prove_eq_opt with
@@ -451,10 +455,12 @@ let multi_replace clause c2 c1 unsafe try_prove_eq_opt gl =
   let t1 = pf_apply get_type_of gl c1
   and t2 = pf_apply get_type_of gl c2 in
   if unsafe or (pf_conv_x gl t1 t2) then
-    let e = build_coq_eq () in
-    let sym = build_coq_eq_sym () in
+    let eqdata, ctx = build_coq_eq_data_in (pf_env gl) in
+    let e = eqdata.eq in
+    let sym = eqdata.sym in
     let eq = applist (e, [t1;c1;c2]) in
-    tclTHENS (assert_as false None eq)
+    tclTHEN (tclPUSHCONTEXT ctx)
+    (tclTHENS (assert_as false None eq)
       [onLastHypId (fun id ->
 	tclTHEN
 	  (tclTRY (general_multi_rewrite false false (mkVar id,NoBindings) clause))
@@ -464,7 +470,7 @@ let multi_replace clause c2 c1 unsafe try_prove_eq_opt gl =
 	  tclTHEN (apply sym) assumption;
 	  try_prove_eq
 	 ]
-      ] gl
+      ]) gl
   else
     error "Terms do not have convertible types."
 
@@ -1208,8 +1214,9 @@ let bareRevSubstInConcl lbeq body (t,e1,e2) gls =
   (* build substitution predicate *)
   let p = lambda_create (pf_env gls) (t,body) in
   (* apply substitution scheme *)
-  refine (applist(eq_elim,[t;e1;p;Evarutil.mk_new_meta();
-                           e2;Evarutil.mk_new_meta()])) gls
+  pf_constr_of_global (ConstRef eq_elim) (fun c ->
+    refine (applist(c,[t;e1;p;Evarutil.mk_new_meta();
+                       e2;Evarutil.mk_new_meta()]))) gls
 
 (* [subst_tuple_term dep_pair B]
 

@@ -21,14 +21,14 @@ open Termops
 open Ind_tables
 
 (* Induction/recursion schemes *)
-let get_fresh_constant env cte = (* FIXME *) cte, []
 
 let optimize_non_type_induction_scheme kind dep sort ind =
+  let env = Global.env () in
   if check_scheme kind ind then
     (* in case the inductive has a type elimination, generates only one
        induction scheme, the other ones share the same code with the
        apropriate type *)
-    let cte = get_fresh_constant (Global.env()) (find_scheme kind ind) in
+    let cte,ctx = fresh_constant_instance env ~dp:(Lib.library_dp ()) (find_scheme kind ind) in
     let c = mkConstU cte in
     let t = type_of_constant_inenv (Global.env()) cte in
     let (mib,mip) = Global.lookup_inductive ind in
@@ -41,16 +41,17 @@ let optimize_non_type_induction_scheme kind dep sort ind =
       else
 	mib.mind_nparams in
     (snd (weaken_sort_scheme (new_sort_in_family sort) npars c t),
-     Univ.empty_universe_context) (* FIXME *)
+     Univ.context_of_universe_context_set ctx)
   else
-    let env = Global.env () in
     let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
-      build_induction_scheme env sigma indu dep sort, Evd.universe_context sigma
+    let sigma, c = build_induction_scheme env sigma indu dep sort in
+      c, Evd.universe_context sigma
 
 let build_induction_scheme_in_type dep sort ind =
   let env = Global.env () in
   let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
-    build_induction_scheme env sigma indu dep sort, Evd.universe_context sigma
+  let sigma, c = build_induction_scheme env sigma indu dep sort in
+    c, Evd.universe_context sigma
 
 let rect_scheme_kind_from_type =
   declare_individual_scheme_object "_rect_nodep"
@@ -87,8 +88,11 @@ let rec_dep_scheme_kind_from_type =
 (* Case analysis *)
 
 let build_case_analysis_scheme_in_type dep sort ind =
-  poly_evd_scheme (fun dep env sigma ind k -> build_case_analysis_scheme env sigma ind dep k)
-    dep (Global.env()) ind sort
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let sigma, indu = Evd.fresh_inductive_instance env sigma ind in
+  let sigma, c = build_case_analysis_scheme env sigma indu dep sort in 
+    c, Evd.universe_context sigma
 
 let case_scheme_kind_from_type =
   declare_individual_scheme_object "_case_nodep"

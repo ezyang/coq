@@ -61,6 +61,7 @@ let (declare_fun : Id.t -> logical_kind -> constr -> global_reference) =
               const_entry_secctx = None;
 	      const_entry_type = None;
 	      const_entry_polymorphic = (*FIXME*)false;
+	      const_entry_universes = Univ.empty_universe_context;
 	      const_entry_opaque = false } in
       ConstRef(declare_constant f_id (DefinitionEntry ce, kind));;
 
@@ -69,12 +70,12 @@ let defined () = Lemmas.save_named false
 let def_of_const t =
    match (kind_of_term t) with
     Const sp ->
-      (try (match body_of_constant (Global.lookup_constant sp) with
-             | Some c -> Declarations.force c
+      (try (match constant_opt_value_inenv (Global.env()) sp with
+             | Some c -> c
 	     | _ -> assert false)
        with _ ->
 	 anomaly ("Cannot find definition of constant "^
-		    (Id.to_string (Label.to_id (con_label sp))))
+		    (Id.to_string (Label.to_id (con_label (fst sp)))))
       )
      |_ -> assert false
 
@@ -191,7 +192,7 @@ let (value_f:constr list -> global_reference -> constr) =
     let glob_body =
       GCases
 	(d0,RegularStyle,None,
-	 [GApp(d0, GRef(d0,fterm), List.rev_map (fun x_id -> GVar(d0, x_id)) rev_x_id_l),
+	 [GApp(d0, GRef(d0,fterm,None), List.rev_map (fun x_id -> GVar(d0, x_id)) rev_x_id_l),
 	  (Anonymous,None)],
 	 [d0, [v_id], [PatCstr(d0,(destIndRef
 				     (delayed_force coq_sig_ref),1),
@@ -1317,7 +1318,7 @@ let open_new_goal (build_proof:tactic -> tactic -> unit) using_lemmas ref_ goal_
     na
     (Decl_kinds.Global, false, Decl_kinds.Proof Decl_kinds.Lemma)
     sign
-    gls_type
+    (gls_type, Univ.empty_universe_context_set) (* FIXME *)
     hook ;
   if Indfun_common.is_strict_tcc  ()
   then
@@ -1364,7 +1365,8 @@ let com_terminate
     let (evmap, env) = Lemmas.get_current_context() in
     start_proof thm_name
       (Global, (*FIXME*)false, Proof Lemma) (Environ.named_context_val env)
-      (compute_terminate_type nb_args fonctional_ref) hook;
+      (compute_terminate_type nb_args fonctional_ref, (*FIXME*) Univ.empty_universe_context_set)
+    hook;
 
     by (observe_tac (str "starting_tac") tac_start);
     by (observe_tac (str "whole_start") (whole_start tac_end nb_args is_mes fonctional_ref
@@ -1388,7 +1390,7 @@ let start_equation (f:global_reference) (term_f:global_reference)
   (cont_tactic:Id.t list -> tactic) g =
   let ids = pf_ids_of_hyps g in
   let terminate_constr = constr_of_global term_f in
-  let nargs = nb_prod (type_of_const terminate_constr) in
+  let nargs = nb_prod (fst (type_of_const terminate_constr)) (*FIXME*) in
   let x = n_x_id ids nargs in
   tclTHENLIST [
     h_intros x;
@@ -1411,7 +1413,7 @@ let (com_eqn : int -> Id.t ->
     let f_constr = constr_of_global f_ref in
     let equation_lemma_type = subst1 f_constr equation_lemma_type in
     (start_proof eq_name (Global, false, Proof Lemma)
-       (Environ.named_context_val env) equation_lemma_type (fun _ _ -> ());
+       (Environ.named_context_val env) (equation_lemma_type,(*FIXME*)Univ.empty_universe_context_set) (fun _ _ -> ());
      by
        (start_equation f_ref terminate_ref
 	  (fun  x ->

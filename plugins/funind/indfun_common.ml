@@ -121,8 +121,8 @@ let const_of_id id =
 let def_of_const t =
    match (Term.kind_of_term t) with
     Term.Const sp ->
-      (try (match Declarations.body_of_constant (Global.lookup_constant sp) with
-             | Some c -> Declarations.force c
+      (try (match Environ.constant_opt_value_inenv (Global.env()) sp with
+             | Some c -> c
 	     | _ -> assert false)
        with _ -> assert false)
     |_ -> assert false
@@ -272,8 +272,8 @@ let cache_Function (_,finfos) =
 
 let load_Function _  = cache_Function
 let subst_Function (subst,finfos) =
-  let do_subst_con c = fst (Mod_subst.subst_con subst c)
-  and do_subst_ind (kn,i) = (Mod_subst.subst_ind subst kn,i)
+  let do_subst_con c = Mod_subst.subst_constant subst c
+  and do_subst_ind i = Mod_subst.subst_ind subst i
   in
   let function_constant' = do_subst_con finfos.function_constant in
   let graph_ind' = do_subst_ind finfos.graph_ind in

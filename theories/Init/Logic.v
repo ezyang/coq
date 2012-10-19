@@ -12,47 +12,10 @@ Require Export Notations.
 
 Notation "A -> B" := (forall (_ : A), B) : type_scope.
 
-Set Printing All.
-
-Polymorphic Inductive eq (A : Type) : A -> A -> Type :=
-  eq_refl : forall a, eq a a.
-
-Print eq_rect.
-Print eq.
-
-Set Printing Universes.
-Set Printing All.
-Print eq.
-
-Polymorphic Definition U := Type.
-Print U. Print eq.
-Print Universes.
-Polymorphic Definition foo := (U : U).
-Print foo.
-Definition bar := (U : U).
-Print bar.
-Print Universes.
-
-
-Definition id (A : Type) (a : A) := a.
-Print id.
-Inductive bool := true | false.
-Definition foo := (@id (bool -> bool) (@id bool)).
-Print foo.
-Inductive list (A : Type) := 
-| nil : list A
-| cons : A -> list A -> list A.
-
-Print list_rect.
-Print U.
-Print Universes.
-Print foo'.
-
-Print list.
-
 (** * Propositional connectives *)
 
 (** [True] is the always true proposition *)
+
 Inductive True : Prop :=
   I : True.
 
@@ -318,7 +281,7 @@ End universal_quantification.
     made explicit using the notation [x = y :> A]. This is Leibniz equality
     as it expresses that [x] and [y] are equal iff every property on
     [A] which is true of [x] is also true of [y] *)
-
+Set Printing Universes.
 Inductive eq (A:Type) (x:A) : A -> Prop :=
     eq_refl : x = x :>A
 
@@ -377,8 +340,8 @@ Section Logic_lemmas.
   Definition eq_ind_r :
     forall (A:Type) (x:A) (P:A -> Prop), P x -> forall y:A, y = x -> P y.
     intros A x P H y H0. elim eq_sym with (1 := H0); assumption.
-  Defined. Set Printing All. Set Printing Universes.
-Print eq_ind_r.
+  Defined.
+
   Definition eq_rec_r :
     forall (A:Type) (x:A) (P:A -> Set), P x -> forall y:A, y = x -> P y.
     intros A x P H y H0; elim eq_sym with (1 := H0); assumption.
@@ -504,7 +467,9 @@ Proof.
   intros A P (x & Hp & Huniq); split.
   - intro; exists x; auto.
   - intros (x0 & HPx0 & HQx0) x1 HPx1.
-    replace x1 with x0 by (transitivity x; [symmetry|]; auto).
+    replace x1 with x0.
+
+      by (transitivity x; [symmetry|]; auto).
     assumption.
 Qed.   
 

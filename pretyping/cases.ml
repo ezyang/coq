@@ -1650,12 +1650,14 @@ let build_inversion_problem loc env sigma tms t =
 	      it = None } } in
   (* [pb] is the auxiliary pattern-matching serving as skeleton for the
       return type of the original problem Xi *)
-  let sigma, s = Evd.new_sort_variable sigma in
+  (* let sigma, s = Evd.new_sort_variable sigma in *)
+(*FIXME TRY *)
+  let ty = Retyping.get_type_of pb_env sigma t in
   let evdref = ref sigma in
   let pb =
     { env       = pb_env;
       evdref    = evdref;
-      pred      = mkSort s;
+      pred      = ty;
       tomatch   = sub_tms;
       history   = start_history n;
       mat       = [eqn1;eqn2];

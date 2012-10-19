@@ -687,6 +687,6 @@ let check_inductive env kn mie =
   let _ = Univ.check_context_subset univs mie.mind_entry_universes in
   (* Build the inductive packets *)
     build_inductive env mie.mind_entry_polymorphic 
-      (Univ.context_of_universe_context_set univs)
+      mie.mind_entry_universes
       env_ar params mie.mind_entry_record mie.mind_entry_finite
       inds nmr recargs

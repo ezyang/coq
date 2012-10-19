@@ -33,13 +33,14 @@ val build_l2r_forward_rew_scheme :
 
 (** Builds a symmetry scheme for a symmetrical equality type *)
 
-val build_sym_scheme : env -> inductive -> constr
+val build_sym_scheme : env -> inductive -> constr Univ.in_universe_context
 val sym_scheme_kind : individual scheme_kind
 
-val build_sym_involutive_scheme : env -> inductive -> constr
+val build_sym_involutive_scheme : env -> inductive -> constr Univ.in_universe_context
 val sym_involutive_scheme_kind : individual scheme_kind
 
 (** Builds a congruence scheme for an equality type *)
 
 val congr_scheme_kind : individual scheme_kind
-val build_congr : env -> constr * constr -> inductive -> constr
+val build_congr : env -> constr * constr * Univ.universe_context_set -> inductive -> 
+  constr Univ.in_universe_context

@@ -532,19 +532,20 @@ let new_sort_variable d =
 (* Operations on constants              *)
 (****************************************)
 
-let fresh_constant_instance env dp c =
-  let cb = lookup_constant c env in
-  let inst, ctx = Univ.fresh_instance_from ~dp cb.Declarations.const_universes in
-    ((c, inst), ctx)
+let fresh_sort_in_family env ({ evars = (sigma, (dp, _, _)) } as evd) s = 
+  with_context_set evd (Termops.fresh_sort_in_family env ~dp s)
 
 let fresh_constant_instance env ({ evars = (sigma, (dp, _, _)) } as evd) c = 
-  with_context_set evd (fresh_constant_instance env dp c)
+  with_context_set evd (Termops.fresh_constant_instance env ~dp c)
 
-let fresh_inductive_instance env evd i =
-  with_context_set evd (Inductive.fresh_inductive_instance env i)
+let fresh_inductive_instance env ({ evars = (sigma, (dp, _, _)) } as evd) i =
+  with_context_set evd (Termops.fresh_inductive_instance env ~dp i)
 
-let fresh_constructor_instance env evd c =
-  with_context_set evd (Inductive.fresh_constructor_instance env c)
+let fresh_constructor_instance env ({ evars = (sigma, (dp, _, _)) } as evd) c =
+  with_context_set evd (Termops.fresh_constructor_instance env ~dp c)
+
+let fresh_global env ({ evars = (sigma, (dp, _, _)) } as evd) gr =
+  with_context_set evd (Termops.fresh_global_instance env ~dp gr)
 
 let is_sort_variable {evars=(_,(dp, us,_))} s = match s with Type u -> true | _ -> false 
 let whd_sort_variable {evars=(_,sm)} t = t

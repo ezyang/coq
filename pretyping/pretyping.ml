@@ -217,18 +217,7 @@ let evar_kind_of_term sigma c =
 (* Main pretyping function                                               *)
 
 (* Check with universe list? *)
-let pretype_global env evd gr us =
-  match gr with
-  | VarRef id -> evd, mkVar id
-  | ConstRef sp -> 
-     let evd, c = Evd.fresh_constant_instance env evd sp in
-       evd, mkConstU c
-  | ConstructRef sp ->
-     let evd, c = Evd.fresh_constructor_instance env evd sp in
-       evd, mkConstructU c
-  | IndRef sp -> 
-     let evd, c = Evd.fresh_inductive_instance env evd sp in
-       evd, mkIndU c
+let pretype_global env evd gr us = Evd.fresh_global env evd gr
 
 let pretype_ref loc evdref env ref us =
   match ref with

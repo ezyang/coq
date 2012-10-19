@@ -783,13 +783,14 @@ let general_elim with_evars c e =
 let general_case_analysis_in_context with_evars (c,lbindc) gl =
   let (mind,_) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
   let sort = elimination_sort_of_goal gl in
-  let elim =
+  let sigma, elim =
     if occur_term c (pf_concl gl) then
       pf_apply build_case_analysis_scheme gl mind true sort
     else
       pf_apply build_case_analysis_scheme_default gl mind sort in
-  general_elim with_evars (c,lbindc)
-    {elimindex = None; elimbody = (elim,NoBindings)} gl
+  tclTHEN (tclEVARS sigma)
+  (general_elim with_evars (c,lbindc)
+   {elimindex = None; elimbody = (elim,NoBindings)}) gl
 
 let general_case_analysis with_evars (c,lbindc as cx) =
   match kind_of_term c with
@@ -808,14 +809,21 @@ exception IsRecord
 
 let is_record mind = (Global.lookup_mind (fst mind)).mind_record
 
+let find_ind_eliminator ind s gl =
+  let gr = lookup_eliminator ind s in
+  let evd, c = pf_apply Evd.fresh_global gl gr in
+    evd, c
+
 let find_eliminator c gl =
   let ((ind,u),t) = pf_reduce_to_quantified_ind gl (pf_type_of gl c) in
   if is_record ind then raise IsRecord;
-  let c = lookup_eliminator ind (elimination_sort_of_goal gl) in
-  {elimindex = None; elimbody = (c,NoBindings)}
+  let evd, c = find_ind_eliminator ind (elimination_sort_of_goal gl) gl in
+    evd, {elimindex = None; elimbody = (c,NoBindings)}
 
 let default_elim with_evars (c,_ as cx) gl =
-  try general_elim with_evars cx (find_eliminator c gl) gl
+  try
+    let evd, elim = find_eliminator c gl in
+      tclTHEN (tclEVARS evd) (general_elim with_evars cx elim) gl
   with IsRecord ->
     (* For records, induction principles aren't there by default anymore.
        Instead, we do a case analysis instead. *)
@@ -927,7 +935,7 @@ let descend_in_conjunctions tac exit c gl =
 	  try DefinedRecord (Recordops.lookup_projections ind)
 	  with Not_found ->
 	    let elim = pf_apply build_case_analysis_scheme gl (ind,u) false sort in
-	    NotADefinedRecordUseScheme elim in
+	    NotADefinedRecordUseScheme (snd elim) in
 	tclFIRST
 	  (List.tabulate (fun i gl ->
 	    match make_projection (project gl) params cstr sign elim i n c with
@@ -1220,16 +1228,13 @@ let check_number_of_constructors expctdnumopt i nconstr =
   end;
   if i > nconstr then error "Not enough constructors."
 
-(* FIXME: MOVE *)
-let ith_constructor_of_pinductive (ind,u) i = ((ind,i), u)
-
 let constructor_tac with_evars expctdnumopt i lbind gl =
   let cl = pf_concl gl in
   let (mind,redcl) = pf_reduce_to_quantified_ind gl cl in
   let nconstr =
     Array.length (snd (Global.lookup_pinductive mind)).mind_consnames in
   check_number_of_constructors expctdnumopt i nconstr;
-  let cons = mkConstructU (ith_constructor_of_pinductive mind i) in
+  let cons = mkConstructUi (mind, i) in
   let apply_tac = general_apply true false with_evars (dloc,(cons,lbind)) in
   (tclTHENLIST
      [convert_concl_no_check redcl DEFAULTcast; intros; apply_tac]) gl
@@ -2805,7 +2810,7 @@ let compute_scheme_signature scheme names_info ind_type_guess =
    extra final argument of the form (f x y ...) in the conclusion. In
    the non standard case, naming of generated hypos is slightly
    different. *)
-let compute_elim_signature ((elimc,elimt),ind_type_guess) names_info =
+let compute_elim_signature (evd,(elimc,elimt),ind_type_guess) names_info =
   let scheme = compute_elim_sig ~elimc:elimc elimt in
   compute_scheme_signature scheme names_info ind_type_guess, scheme
 
@@ -2813,8 +2818,8 @@ let guess_elim isrec hyp0 gl =
   let tmptyp0 =	pf_get_hyp_typ gl hyp0 in
   let mind,_ = pf_reduce_to_quantified_ind gl tmptyp0 in
   let s = elimination_sort_of_goal gl in
-  let elimc =
-    if isrec && not (is_record (fst mind)) then lookup_eliminator (fst mind) s
+  let evd, elimc =
+    if isrec && not (is_record (fst mind)) then find_ind_eliminator (fst mind) s gl
     else
       if use_dependent_propositions_elimination () &&
 	dependent_no_evar (mkVar hyp0) (pf_concl gl)
@@ -2823,12 +2828,12 @@ let guess_elim isrec hyp0 gl =
       else
 	pf_apply build_case_analysis_scheme_default gl mind s in
   let elimt = pf_type_of gl elimc in
-  ((elimc, NoBindings), elimt), mkIndU mind
+    evd, ((elimc, NoBindings), elimt), mkIndU mind
 
 let given_elim hyp0 (elimc,lbind as e) gl =
   let tmptyp0 = pf_get_hyp_typ gl hyp0 in
   let ind_type_guess,_ = decompose_app ((strip_prod tmptyp0)) in
-  (e, pf_type_of gl elimc), ind_type_guess
+  project gl, (e, pf_type_of gl elimc), ind_type_guess
 
 let find_elim isrec elim hyp0 gl =
   match elim with
@@ -2843,21 +2848,21 @@ type eliminator_source =
   | ElimOver of bool * Id.t
 
 let find_induction_type isrec elim hyp0 gl =
-  let scheme,elim =
+  let evd,scheme,elim =
     match elim with
     | None ->
-	let (elimc,elimt),_ = guess_elim isrec hyp0 gl in
+	let evd, (elimc,elimt),_ = guess_elim isrec hyp0 gl in
 	let scheme = compute_elim_sig ~elimc elimt in
 	(* We drop the scheme waiting to know if it is dependent *)
-	scheme, ElimOver (isrec,hyp0)
+	evd, scheme, ElimOver (isrec,hyp0)
     | Some e ->
-	let (elimc,elimt),ind_guess = given_elim hyp0 e gl in
+	let evd, (elimc,elimt),ind_guess = given_elim hyp0 e gl in
 	let scheme = compute_elim_sig ~elimc elimt in
 	if Option.is_empty scheme.indarg then error "Cannot find induction type";
 	let indsign = compute_scheme_signature scheme hyp0 ind_guess in
 	let elim = ({elimindex = Some(-1); elimbody = elimc},elimt) in
-	scheme, ElimUsing (elim,indsign) in
-  Option.get scheme.indref,scheme.nparams, elim
+	evd, scheme, ElimUsing (elim,indsign) in
+  evd,(Option.get scheme.indref,scheme.nparams, elim)
 
 let find_elim_signature isrec elim hyp0 gl =
   compute_elim_signature (find_elim isrec elim hyp0 gl) hyp0
@@ -2877,10 +2882,10 @@ let is_functional_induction elim gl =
 
 let get_eliminator elim gl = match elim with
   | ElimUsing (elim,indsign) ->
-      (* bugged, should be computed *) true, elim, indsign
+      project gl, (* bugged, should be computed *) true, elim, indsign
   | ElimOver (isrec,id) ->
-      let (elimc,elimt),_ as elims = guess_elim isrec id gl in
-      isrec, ({elimindex = None; elimbody = elimc}, elimt),
+      let evd, (elimc,elimt),_ as elims = guess_elim isrec id gl in
+      evd, isrec, ({elimindex = None; elimbody = elimc}, elimt),
       fst (compute_elim_signature elims id)
 
 (* Instantiate all meta variables of elimclause using lid, some elts
@@ -2941,13 +2946,14 @@ let induction_tac_felim with_evars indvars nparams elim gl =
    induction applies with the induction hypotheses *)
 
 let apply_induction_with_discharge induct_tac elim indhyps destopt avoid names tac gl =
-  let isrec, elim, indsign = get_eliminator elim gl in
+  let evd, isrec, elim, indsign = get_eliminator elim gl in
   let names = compute_induction_names (Array.length indsign) names in
-  (if isrec then tclTHENFIRSTn else tclTHENLASTn)
+  tclTHEN (tclEVARS evd)
+  ((if isrec then tclTHENFIRSTn else tclTHENLASTn)
     (tclTHEN
        (induct_tac elim)
        (tclMAP (fun id -> tclTRY (expand_hyp id)) (List.rev indhyps)))
-    (Array.map2 (induct_discharge destopt avoid tac) indsign names) gl
+    (Array.map2 (induct_discharge destopt avoid tac) indsign names)) gl
 
 (* Apply induction "in place" taking into account dependent
    hypotheses from the context *)
@@ -3046,11 +3052,11 @@ let induction_from_context isrec with_evars (indref,nparams,elim) (hyp0,lbind) n
     (Some (hyp0,inhyps)) elim indvars names induct_tac gl
 
 let induction_with_atomization_of_ind_arg isrec with_evars elim names (hyp0,lbind) inhyps gl =
-  let elim_info = find_induction_type isrec elim hyp0 gl in
-  tclTHEN
-    (atomize_param_of_ind elim_info hyp0)
-    (induction_from_context isrec with_evars elim_info
-      (hyp0,lbind) names inhyps) gl
+  let evd,elim_info = find_induction_type isrec elim hyp0 gl in
+  tclTHENLIST [tclEVARS evd;
+	       atomize_param_of_ind elim_info hyp0;
+	       induction_from_context isrec with_evars elim_info
+	         (hyp0,lbind) names inhyps] gl
 
 (* Induction on a list of induction arguments. Analyse the elim
    scheme (which is mandatory for multiple ind args), check that all
@@ -3273,13 +3279,15 @@ let elim_scheme_type elim t gl =
 
 let elim_type t gl =
   let (ind,t) = pf_reduce_to_atomic_ind gl t in
-  let elimc = lookup_eliminator (fst ind) (elimination_sort_of_goal gl) in
-  elim_scheme_type elimc t gl
+  let evd, elimc = find_ind_eliminator (fst ind) (elimination_sort_of_goal gl) gl in
+    tclTHEN (tclEVARS evd) (elim_scheme_type elimc t) gl
 
 let case_type t gl =
   let (ind,t) = pf_reduce_to_atomic_ind gl t in
-  let elimc = pf_apply build_case_analysis_scheme_default gl ind (elimination_sort_of_goal gl) in
-  elim_scheme_type elimc t gl
+  let evd, elimc = 
+    pf_apply build_case_analysis_scheme_default gl ind (elimination_sort_of_goal gl) 
+  in
+    tclTHEN (tclEVARS evd) (elim_scheme_type elimc t) gl
 
 
 (* Some eliminations frequently used *)

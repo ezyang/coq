@@ -28,23 +28,23 @@ type dep_flag = bool
 (** Build a case analysis elimination scheme in some sort family *)
 
 val build_case_analysis_scheme : env -> evar_map -> pinductive ->
-      dep_flag -> sorts_family -> constr
+      dep_flag -> sorts_family -> evar_map * constr
 
 (** Build a dependent case elimination predicate unless type is in Prop *)
 
 val build_case_analysis_scheme_default : env -> evar_map -> pinductive ->
-      sorts_family -> constr
+      sorts_family -> evar_map * constr
 
 (** Builds a recursive induction scheme (Peano-induction style) in the same
    sort family as the inductive family; it is dependent if not in Prop *)
 
 val build_induction_scheme : env -> evar_map -> pinductive ->
-      dep_flag -> sorts_family -> constr
+      dep_flag -> sorts_family -> evar_map * constr
 
 (** Builds mutual (recursive) induction schemes *)
 
 val build_mutual_induction_scheme :
-  env -> evar_map -> (pinductive * dep_flag * sorts_family) list -> constr list
+  env -> evar_map -> (pinductive * dep_flag * sorts_family) list -> evar_map * constr list
 
 (** Scheme combinators *)
 
@@ -61,7 +61,7 @@ val weaken_sort_scheme : sorts -> int -> constr -> types -> constr * types
 
 (** Recursor names utilities *)
 
-val lookup_eliminator : inductive -> sorts_family -> constr
+val lookup_eliminator : inductive -> sorts_family -> Globnames.global_reference
 val elimination_suffix : sorts_family -> string
 val make_elimination_ident : Id.t -> sorts_family -> Id.t
 
