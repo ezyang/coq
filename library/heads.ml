@@ -128,9 +128,11 @@ let kind_of_head env t =
 (* FIXME: maybe change interface here *)
 let compute_head = function
 | EvalConstRef cst ->
-    (match constant_opt_value_inenv (Global.env()) (cst,[]) with
+   let env = Global.env() in
+   let body = Declarations.body_of_constant (Environ.lookup_constant cst env) in
+     (match body with
      | None -> RigidHead (RigidParameter cst)
-     | Some c -> kind_of_head (Global.env()) c)
+     | Some c -> kind_of_head env (Declarations.force c))
 | EvalVarRef id ->
     (match pi2 (Global.lookup_named id) with
      | Some c when not (Decls.variable_opacity id) ->

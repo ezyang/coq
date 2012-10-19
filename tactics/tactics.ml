@@ -2290,18 +2290,18 @@ let coq_heq = lazy (Coqlib.coq_constant "mkHEq" ["Logic";"JMeq"] "JMeq")
 let coq_heq_refl = lazy (Coqlib.coq_constant "mkHEq" ["Logic";"JMeq"] "JMeq_refl")
 
 let mkEq t x y = 
-  mkApp (Lazy.force coq_eq, [| refresh_universes_strict t; x; y |])
+  mkApp (Lazy.force coq_eq, [| t; x; y |])
     
 let mkRefl t x = 
-  mkApp (Lazy.force coq_eq_refl, [| refresh_universes_strict t; x |])
+  mkApp (Lazy.force coq_eq_refl, [| t; x |])
 
 let mkHEq t x u y =
   mkApp (Lazy.force coq_heq,
-	[| refresh_universes_strict t; x; refresh_universes_strict u; y |])
+	[| t; x; u; y |])
     
 let mkHRefl t x =
   mkApp (Lazy.force coq_heq_refl,
-	[| refresh_universes_strict t; x |])
+	[| t; x |])
 
 let lift_togethern n l =
   let l', _ =
@@ -2434,8 +2434,7 @@ let abstract_args gl generalize_vars dep id defined f args =
 	List.hd rel, c
     in
     let argty = pf_type_of gl arg in
-    let argty = refresh_universes_strict argty in 
-    let ty = refresh_universes_strict ty in
+    let ty = (* refresh_universes_strict *) ty in
     let lenctx = List.length ctx in
     let liftargty = lift lenctx argty in
     let leq = constr_cmp Reduction.CUMUL liftargty ty in
@@ -2571,7 +2570,7 @@ let specialize_eqs id gl =
   let ty' = Evarutil.nf_evar !evars ty' in
     if worked then
       tclTHENFIRST (Tacmach.internal_cut true id ty')
-	(exact_no_check (refresh_universes_strict acc')) gl
+	(exact_no_check ((* refresh_universes_strict *) acc')) gl
     else tclFAIL 0 (str "Nothing to do in hypothesis " ++ pr_id id) gl
       
 
@@ -2956,7 +2955,7 @@ let apply_induction_with_discharge induct_tac elim indhyps destopt avoid names t
 let apply_induction_in_context hyp0 elim indvars names induct_tac gl =
   let env = pf_env gl in
   let statuslists,lhyp0,indhyps,deps = cook_sign hyp0 indvars env in
-  let deps = List.map (on_pi3 refresh_universes_strict) deps in
+  (* let deps = List.map (on_pi3 refresh_universes_strict) deps in *)
   let tmpcl = it_mkNamedProd_or_LetIn (pf_concl gl) deps in
   let dephyps = List.map (fun (id,_,_) -> id) deps in
   let deps_cstr =

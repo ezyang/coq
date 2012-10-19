@@ -351,7 +351,8 @@ let new_evar evd env ?src ?filter ?candidates typ =
 
 let new_type_evar ?src ?filter evd env =
   let evd', s = new_sort_variable evd in
-  new_evar evd' env ?src ?filter (mkSort s)
+  let evd', e = new_evar evd' env ?src ?filter (mkSort s) in
+    evd', (e, s)
 
   (* The same using side-effect *)
 let e_new_evar evdref env ?(src=(Loc.ghost,Evar_kinds.InternalHole)) ?filter ?candidates ty =
@@ -360,9 +361,9 @@ let e_new_evar evdref env ?(src=(Loc.ghost,Evar_kinds.InternalHole)) ?filter ?ca
   ev
 
 let e_new_type_evar evdref ?src ?filter env =
-  let evd', e = new_type_evar ?src ?filter !evdref env in
+  let evd', c = new_type_evar ?src ?filter !evdref env in
     evdref := evd';
-    e
+    c
 
 (*------------------------------------*
  * Restricting existing evars         *
@@ -1706,8 +1707,8 @@ and evar_define conv_algo ?(choose=false) env evd (evk,argsv as ev) rhs =
     (* invert_definition may have instantiate some evars of rhs with evk *)
     (* so we recheck acyclicity *)
     if occur_evar evk body then raise (OccurCheckIn (evd',body));
-    (* needed only if an inferred type *)
-    let body = refresh_universes body in
+    (* (\* needed only if an inferred type *\) *)
+    (* let body = refresh_universes body in *)
 (* Cannot strictly type instantiations since the unification algorithm
  * does not unify applications from left to right.
  * e.g problem f x == g y yields x==y and f==g (in that order)
@@ -1928,19 +1929,6 @@ let check_evars env initial_sigma sigma c =
 
 
 (****************************************)
-(* Operations on universes              *)
-(****************************************)
-
-let fresh_constant_instance env evd c = 
-  Evd.with_context_set evd (Typeops.fresh_constant_instance env c)
-
-let fresh_inductive_instance env evd i =
-  Evd.with_context_set evd (Inductive.fresh_inductive_instance env i)
-
-let fresh_constructor_instance env evd c =
-  Evd.with_context_set evd (Inductive.fresh_constructor_instance env c)
-
-(****************************************)
 (* Operations on value/type constraints *)
 (****************************************)
 
@@ -1982,8 +1970,8 @@ let define_pure_evar_as_product evd evk =
   let evi = Evd.find_undefined evd evk in
   let evenv = evar_unfiltered_env evi in
   let id = next_ident_away idx (ids_of_named_context (evar_context evi)) in
-  let evd1,dom = new_type_evar evd evenv ~filter:(evar_filter evi) in
-  let evd2,rng =
+  let evd1,(dom,u1) = new_type_evar evd evenv ~filter:(evar_filter evi) in
+  let evd2,(rng,u2) =
     let newenv = push_named (id, None, dom) evenv in
     let src = evar_source evk evd1 in
     let filter = true::evar_filter evi in
@@ -2091,3 +2079,18 @@ let lift_tycon n = Option.map (lift n)
 let pr_tycon env = function
     None -> str "None"
   | Some t -> Termops.print_constr_env env t
+
+let evd_comb0 f evdref =
+  let (evd',x) = f !evdref in
+    evdref := evd';
+    x
+
+let evd_comb1 f evdref x =
+  let (evd',y) = f !evdref x in
+    evdref := evd';
+    y
+
+let evd_comb2 f evdref x y =
+  let (evd',z) = f !evdref x y in
+    evdref := evd';
+    z

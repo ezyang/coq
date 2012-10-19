@@ -156,11 +156,45 @@ let add_constraints cst senv =
     env = Environ.add_constraints cst senv.env;
     univ = Univ.union_constraints cst senv.univ }
 
-let constraints_of_sfb = function
-  | SFBconst cb -> constraints_of cb.const_universes
-  | SFBmind mib -> constraints_of mib.mind_universes
-  | SFBmodtype mtb -> mtb.typ_constraints
-  | SFBmodule mb -> mb.mod_constraints
+let global_constraints_of (vars, cst) =
+  let subst = List.map (fun u -> u, u(* Termops.new_univ_level () *)) vars in
+    subst, subst_univs_constraints subst cst
+
+let subst_univs_constdef subst def =
+  match def with
+  | Undef i -> def
+  | Def cs -> Def (Declarations.from_val (Term.subst_univs_constr subst (Declarations.force cs)))
+  | OpaqueDef _ -> def
+
+let globalize_constant_universes cb =
+  if cb.const_polymorphic then
+    (Univ.empty_constraint, cb)
+  else
+    let subst, cstrs = global_constraints_of cb.const_universes in
+      (cstrs, 
+       { cb with const_body = subst_univs_constdef subst cb.const_body;
+       const_type = Term.subst_univs_constr subst cb.const_type;
+       const_universes = Univ.empty_universe_context })
+      
+let globalize_mind_universes mb =
+  if mb.mind_polymorphic then
+    (Univ.empty_constraint, mb)
+  else
+    let subst, cstrs = global_constraints_of mb.mind_universes in
+      (cstrs, mb (* FIXME Wrong! *))
+       (* { mb with mind_entry_body = Term.subst_univs_constr subst mb.mind_entry_body; *)
+       (* mind_entry_types = Term.subst_univs_constr subst cb.mind_entry_type; *)
+       (* mind_universes = Univ.empty_universe_context}) *)
+
+
+let constraints_of_sfb sfb = 
+  match sfb with
+  | SFBconst cb -> let cstr, cb' = globalize_constant_universes cb in
+		     cstr, SFBconst cb'
+  | SFBmind mib -> let cstr, mib' = globalize_mind_universes mib in
+		     cstr, SFBmind mib'
+  | SFBmodtype mtb -> mtb.typ_constraints, sfb
+  | SFBmodule mb -> mb.mod_constraints, sfb
 
 (* A generic function for adding a new field in a same environment.
    It also performs the corresponding [add_constraints]. *)
@@ -181,7 +215,8 @@ let add_field ((l,sfb) as field) gn senv =
     | SFBmodule _ | SFBmodtype _ ->
       check_modlabel l senv; (Label.Set.singleton l, Label.Set.empty)
   in
-  let senv = add_constraints (constraints_of_sfb sfb) senv in
+  let cst, sfb = constraints_of_sfb sfb in
+  let senv = add_constraints cst senv in
   let env' = match sfb, gn with
     | SFBconst cb, C con -> Environ.add_constant con cb senv.env
     | SFBmind mib, I mind -> Environ.add_mind mind mib senv.env

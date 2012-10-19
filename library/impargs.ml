@@ -392,7 +392,7 @@ let compute_semi_auto_implicits env f manual t =
 
 let compute_constant_implicits flags manual cst =
   let env = Global.env () in
-  compute_semi_auto_implicits env flags manual (Typeops.type_of_constant_inenv env cst)
+  compute_semi_auto_implicits env flags manual (fst (Retyping.fresh_type_of_constant env cst))
 
 (*s Inductives and constructors. Their implicit arguments are stored
    in an array, indexed by the inductive number, of pairs $(i,v)$ where
@@ -436,7 +436,7 @@ let compute_var_implicits flags manual id =
 
 let compute_global_implicits flags manual = function
   | VarRef id -> compute_var_implicits flags manual id
-  | ConstRef kn -> compute_constant_implicits flags manual (kn,[])
+  | ConstRef kn -> compute_constant_implicits flags manual kn
   | IndRef (kn,i) ->
       let ((_,imps),_) = (compute_mib_implicits flags manual kn).(i) in imps
   | ConstructRef ((kn,i),j) ->
@@ -554,7 +554,7 @@ let rebuild_implicits (req,l) =
   | ImplLocal -> assert false
   | ImplConstant (con,flags) ->
       let oldimpls = snd (List.hd l) in
-      let newimpls = compute_constant_implicits flags [] (con,[]) in
+      let newimpls = compute_constant_implicits flags [] con in
       req, [ConstRef con, List.map2 merge_impls oldimpls newimpls]
   | ImplMutualInductive (kn,flags) ->
       let newimpls = compute_all_mib_implicits flags [] kn in

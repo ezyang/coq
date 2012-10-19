@@ -932,7 +932,7 @@ let apply_one_mhyp_context ist env gl lmatch (hypname,patv,pat) lhyps =
               with
                 | PatternMatchingFailure -> apply_one_mhyp_context_rec tl in
             match_next_pattern (fun () ->
-	      let hyp = if Option.is_empty b then hyp else refresh_universes_strict hyp in
+	      let hyp = if Option.is_empty b then hyp else (* refresh_universes_strict  *)hyp in
 	      match_pat lmatch hyp pat) ()
 	| Some patv ->
 	    match b with
@@ -951,7 +951,7 @@ let apply_one_mhyp_context ist env gl lmatch (hypname,patv,pat) lhyps =
                             match_next_pattern_in_body s1.e_nxt () in
                     match_next_pattern_in_typ
                       (fun () ->
-			let hyp = refresh_universes_strict hyp in
+			let hyp = (* refresh_universes_strict *) hyp in
 			match_pat s1.e_sub hyp pat) ()
                   with PatternMatchingFailure -> apply_one_mhyp_context_rec tl
                 in
@@ -1825,7 +1825,9 @@ and interp_atomic ist gl tac =
         VConstr ([],constr_of_global
           (pf_interp_reference ist gl (out_gen globwit_ref x)))
     | SortArgType ->
-        VConstr ([],mkSort (interp_sort (out_gen globwit_sort x)))
+        let (sigma,s) = interp_sort !evdref (out_gen globwit_sort x) in
+	evdref := sigma;
+        VConstr ([],mkSort s)
     | ConstrArgType ->
         let (sigma,v) = mk_constr_value ist gl (out_gen globwit_constr x) in
 	evdref := sigma;

@@ -310,7 +310,7 @@ requested
       let names inds recs isdep y z =
         let ind = smart_global_inductive y in
         let sort_of_ind = inductive_sort_family (snd (lookup_mind_specif env ind)) in
-        let z' = family_of_sort (interp_sort z) in
+        let z' = interp_elimination_sort z in
         let suffix = (
           match sort_of_ind with
           | InProp ->
@@ -348,7 +348,7 @@ let do_mutual_induction_scheme lnamedepindsort =
   let sigma, lrecspec =
     List.fold_left
       (fun (evd, l) (_,dep,ind,sort) -> 
-        let evd, indu = Evarutil.fresh_inductive_instance env0 evd ind in
+        let evd, indu = Evd.fresh_inductive_instance env0 evd ind in
           (evd, (indu,dep,interp_elimination_sort sort) :: l))
     (Evd.from_env env0,[]) lnamedepindsort
   in
@@ -407,7 +407,7 @@ let fold_left' f = function
 
 let build_combined_scheme env schemes =
   let defs = List.map (fun cst -> (* FIXME *)
-    let c, cst = Typeops.fresh_constant_instance env cst in
+    let evd, c = Evd.fresh_constant_instance env Evd.empty cst in
       (c, Typeops.type_of_constant_inenv env c)) schemes in
 (*   let nschemes = List.length schemes in *)
   let find_inductive ty =

@@ -92,7 +92,7 @@ let construct_of_constr_block = construct_of_constr false
 let constr_type_of_idkey env idkey =
   match idkey with
   | ConstKey cst ->
-      mkConst cst, fst (Typeops.fresh_type_of_constant env cst)
+      mkConst cst, (Environ.lookup_constant cst env).const_type
   | VarKey id ->
       let (_,_,ty) = lookup_named id env in
       mkVar id, ty

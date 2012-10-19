@@ -184,9 +184,9 @@ let check_scheme kind ind =
   with Not_found -> false
 
 let poly_scheme f dep env ind k =
-  let sigma, indu = Evarutil.fresh_inductive_instance env (Evd.from_env env) ind in
+  let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
     f dep env indu k, Evd.universe_context sigma
 
 let poly_evd_scheme f dep env ind k =
-  let sigma, indu = Evarutil.fresh_inductive_instance env (Evd.from_env env) ind in
+  let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
     f dep env sigma indu k, Evd.universe_context sigma

@@ -278,7 +278,7 @@ let build_coq_jmeq_data () =
   congr = Lazy.force coq_jmeq_congr }
 
 let join_jmeq_types eq =
-  mkLambda(Name (Id.of_string "A"),Termops.new_Type(),
+  mkLambda(Name (Id.of_string "A"),Termops.new_Type empty_dirpath (*FIXME?*),
   mkLambda(Name (Id.of_string "x"),mkRel 1,
   mkApp (eq,[|mkRel 2;mkRel 1;mkRel 2|])))
 

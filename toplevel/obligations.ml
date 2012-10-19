@@ -418,11 +418,11 @@ let subst_prog expand obls ints prg =
   let subst = obl_substitution expand obls ints in
     if get_hide_obligations () then
       (replace_appvars subst prg.prg_body,
-       replace_appvars subst (Termops.refresh_universes prg.prg_type))
+       replace_appvars subst ((* Termops.refresh_universes *) prg.prg_type))
     else 
       let subst' = List.map (fun (n, (_, b)) -> n, b) subst in
 	(Term.replace_vars subst' prg.prg_body,
-	 Term.replace_vars subst' (Termops.refresh_universes prg.prg_type))
+	 Term.replace_vars subst' ((* Termops.refresh_universes *) prg.prg_type))
 
 let subst_deps_obl obls obl =
   let t' = subst_deps true obls obl.obl_deps obl.obl_type in

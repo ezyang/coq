@@ -133,18 +133,6 @@ let type_of_constant env cst = constant_type env cst
 let type_of_constant_inenv env cst = constant_type_inenv env cst
 let type_of_constant_knowing_parameters env t _ = t
 
-let fresh_type_of_constant_body cb = 
-  let (univ, subst), cst = fresh_instance_from_context cb.const_universes in
-    subst_univs_constr subst cb.const_type, cst
-
-let fresh_type_of_constant env c = 
-  fresh_type_of_constant_body (lookup_constant c env)
-
-let fresh_constant_instance env c =
-  let cb = lookup_constant c env in
-  let inst, ctx = fresh_instance_from cb.const_universes in
-    ((c, inst), ctx)
-
 let judge_of_constant env cst =
   let c = mkConstU cst in
   let ty, cu = type_of_constant env cst in

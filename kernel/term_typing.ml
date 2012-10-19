@@ -101,8 +101,8 @@ let infer_declaration env dcl =
       then OpaqueDef (Declarations.opaque_from_val j.uj_val)
       else Def (Declarations.from_val j.uj_val)
     in
-    let univs = context_of_universe_context_set cst in
-      def, typ, c.const_entry_polymorphic, univs, c.const_entry_secctx
+    let _ = check_context_subset cst c.const_entry_universes in
+      def, typ, c.const_entry_polymorphic, c.const_entry_universes, c.const_entry_secctx
   | ParameterEntry (ctx,t,nl) ->
     let (j,cst) = infer env t in
     let t = hcons_constr (Typeops.assumption_of_judgment env j) in

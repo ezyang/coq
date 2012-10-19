@@ -684,7 +684,9 @@ let check_inductive env kn mie =
   in
   (* Then check positivity conditions *)
   let (nmr,recargs) = check_positivity kn env_ar params inds in
+  let _ = Univ.check_context_subset univs mie.mind_entry_universes in
   (* Build the inductive packets *)
-    build_inductive env mie.mind_entry_polymorphic (Univ.context_of_universe_context_set univs)
+    build_inductive env mie.mind_entry_polymorphic 
+      (Univ.context_of_universe_context_set univs)
       env_ar params mie.mind_entry_record mie.mind_entry_finite
       inds nmr recargs

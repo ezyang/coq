@@ -349,7 +349,7 @@ let coerce_to_indtype typing_fun evdref env matx tomatchl =
 (* Utils *)
 
 let mkExistential env ?(src=(Loc.ghost,Evar_kinds.InternalHole)) evdref =
-  e_new_evar evdref env ~src:src (new_Type ())
+  let e, u = e_new_type_evar evdref env ~src:src in e
 
 let evd_comb2 f evdref x y =
   let (evd',y) = f !evdref x y in
@@ -1538,10 +1538,9 @@ let build_tycon loc env tycon_env subst tycon extenv evdref t =
            we are in an impossible branch *)
 	let n = rel_context_length (rel_context env) in
 	let n' = rel_context_length (rel_context tycon_env) in
-        let tt = new_Type () in
-	let impossible_case_type =
-	  e_new_evar evdref env ~src:(loc,Evar_kinds.ImpossibleCase) tt in
-	(lift (n'-n) impossible_case_type, tt)
+	let impossible_case_type, u =
+	  e_new_type_evar evdref env ~src:(loc,Evar_kinds.ImpossibleCase) in
+	(lift (n'-n) impossible_case_type, mkSort u)
     | Some t ->
         let t = abstract_tycon loc tycon_env evdref subst tycon extenv t in
         let evd,tt = Typing.e_type_of extenv !evdref t in
@@ -1651,11 +1650,12 @@ let build_inversion_problem loc env sigma tms t =
 	      it = None } } in
   (* [pb] is the auxiliary pattern-matching serving as skeleton for the
       return type of the original problem Xi *)
+  let sigma, s = Evd.new_sort_variable sigma in
   let evdref = ref sigma in
   let pb =
     { env       = pb_env;
       evdref    = evdref;
-      pred      = new_Type();
+      pred      = mkSort s;
       tomatch   = sub_tms;
       history   = start_history n;
       mat       = [eqn1;eqn2];
@@ -1792,7 +1792,10 @@ let prepare_predicate loc typing_fun sigma env tomatchs arsign tycon pred =
 	(* we use two strategies *)
         let sigma,t = match tycon with
 	| Some t -> sigma,t
-	| None -> new_type_evar sigma env ~src:(loc, Evar_kinds.CasesType) in
+	| None -> 
+	  let sigma, (t, _) = new_type_evar sigma env ~src:(loc, Evar_kinds.CasesType) in
+	    sigma, t
+	in
         (* First strategy: we build an "inversion" predicate *)
 	let sigma1,pred1 = build_inversion_problem loc env sigma tomatchs t in
 	(* Second strategy: we directly use the evar as a non dependent pred *)

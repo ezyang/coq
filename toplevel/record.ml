@@ -53,7 +53,9 @@ let binders_of_decls = List.map binder_of_decl
 
 let typecheck_params_and_fields id t ps nots fs =
   let env0 = Global.env () in
-  let evars = ref Evd.empty in
+  let poly = Flags.use_polymorphic_flag () in
+  let dp = if poly then empty_dirpath else Lib.library_dp () in
+  let evars = ref (Evd.from_env ~ctx:(dp, Univ.empty_universe_context_set) env0) in
   let _ = 
     let error bk (loc, name) = 
       match bk, name with
@@ -66,7 +68,8 @@ let typecheck_params_and_fields id t ps nots fs =
 	   | LocalRawAssum (ls, bk, ce) -> List.iter (error bk) ls) ps
   in 
   let impls_env, ((env1,newps), imps) = interp_context_evars evars env0 ps in
-  let fullarity = it_mkProd_or_LetIn (Option.cata (fun x -> x) (Termops.new_Type ()) t) newps in
+  let t' = match t with Some t -> t | None -> mkSort (Evarutil.evd_comb0 Evd.new_sort_variable evars) in
+  let fullarity = it_mkProd_or_LetIn t' newps in
   let env_ar = push_rel_context newps (push_rel (Name id,None,fullarity) env0) in
   let env2,impls,newfs,data =
     interp_fields_evars evars env_ar impls_env nots (binders_of_decls fs)
@@ -333,13 +336,21 @@ let declare_class finite def infer id idbuild paramimpls params arity fieldimpls
 	Impargs.declare_manual_implicits false cref [paramimpls];
 	Impargs.declare_manual_implicits false (ConstRef proj_cst) [List.hd fieldimpls];
 	Classes.set_typeclass_transparency (EvalConstRef cst) false false;
-	if infer then Evd.fold (fun ev evi _ -> Recordops.declare_method (ConstRef cst) ev sign) sign ();
-	let sub = match List.hd coers with Some b -> Some ((if b then Backward else Forward), List.hd priorities) | None -> None in
+	if infer then 
+	  Evd.fold (fun ev evi _ -> Recordops.declare_method (ConstRef cst) ev sign) sign ();
+	let sub = match List.hd coers with
+	  | Some b -> Some ((if b then Backward else Forward), List.hd priorities) 
+	  | None -> None 
+	in
 	  cref, [Name proj_name, sub, Some proj_cst]
     | _ ->
 	let idarg = Namegen.next_ident_away (snd id) (Termops.ids_of_context (Global.env())) in
+	let sign, arity = match arity with Some a -> sign, a 
+	  | None -> let evd, s = Evd.new_sort_variable sign in
+		      evd, mkSort s
+	in
 	let ind = declare_structure BiFinite infer (snd id) idbuild paramimpls
-	  params (Option.default (Termops.new_Type ()) arity) fieldimpls fields
+	  params arity fieldimpls fields
 	  ~kind:Method ~name:idarg false (List.map (fun _ -> false) fields) sign
 	in
 	let coers = List.map2 (fun coe pri -> 
@@ -406,7 +417,10 @@ let definition_structure (kind,finite,infer,(is_coe,(loc,idstruc)),ps,cfs,idbuil
 	if infer then search_record declare_class_instance gr sign;
 	gr
     | _ ->
-	let arity = Option.default (Termops.new_Type ()) sc in
+        let sign, arity = match sc with 
+	  | None -> let evd, s = Evd.new_sort_variable sign in evd, mkSort s
+	  | Some a -> sign, a
+	in
 	let implfs = List.map
 	  (fun impls -> implpars @ Impargs.lift_implicits (succ (List.length params)) impls) implfs in
 	let ind = declare_structure finite infer idstruc idbuild implpars params arity implfs 

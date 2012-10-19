@@ -378,6 +378,8 @@ type binder_kind = BProd | BLambda | BLetIn
 let detype_anonymous = ref (fun loc n -> anomaly "detype: index to an anonymous variable")
 let set_detype_anonymous f = detype_anonymous := f
 
+let option_of_list l = match l with [] -> None | _ -> Some l
+
 let rec detype (isgoal:bool) avoid env t =
   match kind_of_term (collapse_appl t) with
     | Rel n ->
@@ -408,15 +410,14 @@ let rec detype (isgoal:bool) avoid env t =
     | App (f,args) ->
 	GApp (dl,detype isgoal avoid env f,
               Array.map_to_list (detype isgoal avoid env) args)
-	(* FIXME, should we really forget universes here ? *)
-    | Const (sp,u) -> GRef (dl, ConstRef sp,Some u)
+    | Const (sp,u) -> GRef (dl, ConstRef sp, option_of_list u)
     | Evar (ev,cl) ->
         GEvar (dl, ev,
                Some (List.map (detype isgoal avoid env) (Array.to_list cl)))
     | Ind (ind_sp,u) ->
-	GRef (dl, IndRef ind_sp,Some u)
+	GRef (dl, IndRef ind_sp, option_of_list u)
     | Construct (cstr_sp,u) ->
-	GRef (dl, ConstructRef cstr_sp,Some u)
+	GRef (dl, ConstructRef cstr_sp, option_of_list u)
     | Case (ci,p,c,bl) ->
 	let comp = computable p (ci.ci_pp_info.ind_nargs) in
 	detype_case comp (detype isgoal avoid env)

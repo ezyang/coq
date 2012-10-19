@@ -203,14 +203,14 @@ let fresh_type_of_inductive env (mib, mip) =
     (subst_univs_constr subst mip.mind_arity.mind_user_arity,
      cst)
 
-let fresh_inductive_instance env ind = 
+let fresh_inductive_instance env ?(dp=Names.empty_dirpath) ind = 
   let mib, mip = lookup_mind_specif env ind in
-  let inst, ctx = fresh_instance_from mib.mind_universes in
+  let inst, ctx = fresh_instance_from ~dp mib.mind_universes in
     ((ind,inst), ctx)
 
-let fresh_constructor_instance env (ind,i) = 
+let fresh_constructor_instance env ?(dp=Names.empty_dirpath) (ind,i) = 
   let mib, mip = lookup_mind_specif env ind in
-  let inst, ctx = fresh_instance_from mib.mind_universes in
+  let inst, ctx = fresh_instance_from ~dp mib.mind_universes in
     (((ind,i),inst), ctx)
         
 let type_of_inductive_knowing_parameters env ?(polyprop=false) mip args = 
