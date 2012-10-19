@@ -151,34 +151,34 @@ let set_module m = current_module := m*)
 
 let new_univ_level =
   let univ_gen = ref 0 in
-  (fun sp ->
+  (fun dp ->
     incr univ_gen;
-    Univ.UniverseLevel.make (Lib.library_dp()) !univ_gen)
+    Univ.UniverseLevel.make dp !univ_gen)
 
-let new_univ () = Univ.Universe.make (new_univ_level ())
-let new_Type () = mkType (new_univ ())
-let new_Type_sort () = Type (new_univ ())
+let new_univ dp = Univ.Universe.make (new_univ_level dp)
+let new_Type dp = mkType (new_univ dp)
+let new_Type_sort dp = Type (new_univ dp)
 
 (* This refreshes universes in types; works only for inferred types (i.e. for
    types of the form (x1:A1)...(xn:An)B with B a sort or an atom in
    head normal form) *)
-let refresh_universes_gen strict t =
-  let modified = ref false in
-  let rec refresh t = match kind_of_term t with
-    | Sort (Type u) when strict || not (Univ.is_type0m_univ u) ->
-	modified := true; new_Type ()
-    | Prod (na,u,v) -> mkProd (na,u,refresh v)
-    | _ -> t in
-  let t' = refresh t in
-  if !modified then t' else t
+(* let refresh_universes_gen strict t = *)
+(*   let modified = ref false in *)
+(*   let rec refresh t = match kind_of_term t with *)
+(*     | Sort (Type u) when strict or u <> Univ.type0m_univ -> *)
+(* 	modified := true; new_Type () *)
+(*     | Prod (na,u,v) -> mkProd (na,u,refresh v) *)
+(*     | _ -> t in *)
+(*   let t' = refresh t in *)
+(*   if !modified then t' else t *)
 
-let refresh_universes = refresh_universes_gen false
-let refresh_universes_strict = refresh_universes_gen true
+(* let refresh_universes = refresh_universes_gen false *)
+(* let refresh_universes_strict = refresh_universes_gen true *)
 
 let new_sort_in_family = function
   | InProp -> prop_sort
   | InSet -> set_sort
-  | InType -> Type (new_univ ())
+  | InType -> Type (new_univ Names.empty_dirpath)
 
 
 

@@ -21,7 +21,7 @@ open Environ
     disable "Prop-polymorphism", cf comment in [inductive.ml] *)
 
 val get_type_of :
-  ?polyprop:bool -> ?refresh:bool -> env -> evar_map -> constr -> types
+  ?polyprop:bool -> env -> evar_map -> constr -> types
 
 val get_sort_of :
   ?polyprop:bool -> env -> evar_map -> types -> sorts
@@ -40,3 +40,7 @@ val type_of_global_reference_knowing_parameters : env -> evar_map -> constr ->
 
 val type_of_global_reference_knowing_conclusion :
   env -> evar_map -> constr -> types -> types
+
+val fresh_type_of_constant : env -> ?dp:Names.dir_path -> constant -> types Univ.constrained
+val fresh_type_of_constant_body : ?dp:Names.dir_path -> 
+  Declarations.constant_body -> types Univ.constrained

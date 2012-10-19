@@ -647,6 +647,9 @@ let is_empty_universe_context_set (univs, cst) =
 let union_universe_context_set (univs, cst) (univs', cst') =
   UniverseLSet.union univs univs', union_constraints cst cst'
 
+let check_context_subset (univs, cst) (univs', cst') =
+  true (* TODO *)
+
 let add_constraints_ctx (univs, cst) cst' =
   univs, union_constraints cst cst'
 
@@ -674,7 +677,7 @@ let subst_univs_universe subst u =
     let gel' = CList.smartmap (subst_univs_level subst) gel in
     let gtl' = CList.smartmap (subst_univs_level subst) gtl in
       if gel == gel' && gtl == gtl' then u
-      else Max (gel, gtl)
+      else Max (gel', gtl')
 
 let subst_univs_constraint subst (u,d,v) =
   (subst_univs_level subst u, d, subst_univs_level subst v)
@@ -932,24 +935,24 @@ let sort_universes orig =
 (* Temporary inductive type levels *)
 
 let fresh_level =
-  let n = ref 0 in fun () -> incr n; UniverseLevel.Level (!n, Names.Dir_path.make [])
+  let n = ref 0 in fun dp -> incr n; UniverseLevel.Level (!n, dp)
 
-let fresh_local_univ () = Atom (fresh_level ())
+let fresh_local_univ () = Atom (fresh_level (Names.Dir_path.make []))
 
-let fresh_universe_instance (ctx, _) =
-  List.map (fun _ -> fresh_level ()) ctx
+let fresh_universe_instance ?(dp=Names.make_dirpath []) (ctx, _) =
+  List.map (fun _ -> fresh_level dp) ctx
 
-let fresh_instance_from_context (vars, cst as ctx) =
-  let inst = fresh_universe_instance ctx in
+let fresh_instance_from_context ?(dp=Names.make_dirpath []) (vars, cst as ctx) =
+  let inst = fresh_universe_instance ~dp ctx in
   let subst = List.combine vars inst in
   let constraints = instantiate_univ_context subst ctx in
     (inst, subst), constraints
 
-let fresh_universe_set_instance (ctx, _) =
-  List.fold_left (fun s _ -> UniverseLSet.add (fresh_level ()) s) UniverseLSet.empty ctx
+let fresh_universe_set_instance ?(dp=Names.make_dirpath []) (ctx, _) =
+  List.fold_left (fun s _ -> UniverseLSet.add (fresh_level dp) s) UniverseLSet.empty ctx
 
-let fresh_instance_from (vars, cst as ctx) =
-  let ctx' = fresh_universe_set_instance ctx in
+let fresh_instance_from ?(dp=Names.make_dirpath []) (vars, cst as ctx) =
+  let ctx' = fresh_universe_set_instance ~dp ctx in
   let inst = UniverseLSet.elements ctx' in
   let subst = List.combine vars inst in
   let constraints = instantiate_univ_context subst ctx in

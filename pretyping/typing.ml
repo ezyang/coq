@@ -267,9 +267,7 @@ let check env evd c t =
 
 let type_of env evd c =
   let j = execute env (ref evd) c in
-  (* We are outside the kernel: we take fresh universes *)
-  (* to avoid tactics and co to refresh universes themselves *)
-  Termops.refresh_universes j.uj_type
+    j.uj_type
 
 (* Sort of a type *)
 
@@ -285,7 +283,7 @@ let e_type_of env evd c =
   let evdref = ref evd in
   let j = execute env evdref c in
   (* side-effect on evdref *)
-  !evdref, Termops.refresh_universes j.uj_type
+  !evdref, j.uj_type
 
 let solve_evars env evd c =
   let evdref = ref evd in

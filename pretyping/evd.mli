@@ -126,7 +126,7 @@ type evar_map
 val progress_evar_map : evar_map -> evar_map -> bool
 
 val empty : evar_map
-val from_env : ?ctx:Univ.universe_context_set -> env -> evar_map
+val from_env : ?ctx:(Names.dir_path * Univ.universe_context_set) -> env -> evar_map
 
 val is_empty : evar_map -> bool
 (** [has_undefined sigma] is [true] if and only if
@@ -254,6 +254,12 @@ val universe_context : evar_map -> Univ.universe_context
 val merge_context_set : evar_map -> Univ.universe_context_set -> evar_map
 
 val with_context_set : evar_map -> 'a Univ.in_universe_context_set -> evar_map * 'a
+
+(** Polymorphic universes *)
+
+val fresh_constant_instance : env -> evar_map -> constant -> evar_map * pconstant
+val fresh_inductive_instance : env -> evar_map -> inductive -> evar_map * pinductive
+val fresh_constructor_instance : env -> evar_map -> constructor -> evar_map * pconstructor
 
 (********************************************************************
    constr with holes *)

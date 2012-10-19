@@ -170,15 +170,9 @@ let new_instance_message ident typ def =
 
 open Entries
 
-let rec deep_refresh_universes c =
-  match kind_of_term c with
-    | Sort (Type _) -> Termops.new_Type()
-    | _ -> map_constr deep_refresh_universes c
-
 let declare_record_instance gr ctx params =
   let ident = make_instance_ident gr in
   let def = it_mkLambda_or_LetIn (applistc (constr_of_global gr) params) ctx in
-  let def = deep_refresh_universes def in
   let ce = { const_entry_body= def;
              const_entry_secctx = None;
 	     const_entry_type=None;
@@ -194,8 +188,6 @@ let declare_class_instance gr ctx params =
   let cl = Typeclasses.class_info gr in
   let (def,typ) = Typeclasses.instance_constructor cl params in
   let (def,typ) = it_mkLambda_or_LetIn (Option.get def) ctx, it_mkProd_or_LetIn typ ctx in
-  let def = deep_refresh_universes def in
-  let typ = deep_refresh_universes typ in
   let ce = Entries.DefinitionEntry
     {  const_entry_type = Some typ;
        const_entry_secctx = None;

@@ -129,7 +129,7 @@ val constraints_of : 'a constrained -> constraints
 (** Universe contexts (as lists) *)
 val empty_universe_context : universe_context
 val is_empty_universe_context : universe_context -> bool
-val fresh_universe_instance : universe_context -> universe_list
+val fresh_universe_instance : ?dp:Names.dir_path -> universe_context -> universe_list
 
 
 (** Universe contexts (as sets) *)
@@ -139,6 +139,8 @@ val union_universe_context_set : universe_context_set -> universe_context_set ->
   universe_context_set
 val add_constraints_ctx : universe_context_set -> constraints -> universe_context_set
 
+(** [check_context_subset s s'] checks that [s] is implied by [s'] as a set of constraints. *)
+val check_context_subset : universe_context_set -> universe_context -> bool
 
 (** Arbitrary choice of linear order of the variables 
     and normalization of the constraints *)
@@ -152,10 +154,11 @@ val instantiate_univ_context : universe_subst -> universe_context -> constraints
 
 (** Build a fresh instance for a given context, its associated substitution and 
     the instantiated constraints. *)
-val fresh_instance_from_context : universe_context -> 
+
+val fresh_instance_from_context : ?dp:Names.dir_path -> universe_context -> 
   (universe_list * universe_subst) constrained
 
-val fresh_instance_from : universe_context -> 
+val fresh_instance_from : ?dp:Names.dir_path -> universe_context -> 
   universe_list in_universe_context_set
 
 (** Substitution of universes. *)
@@ -201,7 +204,7 @@ val merge_constraints : constraints -> universes -> universes
 val normalize_universes : universes -> universes
 val sort_universes : universes -> universes
 
-(** {6 Support for sort-polymorphic inductive types } *)
+(** {6 Support for sort-polymorphism } *)
 
 val fresh_local_univ : unit -> universe
 

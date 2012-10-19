@@ -1158,7 +1158,7 @@ let head_unfold_under_prod ts env _ c =
       match constant_opt_value_inenv env cstu with
 	| Some c -> c
 	| None -> mkConstU cstu
-    else mkConst cst in
+    else mkConstU cstu in
   let rec aux c =
     match kind_of_term c with
       | Prod (n,t,c) -> mkProd (n,aux t, aux c)

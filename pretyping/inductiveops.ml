@@ -449,7 +449,7 @@ let rec instantiate_universes env scl is = function
           scl (* constrained sort: replace by scl *)
         else
           (* unconstriained sort: replace by fresh universe *)
-          new_Type_sort() in
+          new_Type_sort Names.empty_dirpath in
       (na,None,mkArity(ctx,s)):: instantiate_universes env scl is (sign, exp)
   | sign, [] -> sign (* Uniform parameters are exhausted *)
   | [], _ -> assert false

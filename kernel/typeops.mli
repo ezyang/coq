@@ -107,10 +107,6 @@ val typing : env -> constr -> unsafe_judgment in_universe_context_set
 val type_of_constant : env -> constant puniverses -> types constrained
 
 val type_of_constant_inenv : env -> constant puniverses -> types
-val fresh_type_of_constant : env -> constant -> types constrained
-val fresh_type_of_constant_body : constant_body -> types constrained
-
-val fresh_constant_instance : env -> constant -> pconstant in_universe_context_set
 
 val type_of_constant_knowing_parameters : env -> types -> types array -> types
 

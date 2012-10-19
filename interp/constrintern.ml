@@ -1685,7 +1685,7 @@ let interp_open_constr_patvar sigma env c =
     | GPatVar (loc,(_,id)) ->
 	( try Gmap.find id !evars
 	  with Not_found ->
-	    let ev = Evarutil.e_new_type_evar sigma env in
+	    let ev,_ = Evarutil.e_new_type_evar sigma env in
 	    let ev = Evarutil.e_new_evar sigma env ev in
 	    let rev = GEvar (loc,(fst (Term.destEvar ev)),None) (*TODO*) in
 	    evars := Gmap.add id rev !evars;
@@ -1799,7 +1799,7 @@ let interp_rawcontext_gen understand_type understand_judgment env bl =
 		(push_rel d env, d::params, succ n, impls)
 	  | Some b ->
 	      let c = understand_judgment env b in
-	      let d = (na, Some c.uj_val, Termops.refresh_universes c.uj_type) in
+	      let d = (na, Some c.uj_val, (* Termops.refresh_universes  *)c.uj_type) in
 		(push_rel d env, d::params, succ n, impls))
       (env,[],1,[]) (List.rev bl)
   in (env, par), impls

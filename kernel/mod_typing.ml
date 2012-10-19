@@ -99,12 +99,10 @@ and check_with_def env sign (idl,c) mp equiv =
 	      let def,cst = match cb.const_body with
 		| Undef _ | OpaqueDef _ ->
 		    let (j,cst1) = Typeops.infer env' c in
-		    let typ,cst2 = Typeops.fresh_type_of_constant_body cb in
+		    let typ = cb.const_type (* FIXME *) in
 		    let cst3 = Reduction.conv_leq env' j.uj_type typ in
 		    let cst =
-		      union_constraints
-			(union_constraints (snd cst1) cst2)
-			cst3
+		      union_constraints (snd cst1) cst3
 		    in
 		    let def = Def (Declarations.from_val j.uj_val) in
 		    def,cst

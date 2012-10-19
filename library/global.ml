@@ -62,6 +62,9 @@ let add_module id me inl =
     mp,resolve
     
 
+(** Build a fresh instance for a given context, its associated substitution and 
+    the instantiated constraints. *)
+
 let add_constraints c = global_env := add_constraints c !global_env
 
 let set_engagement c = global_env := set_engagement c !global_env
@@ -157,19 +160,30 @@ let env_of_context hyps =
 open Globnames
 
 (* FIXME we compute and forget constraints here *)
+(* let type_of_reference_full env = function *)
+(*   | VarRef id -> Environ.named_type id env, Univ.empty_constraint *)
+(*   | ConstRef c -> Typeops.fresh_type_of_constant env c *)
+(*   | IndRef ind -> *)
+(*      let specif = Inductive.lookup_mind_specif env ind in *)
+(*        Inductive.fresh_type_of_inductive env specif *)
+(*   | ConstructRef cstr -> *)
+(*      let specif = *)
+(*       Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in *)
+(*        Inductive.fresh_type_of_constructor cstr specif *)
+
 let type_of_reference_full env = function
-  | VarRef id -> Environ.named_type id env, Univ.empty_constraint
-  | ConstRef c -> Typeops.fresh_type_of_constant env c
+  | VarRef id -> Environ.named_type id env
+  | ConstRef c -> (Environ.lookup_constant c env).Declarations.const_type
   | IndRef ind ->
-     let specif = Inductive.lookup_mind_specif env ind in
-       Inductive.fresh_type_of_inductive env specif
+     let (_, oib) = Inductive.lookup_mind_specif env ind in
+       oib.Declarations.mind_arity.Declarations.mind_user_arity
   | ConstructRef cstr ->
      let specif =
       Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
-       Inductive.fresh_type_of_constructor cstr specif
+       fst (Inductive.fresh_type_of_constructor cstr specif)
 
 let type_of_reference env g =
-  fst (type_of_reference_full env g)
+  type_of_reference_full env g
 
 let type_of_global t = type_of_reference (env ()) t
 

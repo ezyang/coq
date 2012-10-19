@@ -12,6 +12,44 @@ Require Export Notations.
 
 Notation "A -> B" := (forall (_ : A), B) : type_scope.
 
+Set Printing All.
+
+Polymorphic Inductive eq (A : Type) : A -> A -> Type :=
+  eq_refl : forall a, eq a a.
+
+Print eq_rect.
+Print eq.
+
+Set Printing Universes.
+Set Printing All.
+Print eq.
+
+Polymorphic Definition U := Type.
+Print U. Print eq.
+Print Universes.
+Polymorphic Definition foo := (U : U).
+Print foo.
+Definition bar := (U : U).
+Print bar.
+Print Universes.
+
+
+Definition id (A : Type) (a : A) := a.
+Print id.
+Inductive bool := true | false.
+Definition foo := (@id (bool -> bool) (@id bool)).
+Print foo.
+Inductive list (A : Type) := 
+| nil : list A
+| cons : A -> list A -> list A.
+
+Print list_rect.
+Print U.
+Print Universes.
+Print foo'.
+
+Print list.
+
 (** * Propositional connectives *)
 
 (** [True] is the always true proposition *)
@@ -39,26 +77,6 @@ Inductive and (A B:Prop) : Prop :=
   conj : A -> B -> A /\ B
 
 where "A /\ B" := (and A B) : type_scope.
-
-Set Printing All.
-
-Inductive eq (A : Type) : A -> A -> Type :=
-  eq_refl : forall a, eq a a.
-
-Print eq_rect.
-
-Definition id (A : Type) (a : A) := a.
-
-Print id.
-Set Printing Universes.
-
-Inductive bool := true | false.
-Definition foo := (@id (bool -> bool) (@id bool)).
-Print foo.
-Inductive list (A : Type) := 
-| nil : list A
-| cons : A -> list A -> list A.
-Print list.
 
 Section Conjunction.
 

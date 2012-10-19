@@ -93,12 +93,10 @@ let retype ?(polyprop=true) sigma =
 	  | _, (Prop Null as s) -> s
           | Prop _, (Prop Pos as s) -> s
           | Type _, (Prop Pos as s) when is_impredicative_set env -> s
-	  | (Type _, _) | (_, Type _) -> new_Type_sort ()
-(*
           | Type u1, Prop Pos -> Type (Univ.sup u1 Univ.type0_univ)
 	  | Prop Pos, (Type u2) -> Type (Univ.sup Univ.type0_univ u2)
 	  | Prop Null, (Type _ as s) -> s
-	  | Type u1, Type u2 -> Type (Univ.sup u1 u2)*))
+	  | Type u1, Type u2 -> Type (Univ.sup u1 u2))
     | App(f,args) when isGlobalRef f ->
 	let t = type_of_global_reference_knowing_parameters env f args in
         sort_of_atomic_type env sigma t args
@@ -165,12 +163,9 @@ let type_of_global_reference_knowing_conclusion env sigma c conclty =
     | Construct cstr -> type_of_constructor env cstr
     | _ -> assert false
 
-(* We are outside the kernel: we take fresh universes *)
-(* to avoid tactics and co to refresh universes themselves *)
-let get_type_of ?(polyprop=true) ?(refresh=true) env sigma c =
+let get_type_of ?(polyprop=true) env sigma c =
   let f,_,_,_ = retype ~polyprop sigma in
-  let t = f env c in
-    if refresh then refresh_universes t else t
+    f env c
 
 (* Makes an assumption from a constr *)
 let get_assumption_of env evc c = c
@@ -178,3 +173,9 @@ let get_assumption_of env evc c = c
 (* Makes an unsafe judgment from a constr *)
 let get_judgment_of env evc c = { uj_val = c; uj_type = get_type_of env evc c }
 
+let fresh_type_of_constant_body ?(dp=empty_dirpath) cb = 
+  let (univ, subst), cst = Univ.fresh_instance_from_context ~dp cb.const_universes in
+    subst_univs_constr subst cb.const_type, cst
+
+let fresh_type_of_constant env ?(dp=empty_dirpath) c = 
+  fresh_type_of_constant_body ~dp (lookup_constant c env)

@@ -40,10 +40,11 @@ val e_new_evar :
 (** Create a new Type existential variable, as we keep track of 
     them during type-checking and unification. *)
 val new_type_evar :
-  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> evar_map -> env -> evar_map * constr
+  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> evar_map -> env -> 
+  evar_map * (constr * sorts)
 
 val e_new_type_evar : evar_map ref ->
-  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> env -> constr
+  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> env -> constr * sorts
 
 
 (** Create a fresh evar in a context different from its definition context:
@@ -147,12 +148,6 @@ val undefined_evars_of_term : evar_map -> constr -> Int.Set.t
 val undefined_evars_of_named_context : evar_map -> named_context -> Int.Set.t
 val undefined_evars_of_evar_info : evar_map -> evar_info -> Int.Set.t
 
-(** {6 Universes} *)
-
-val fresh_constant_instance : env -> evar_map -> constant -> evar_map * pconstant
-val fresh_inductive_instance : env -> evar_map -> inductive -> evar_map * pinductive
-val fresh_constructor_instance : env -> evar_map -> constructor -> evar_map * pconstructor
-
 (** {6 Value/Type constraints} *)
 
 val judge_of_new_Type : evar_map -> evar_map * unsafe_judgment
@@ -231,3 +226,8 @@ val generalize_evar_over_rels : evar_map -> existential -> types * constr list
 val check_evar_instance : evar_map -> existential_key -> constr -> conv_fun ->
   evar_map
 
+(** Evar combinators *)
+
+val evd_comb0 : (evar_map -> evar_map * 'a) -> evar_map ref -> 'a
+val evd_comb1 : (evar_map -> 'b -> evar_map * 'a) -> evar_map ref -> 'b -> 'a
+val evd_comb2 : (evar_map -> 'b -> 'c -> evar_map * 'a) -> evar_map ref -> 'b -> 'c -> 'a

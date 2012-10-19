@@ -91,10 +91,10 @@ let ((constr_in : constr -> Dyn.t),
 
 (** Miscellaneous interpretation functions *)
 
-let interp_sort = function
-  | GProp -> Prop Null
-  | GSet -> Prop Pos
-  | GType _ -> new_Type_sort ()
+let interp_sort evd = function
+  | GProp -> evd, Prop Null
+  | GSet -> evd, Prop Pos
+  | GType _ -> new_sort_variable evd
 
 let interp_elimination_sort = function
   | GProp -> InProp
@@ -142,21 +142,6 @@ let solve_remaining_evars fail_evar use_classes hook env initial_sigma (evd,c) =
 
 (* Allow references to syntaxically inexistent variables (i.e., if applied on an inductive) *)
 let allow_anonymous_refs = ref false
-
-let evd_comb0 f evdref =
-  let (evd',x) = f !evdref in
-    evdref := evd';
-    x
-
-let evd_comb1 f evdref x =
-  let (evd',y) = f !evdref x in
-    evdref := evd';
-    y
-
-let evd_comb2 f evdref x y =
-  let (evd',z) = f !evdref x y in
-    evdref := evd';
-    z
 
 (* Utilisé pour inférer le prédicat des Cases *)
 (* Semble exagérement fort *)
@@ -236,13 +221,13 @@ let pretype_global env evd gr us =
   match gr with
   | VarRef id -> evd, mkVar id
   | ConstRef sp -> 
-     let evd, c = with_context_set evd (Typeops.fresh_constant_instance env sp) in
+     let evd, c = Evd.fresh_constant_instance env evd sp in
        evd, mkConstU c
   | ConstructRef sp ->
-     let evd, c = with_context_set evd (Inductive.fresh_constructor_instance env sp) in
+     let evd, c = Evd.fresh_constructor_instance env evd sp in
        evd, mkConstructU c
   | IndRef sp -> 
-     let evd, c = with_context_set evd (Inductive.fresh_inductive_instance env sp) in
+     let evd, c = Evd.fresh_inductive_instance env evd sp in
        evd, mkIndU c
 
 let pretype_ref loc evdref env ref us =
@@ -266,7 +251,9 @@ let pretype_sort evdref = function
   | GType _ -> evd_comb0 judge_of_new_Type evdref
 
 let new_type_evar evdref env loc =
-  evd_comb0 (fun evd -> Evarutil.new_type_evar evd env ~src:(loc,Evar_kinds.InternalHole)) evdref
+  let e, s = 
+    evd_comb0 (fun evd -> Evarutil.new_type_evar evd env ~src:(loc,Evar_kinds.InternalHole)) evdref
+  in e
 
 (* [pretype tycon env evdref lvar lmeta cstr] attempts to type [cstr] *)
 (* in environment [env], with existential variables [evdref] and *)
@@ -500,7 +487,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 	      pretype (mk_tycon tj.utj_val) env evdref lvar c
 	| _ -> pretype empty_tycon env evdref lvar c1
       in
-      let t = refresh_universes j.uj_type in
+      let t = j.uj_type in
       let var = (name,Some j.uj_val,t) in
       let tycon = lift_tycon 1 tycon in
       let j' = pretype tycon (push_rel var env) evdref lvar c2 in
@@ -567,7 +554,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 		   else
 		     error_cant_find_case_type_loc loc env !evdref
 		       cj.uj_val in
-		 let ccl = refresh_universes ccl in
+		 (* let ccl = refresh_universes ccl in *)
 		 let p = it_mkLambda_or_LetIn (lift (nar+1) ccl) psign in
 		 let v =
 		   let ind,_ = dest_ind_family indf in

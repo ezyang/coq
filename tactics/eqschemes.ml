@@ -591,7 +591,7 @@ let fix_r2l_forward_rew_scheme (c, ctx') =
 (**********************************************************************)
  
 let build_r2l_rew_scheme dep env ind k =
-  let sigma, indu = Evarutil.fresh_inductive_instance env (Evd.from_env env) ind in
+  let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
     build_case_analysis_scheme env sigma indu dep k, Evd.universe_context sigma
 
 let build_l2r_rew_scheme = poly_scheme build_l2r_rew_scheme
@@ -706,7 +706,7 @@ let build_congr env (eq,refl) ind =
   let varf = fresh env (Id.of_string "f") in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   my_it_mkLambda_or_LetIn mib.mind_params_ctxt
-     (mkNamedLambda varB (new_Type ())
+     (mkNamedLambda varB (new_Type (Lib.library_dp ()))
      (mkNamedLambda varf (mkArrow (lift 1 ty) (mkVar varB))
      (my_it_mkLambda_or_LetIn_name (lift_rel_context 2 realsign)
      (mkNamedLambda varH
