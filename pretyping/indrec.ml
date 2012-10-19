@@ -98,10 +98,13 @@ let mis_make_case_com dep env sigma (ind, u as pind) (mib,mip as specif) kind =
       mkLambda_string "f" t
 	(add_branch (push_rel (Anonymous, None, t) env) (k+1))
   in
-  let typP = make_arity env' dep indf (Termops.new_sort_in_family kind) in
-  it_mkLambda_or_LetIn_name env
+  let sigma, s = Evd.fresh_sort_in_family env sigma kind in
+  let typP = make_arity env' dep indf s in
+  let c = 
+    it_mkLambda_or_LetIn_name env
     (mkLambda_string "P" typP
-       (add_branch (push_rel (Anonymous,None,typP) env') 0)) lnamespar
+     (add_branch (push_rel (Anonymous,None,typP) env') 0)) lnamespar
+  in sigma, c
 
 (* check if the type depends recursively on one of the inductive scheme *)
 
@@ -265,6 +268,7 @@ let context_chop k ctx =
 let mis_make_indrec env sigma listdepkind mib u =
   let nparams = mib.mind_nparams in
   let nparrec = mib.mind_nparams_rec in
+  let evdref = ref sigma in
   let usubst = Univ.make_universe_subst u mib.mind_universes in
   let lnonparrec,lnamesparrec =
     context_chop (nparams-nparrec) (Sign.subst_univs_context usubst mib.mind_params_ctxt) in
@@ -322,7 +326,7 @@ let mis_make_indrec env sigma listdepkind mib u =
 		fi
 	      in
 		Array.map3
-		  (make_rec_branch_arg env sigma
+		  (make_rec_branch_arg env !evdref
 		      (nparrec,depPvec,larsign))
                   vecfi constrs (dest_subterms recargsvec.(tyi))
 	    in
@@ -399,7 +403,7 @@ let mis_make_indrec env sigma listdepkind mib u =
 	      let cs = get_constructor ((indi,u),mibi,mipi,vargs) (j+1) in
 	      let p_0 =
 		type_rec_branch
-                  true dep env sigma (vargs,depPvec,i+j) tyi cs recarg
+                  true dep env !evdref (vargs,depPvec,i+j) tyi cs recarg
 	      in
 		mkLambda_string "f" p_0
 		  (onerec (push_rel (Anonymous,None,p_0) env) (j+1))
@@ -428,10 +432,11 @@ let mis_make_indrec env sigma listdepkind mib u =
 	  it_mkLambda_or_LetIn_name env (put_arity env' 0 listdepkind)
 	    lnamesparrec
       else
-	mis_make_case_com dep env sigma (indi,u) (mibi,mipi) kind
+	let evd', c = mis_make_case_com dep env !evdref (indi,u) (mibi,mipi) kind in
+	  evdref := evd'; c
   in
     (* Body of mis_make_indrec *)
-    List.tabulate make_one_rec nrec
+    !evdref, List.tabulate make_one_rec nrec
 
 (**********************************************************************)
 (* This builds elimination predicate for Case tactic *)
@@ -537,7 +542,8 @@ let build_mutual_induction_scheme env sigma = function
 
 let build_induction_scheme env sigma pind dep kind =
   let (mib,mip) = lookup_mind_specif env (fst pind) in
-  List.hd (mis_make_indrec env sigma [(pind,mib,mip,dep,kind)] mib (snd pind))
+  let sigma, l = mis_make_indrec env sigma [(pind,mib,mip,dep,kind)] mib (snd pind) in
+    sigma, List.hd l
 
 (*s Eliminations. *)
 
@@ -562,11 +568,11 @@ let lookup_eliminator ind_sp s =
   try
     let cst =Global.constant_of_delta_kn (make_kn mp dp (Label.of_id id)) in
     let _ = Global.lookup_constant cst in
-      mkConst cst
+      ConstRef cst
   with Not_found ->
   (* Then try to get a user-defined eliminator in some other places *)
   (* using short name (e.g. for "eq_rec") *)
-  try constr_of_global (Nametab.locate (qualid_of_ident id))
+  try Nametab.locate (qualid_of_ident id)
   with Not_found ->
     errorlabstrm "default_elim"
       (strbrk "Cannot find the elimination combinator " ++

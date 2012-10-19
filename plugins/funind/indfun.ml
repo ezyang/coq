@@ -37,7 +37,7 @@ let functional_induction with_clean c princl pat =
 	| None -> (* No principle is given let's find the good one *)
 	    begin
 	      match kind_of_term f with
-		| Const c' ->
+		| Const (c',u) ->
 		    let princ_option =
 		      let finfo = (* we first try to find out a graph on f *)
 			try find_Function_infos c'
@@ -231,7 +231,7 @@ let derive_inversion fix_names =
   try
     (* we first transform the fix_names identifier into their corresponding constant *)
     let fix_names_as_constant =
-      List.map (fun id -> destConst (Constrintern.global_reference id)) fix_names
+      List.map (fun id -> fst (destConst (Constrintern.global_reference id))) fix_names
     in
     (*
        Then we check that the graphs have been defined
@@ -248,7 +248,7 @@ let derive_inversion fix_names =
 	  Ensures by : register_built
 	  i*)
 	(List.map
-	   (fun id -> destInd (Constrintern.global_reference (mk_rel_id id)))
+	   (fun id -> fst (destInd (Constrintern.global_reference (mk_rel_id id))))
 	   fix_names
 	)
     with e ->
@@ -340,7 +340,7 @@ let generate_principle  on_error
 	       in
 	       Functional_principles_types.generate_functional_principle
 		 interactive_proof
-		 princ_type
+		 (fst princ_type)
 		 None
 		 None
 		 funs_kn
@@ -394,7 +394,7 @@ let register_wf ?(is_mes=false) fname rec_impls wf_rel_expr wf_arg using_lemmas 
     let f_app_args =
       Constrexpr.CAppExpl
 	(Loc.ghost,
-	 (None,(Ident (Loc.ghost,fname))) ,
+	 (None,(Ident (Loc.ghost,fname)),None) ,
 	 (List.map
 	    (function
 	       | _,Anonymous -> assert false
@@ -408,7 +408,7 @@ let register_wf ?(is_mes=false) fname rec_impls wf_rel_expr wf_arg using_lemmas 
 		    [(f_app_args,None);(body,None)])
   in
   let eq = Constrexpr_ops.prod_constr_expr unbounded_eq args in
-  let hook f_ref tcc_lemma_ref functional_ref eq_ref rec_arg_num rec_arg_type
+  let hook (f_ref,_) tcc_lemma_ref (functional_ref,_) (eq_ref,_) rec_arg_num rec_arg_type
       nb_args relation =
     try
       pre_hook
@@ -635,10 +635,10 @@ let do_generate_principle on_error register_built interactive_proof
 
 let rec add_args id new_args b =
   match b with
-  | CRef r ->
+  | CRef (r,_) ->
       begin      match r with
 	| Libnames.Ident(loc,fname) when fname = id ->
-	    CAppExpl(Loc.ghost,(None,r),new_args)
+	    CAppExpl(Loc.ghost,(None,r,None),new_args)
 	| _ -> b
       end
   | CFix  _  | CCoFix _ -> anomaly "add_args : todo"
@@ -652,12 +652,12 @@ let rec add_args id new_args b =
 	       add_args id new_args  b1)
   | CLetIn(loc,na,b1,b2) ->
       CLetIn(loc,na,add_args id new_args b1,add_args id new_args b2)
-  | CAppExpl(loc,(pf,r),exprl) ->
+  | CAppExpl(loc,(pf,r,us),exprl) ->
       begin
 	match r with
 	| Libnames.Ident(loc,fname) when fname = id ->
-	    CAppExpl(loc,(pf,r),new_args@(List.map (add_args id new_args) exprl))
-	| _ -> CAppExpl(loc,(pf,r),List.map (add_args id new_args) exprl)
+	    CAppExpl(loc,(pf,r,us),new_args@(List.map (add_args id new_args) exprl))
+	| _ -> CAppExpl(loc,(pf,r,us),List.map (add_args id new_args) exprl)
       end
   | CApp(loc,(pf,b),bl) ->
       CApp(loc,(pf,add_args id new_args b),
@@ -776,7 +776,7 @@ let make_graph (f_ref:global_reference) =
 	     (fun () ->
 		(Constrextern.extern_constr false env body,
 		 Constrextern.extern_type false env
-                   (Typeops.type_of_constant_type env c_body.const_type)
+                   ((*FIXNE*) c_body.const_type)
 		)
 	     )
 	     ()
@@ -797,7 +797,7 @@ let make_graph (f_ref:global_reference) =
 				  | Constrexpr.LocalRawAssum (nal,_,_) ->
 				      List.map
 					(fun (loc,n) ->
-					   CRef(Libnames.Ident(loc, Nameops.out_name n)))
+					   CRef(Libnames.Ident(loc, Nameops.out_name n),None))
 					nal
 			       )
 			       nal_tas

@@ -349,7 +349,7 @@ let add_pat_variables pat typ env : Environ.env =
 	    with Not_found -> assert false
 	  in
 	  let constructors = Inductiveops.get_constructors env indf in
-	  let constructor : Inductiveops.constructor_summary = List.find (fun cs -> cs.Inductiveops.cs_cstr = c) (Array.to_list constructors) in
+	  let constructor : Inductiveops.constructor_summary = List.find (fun cs -> fst cs.Inductiveops.cs_cstr = c) (Array.to_list constructors) in
 	  let cs_args_types :types list = List.map (fun (_,_,t) -> t) constructor.Inductiveops.cs_args in
 	  List.fold_left2 add_pat_variables env patl (List.rev cs_args_types)
   in
@@ -396,7 +396,7 @@ let rec pattern_to_term_and_type env typ  = function
 	with Not_found -> assert false
       in
       let constructors = Inductiveops.get_constructors env indf in
-      let constructor  = List.find (fun cs -> cs.Inductiveops.cs_cstr = constr) (Array.to_list constructors) in
+      let constructor  = List.find (fun cs -> fst cs.Inductiveops.cs_cstr = constr) (Array.to_list constructors) in
       let cs_args_types :types list = List.map (fun (_,_,t) -> t) constructor.Inductiveops.cs_args in
       let _,cstl = Inductiveops.dest_ind_family indf in
       let csta = Array.of_list cstl in
@@ -618,7 +618,7 @@ let rec build_entry_lc env funnames avoid rt  : glob_constr build_entry_return =
 			       Printer.pr_glob_constr b ++ str " in " ++
 			       Printer.pr_glob_constr rt ++ str ". try again with a cast")
 	in
-	let case_pats = build_constructors_of_type ind [] in
+	let case_pats = build_constructors_of_type (fst ind) [] in
 	assert (Array.length case_pats = 2);
 	let brl =
 	  List.map_i
@@ -650,7 +650,7 @@ let rec build_entry_lc env funnames avoid rt  : glob_constr build_entry_return =
 				 Printer.pr_glob_constr b ++ str " in " ++
 				 Printer.pr_glob_constr rt ++ str ". try again with a cast")
 	  in
-	  let case_pats = build_constructors_of_type ind nal_as_glob_constr in
+	  let case_pats = build_constructors_of_type (fst ind) nal_as_glob_constr in
 	  assert (Array.length case_pats = 1);
 	  let br =
 	    (Loc.ghost,[],[case_pats.(0)],e)
@@ -842,7 +842,7 @@ let is_res id =
 
 let same_raw_term rt1 rt2 = 
   match rt1,rt2 with 
-    | GRef(_,r1), GRef (_,r2) -> r1=r2
+    | GRef(_,r1,_), GRef (_,r2,_) -> r1=r2
     | GHole _, GHole _ -> true
     | _ -> false
 let decompose_raw_eq lhs rhs = 
@@ -905,7 +905,7 @@ let rec rebuild_cons env nb_args relname args crossed_types depth rt =
 		    | _ -> (* the first args is the name of the function! *)
 			assert false
 		end
-	    | GApp(loc1,GRef(loc2,eq_as_ref),[ty;GVar(loc3,id);rt])
+	    | GApp(loc1,GRef(loc2,eq_as_ref,_),[ty;GVar(loc3,id);rt])
 		when  eq_as_ref = Lazy.force Coqlib.coq_eq_ref  && n = Anonymous
 		  ->
 		begin
@@ -933,17 +933,17 @@ let rec rebuild_cons env nb_args relname args crossed_types depth rt =
 		    in
 		    mkGProd(n,t,new_b),id_to_exclude
 		  with Continue ->
-		    let jmeq = Globnames.IndRef (destInd (jmeq ())) in
+		    let jmeq = Globnames.IndRef (fst (destInd (jmeq ()))) in
 		    let ty' = Pretyping.understand Evd.empty env ty in
 		    let ind,args' = Inductive.find_inductive env ty' in
-		    let mib,_ = Global.lookup_inductive ind in
+		    let mib,_ = Global.lookup_inductive (fst ind) in
 		    let nparam = mib.Declarations.mind_nparams in
 		    let params,arg' =
 		      ((Util.List.chop nparam args'))
 		    in
 		    let rt_typ =
 		       GApp(Loc.ghost,
-			    GRef (Loc.ghost,Globnames.IndRef ind),
+			    GRef (Loc.ghost,Globnames.IndRef (fst ind),None),
 			    (List.map
 			      (fun p -> Detyping.detype false []
 				 (Termops.names_of_rel_context env)
@@ -953,7 +953,7 @@ let rec rebuild_cons env nb_args relname args crossed_types depth rt =
 					 (mkGHole ()))))
 		    in
 		    let eq' =
-		      GApp(loc1,GRef(loc2,jmeq),[ty;GVar(loc3,id);rt_typ;rt])
+		      GApp(loc1,GRef(loc2,jmeq,None),[ty;GVar(loc3,id);rt_typ;rt])
 		    in
 		    observe (str "computing new type for jmeq : " ++ pr_glob_constr eq');
 		    let eq'_as_constr = Pretyping.understand Evd.empty env eq' in
@@ -1021,7 +1021,7 @@ let rec rebuild_cons env nb_args relname args crossed_types depth rt =
 		     mkGProd(n,t,new_b),id_to_exclude
 		     else new_b, Id.Set.add id id_to_exclude
 		  *)
-	    | GApp(loc1,GRef(loc2,eq_as_ref),[ty;rt1;rt2])
+	    | GApp(loc1,GRef(loc2,eq_as_ref,_),[ty;rt1;rt2])
 		when  eq_as_ref = Lazy.force Coqlib.coq_eq_ref  && n = Anonymous
 		  ->
 	      begin

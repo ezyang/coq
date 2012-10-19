@@ -352,7 +352,7 @@ let do_mutual_induction_scheme lnamedepindsort =
           (evd, (indu,dep,interp_elimination_sort sort) :: l))
     (Evd.from_env env0,[]) lnamedepindsort
   in
-  let listdecl = Indrec.build_mutual_induction_scheme env0 sigma lrecspec in
+  let sigma, listdecl = Indrec.build_mutual_induction_scheme env0 sigma lrecspec in
   let declare decl fi lrecref =
     let decltype = Retyping.get_type_of env0 sigma decl in
     (* let decltype = refresh_universes decltype in *)

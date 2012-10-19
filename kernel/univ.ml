@@ -641,6 +641,7 @@ let is_empty_universe_context (univs, cst) =
 
 (** Universe contexts (variables as a set) *)
 let empty_universe_context_set = (UniverseLSet.empty, empty_constraint)
+let singleton_universe_context_set u = (UniverseLSet.singleton u, empty_constraint)
 let is_empty_universe_context_set (univs, cst) = 
   UniverseLSet.is_empty univs && is_empty_constraint cst
 

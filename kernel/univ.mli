@@ -134,6 +134,7 @@ val fresh_universe_instance : ?dp:Names.dir_path -> universe_context -> universe
 
 (** Universe contexts (as sets) *)
 val empty_universe_context_set : universe_context_set
+val singleton_universe_context_set : universe_level -> universe_context_set
 val is_empty_universe_context_set : universe_context_set -> bool
 val union_universe_context_set : universe_context_set -> universe_context_set -> 
   universe_context_set

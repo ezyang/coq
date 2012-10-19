@@ -143,7 +143,7 @@ let define_individual_scheme_base kind suff f internal idopt (mind,i as ind) =
   let id = match idopt with
     | Some id -> id
     | None -> add_suffix mib.mind_packets.(i).mind_typename suff in
-  let const = define internal id c (Flags.is_universe_polymorphism ()) ctx in
+  let const = define internal id c mib.mind_polymorphic ctx in
   declare_scheme kind [|ind,const|];
   const
 
@@ -160,7 +160,7 @@ let define_mutual_scheme_base kind suff f internal names mind =
       try List.assoc i names
       with Not_found -> add_suffix mib.mind_packets.(i).mind_typename suff) in
   let consts = Array.map2 (fun id cl -> 
-     define internal id cl (Flags.is_universe_polymorphism ()) ctx) ids cl in
+     define internal id cl mib.mind_polymorphic ctx) ids cl in
   declare_scheme kind (Array.mapi (fun i cst -> ((mind,i),cst)) consts);
   consts
 
@@ -182,11 +182,3 @@ let find_scheme kind (mind,i as ind) =
 let check_scheme kind ind =
   try let _ = String.Map.find kind (Indmap.find ind !scheme_map) in true
   with Not_found -> false
-
-let poly_scheme f dep env ind k =
-  let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
-    f dep env indu k, Evd.universe_context sigma
-
-let poly_evd_scheme f dep env ind k =
-  let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
-    f dep env sigma indu k, Evd.universe_context sigma

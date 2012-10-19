@@ -51,9 +51,4 @@ val find_scheme : 'a scheme_kind -> inductive -> constant
 
 val check_scheme : 'a scheme_kind -> inductive -> bool
 
-val poly_scheme : (bool -> Environ.env -> pinductive -> sorts_family -> 'a) ->
-  bool -> Environ.env -> inductive -> sorts_family -> 'a Univ.in_universe_context
-
-val poly_evd_scheme : (bool -> Environ.env -> Evd.evar_map -> pinductive -> sorts_family -> 'a) ->
-  bool -> Environ.env -> inductive -> sorts_family -> 'a Univ.in_universe_context
 

@@ -229,10 +229,17 @@ let elimination_sort_of_clause = function
 (* Find the right elimination suffix corresponding to the sort of the goal *)
 (* c should be of type A1->.. An->B with B an inductive definition *)
 
+let pf_with_evars glsev k gls = 
+  let evd, a = glsev gls in
+    tclTHEN (Refiner.tclEVARS evd) (k a) gls
+
+let pf_constr_of_global gr k =
+  pf_with_evars (fun gls -> pf_apply Evd.fresh_global gls gr) k
+
 let general_elim_then_using mk_elim
   isrec allnames tac predicate (indbindings,elimbindings)
   ind indclause gl =
-  let elim = mk_elim ind gl in
+  let sigma, elim = mk_elim ind gl in
   (* applying elimination_scheme just a little modified *)
   let indclause' = clenv_match_args indbindings indclause in
   let elimclause = mk_clenv_from gl (elim,pf_type_of gl elim) in
@@ -286,7 +293,8 @@ let general_elim_then_using mk_elim
 (* computing the case/elim combinators *)
 
 let gl_make_elim ind gl =
-  Indrec.lookup_eliminator (fst ind) (elimination_sort_of_goal gl)
+  let gr = Indrec.lookup_eliminator (fst ind) (elimination_sort_of_goal gl) in
+    pf_apply Evd.fresh_global gl gr
 
 let gl_make_case_dep ind gl =
   pf_apply Indrec.build_case_analysis_scheme gl ind true

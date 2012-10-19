@@ -852,7 +852,7 @@ let extract_constant_inline inline r ids s =
   match g with
     | ConstRef kn ->
 	let env = Global.env () in
-	let typ = Typeops.type_of_constant env kn in
+	let typ, _ = Retyping.fresh_type_of_constant env kn in
 	let typ = Reduction.whd_betadeltaiota env typ in
 	if Reduction.is_arity env typ
 	  then begin

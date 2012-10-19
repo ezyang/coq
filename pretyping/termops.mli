@@ -23,6 +23,18 @@ val new_Type_sort : Names.dir_path -> sorts
 (* val refresh_universes : types -> types *)
 (* val refresh_universes_strict : types -> types *)
 
+val fresh_sort_in_family : env -> ?dp:Names.dir_path -> sorts_family -> 
+  sorts Univ.in_universe_context_set
+val fresh_constant_instance : env -> ?dp:Names.dir_path -> constant -> 
+  pconstant Univ.in_universe_context_set
+val fresh_inductive_instance : env -> ?dp:Names.dir_path -> inductive -> 
+  pinductive Univ.in_universe_context_set
+val fresh_constructor_instance : env -> ?dp:Names.dir_path -> constructor -> 
+  pconstructor Univ.in_universe_context_set
+
+val fresh_global_instance : env -> ?dp:Names.dir_path -> Globnames.global_reference -> 
+  constr Univ.in_universe_context_set
+
 (** printers *)
 val print_sort : sorts -> std_ppcmds
 val pr_sort_family : sorts_family -> std_ppcmds

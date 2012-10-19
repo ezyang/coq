@@ -198,6 +198,7 @@ let mkIndU m = Ind m
    introduced in the section *)
 let mkConstruct c = Construct (c, [])
 let mkConstructU c = Construct c
+let mkConstructUi ((ind,u),i) = Construct ((ind,i),u)
 
 (* Constructs the term <p>Case c of c1 | c2 .. | cn end *)
 let mkCase (ci, p, c, ac) = Case (ci, p, c, ac)

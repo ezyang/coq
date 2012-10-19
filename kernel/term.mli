@@ -149,6 +149,7 @@ val mkIndU : inductive puniverses -> constr
    introduced in the section *)
 val mkConstruct : constructor -> constr
 val mkConstructU : constructor puniverses -> constr
+val mkConstructUi : (pinductive * int) -> constr
 
 (** Constructs a destructor of inductive type.
     

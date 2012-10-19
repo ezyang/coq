@@ -668,18 +668,14 @@ let print_constructors envpar names types =
 
 let build_ind_type env mip =
   mip.mind_arity.mind_user_arity
- (* with *)
- (*    | Monomorphic ar -> ar. *)
- (*    | Polymorphic ar -> *)
- (*      it_mkProd_or_LetIn (mkSort (Type ar.poly_level)) mip.mind_arity_ctxt *)
-(*FIXME: use fresh universe instances *)
+
 let print_one_inductive env mib ((_,i) as ind) =
   let mip = mib.mind_packets.(i) in
   let params = mib.mind_params_ctxt in
   let args = extended_rel_list 0 params in
   let arity = hnf_prod_applist env (build_ind_type env mip) args in
-    
-  let cstrtypes = Inductive.type_of_constructors (ind,[]) (mib,mip) in
+  let u = fst mib.mind_universes in
+  let cstrtypes = Inductive.type_of_constructors (ind,u) (mib,mip) in
   let cstrtypes = Array.map (fun c -> hnf_prod_applist env c args) cstrtypes in
   let envpar = push_rel_context params env in
   hov 0 (

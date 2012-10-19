@@ -51,10 +51,15 @@ Proof.
 Qed.
 
 Hint Resolve le_0_n le_Sn_0: arith v62.
+Unset Printing Notations. Set Printing Implicit. Set Printing Universes.
+Polymorphic Definition U := Type.
+Polymorphic Definition V := U : U.
+
+Polymorphic Definition eqnat : nat -> nat -> Prop := eq.
 
 Theorem le_n_0_eq : forall n, n <= 0 -> 0 = n.
 Proof.
-  induction n; auto with arith.
+  induction n. auto with arith.  idtac. auto with arith.
   intro; contradiction le_Sn_0 with n.
 Qed.
 Hint Immediate le_n_0_eq: arith v62.

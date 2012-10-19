@@ -64,22 +64,22 @@ let rec decompose_term env sigma t=
 	Appli(Appli(Product (sort_a,sort_b) ,
 		    decompose_term env sigma a),
 	      decompose_term env sigma b)
-    | Construct c->
-	let (mind,i_ind),i_con = c in 
+    | Construct c ->
+	let (((mind,i_ind),i_con),u)= c in 
 	let canon_mind = mind_of_kn (canonical_mind mind) in
 	let canon_ind = canon_mind,i_ind in
 	let (oib,_)=Global.lookup_inductive (canon_ind) in
 	let nargs=mis_constructor_nargs_env env (canon_ind,i_con) in
-	  Constructor {ci_constr= (canon_ind,i_con);
+	  Constructor {ci_constr= ((canon_ind,i_con),u);
 		       ci_arity=nargs;
 		       ci_nhyps=nargs-oib.mind_nparams}
     | Ind c -> 
-	let mind,i_ind = c in 
+	let (mind,i_ind),u = c in 
 	let canon_mind = mind_of_kn (canonical_mind mind) in
-	let canon_ind = canon_mind,i_ind in  (Symb (mkInd canon_ind))
-    | Const c -> 
+	let canon_ind = canon_mind,i_ind in  (Symb (mkIndU (canon_ind,u)))
+    | Const (c,u) -> 
 	let canon_const = constant_of_kn (canonical_con c) in 
-	  (Symb (mkConst canon_const))
+	  (Symb (mkConstU (canon_const,u)))
     | _ ->if closed0 t then (Symb t) else raise Not_found
 
 (* decompose equality in members and type *)
@@ -218,15 +218,15 @@ let make_prb gls depth additionnal_terms =
 
 (* indhyps builds the array of arrays of constructor hyps for (ind largs) *)
 
-let build_projection intype outtype (cstr:constructor) special default gls=
+let build_projection intype outtype (cstr:pconstructor) special default gls=
   let env=pf_env gls in
   let (h,argv) =
     try destApp intype with
 	Invalid_argument _ -> (intype,[||])  in
-  let ind=destInd h in
-  let types=Inductiveops.arities_of_constructors env ind in
+  let ind,u=destInd h in
+  let types=Inductiveops.arities_of_constructors env (ind,u) in
   let lp=Array.length types in
-  let ci=pred (snd cstr) in
+  let ci=pred (snd(fst cstr)) in
   let branch i=
     let ti=Term.prod_appvect types.(i) argv in
     let rc=fst (decompose_prod_assum ti) in
@@ -251,19 +251,19 @@ let rec proof_tac p gls =
     | SymAx c ->
 	let l=constr_of_term p.p_lhs and
 	    r=constr_of_term p.p_rhs in
-        let typ = Termops.refresh_universes (pf_type_of gls l) in
+        let typ = (* Termops.refresh_universes *)pf_type_of gls l in
 	  exact_check
 	    (mkApp(Lazy.force _sym_eq,[|typ;r;l;c|])) gls
     | Refl t ->
 	let lr = constr_of_term t in
-	let typ = Termops.refresh_universes (pf_type_of gls lr) in
+	let typ = (* Termops.refresh_universes *) (pf_type_of gls lr) in
 	exact_check
 	   (mkApp(Lazy.force _refl_equal,[|typ;constr_of_term t|])) gls
     | Trans (p1,p2)->
 	let t1 = constr_of_term p1.p_lhs and
 	    t2 = constr_of_term p1.p_rhs and
 	    t3 = constr_of_term p2.p_rhs in
-	let typ = Termops.refresh_universes (pf_type_of gls t2) in
+	let typ = (* Termops.refresh_universes *) (pf_type_of gls t2) in
 	let prf =
 	  mkApp(Lazy.force _trans_eq,[|typ;t1;t2;t3;_M 1;_M 2|]) in
 	  tclTHENS (refine prf) [(proof_tac p1);(proof_tac p2)] gls
@@ -272,9 +272,9 @@ let rec proof_tac p gls =
 	and tx1=constr_of_term p2.p_lhs
 	and tf2=constr_of_term p1.p_rhs
 	and tx2=constr_of_term p2.p_rhs in
-	let typf = Termops.refresh_universes (pf_type_of gls tf1) in
-	let typx = Termops.refresh_universes (pf_type_of gls tx1) in
-	let typfx = Termops.refresh_universes (pf_type_of gls (mkApp (tf1,[|tx1|]))) in
+	let typf = (* Termops.refresh_universes  *)(pf_type_of gls tf1) in
+	let typx = (* Termops.refresh_universes *) (pf_type_of gls tx1) in
+	let typfx = (* Termops.refresh_universes *) (pf_type_of gls (mkApp (tf1,[|tx1|]))) in
 	let id = pf_get_new_id (Id.of_string "f") gls in
 	let appx1 = mkLambda(Name id,typf,mkApp(mkRel 1,[|tx1|])) in
 	let lemma1 =
@@ -302,8 +302,8 @@ let rec proof_tac p gls =
 	 let ti=constr_of_term prf.p_lhs in
 	 let tj=constr_of_term prf.p_rhs in
 	 let default=constr_of_term p.p_lhs in
-	 let intype = Termops.refresh_universes (pf_type_of gls ti) in
-	 let outtype = Termops.refresh_universes (pf_type_of gls default) in
+	 let intype = (* Termops.refresh_universes *) (pf_type_of gls ti) in
+	 let outtype = (* Termops.refresh_universes *) (pf_type_of gls default) in
 	 let special=mkRel (1+nargs-argind) in
 	 let proj=build_projection intype outtype cstr special default gls in
 	 let injt=
@@ -312,7 +312,7 @@ let rec proof_tac p gls =
 
 let refute_tac c t1 t2 p gls =
   let tt1=constr_of_term t1 and tt2=constr_of_term t2 in
-  let intype = Termops.refresh_universes (pf_type_of gls tt1) in
+  let intype = (* Termops.refresh_universes *) (pf_type_of gls tt1) in
   let neweq=
     mkApp(Lazy.force _eq,
 	  [|intype;tt1;tt2|]) in
@@ -323,7 +323,7 @@ let refute_tac c t1 t2 p gls =
 
 let convert_to_goal_tac c t1 t2 p gls =
   let tt1=constr_of_term t1 and tt2=constr_of_term t2 in
-  let sort = Termops.refresh_universes (pf_type_of gls tt2) in
+  let sort = (* Termops.refresh_universes *) (pf_type_of gls tt2) in
   let neweq=mkApp(Lazy.force _eq,[|sort;tt1;tt2|]) in
   let e=pf_get_new_id (Id.of_string "e") gls in
   let x=pf_get_new_id (Id.of_string "X") gls in
@@ -341,19 +341,19 @@ let convert_to_hyp_tac c1 t1 c2 t2 p gls =
       [convert_to_goal_tac c1 t1 t2 p;
        simplest_elim false_t] gls
 
-let discriminate_tac cstr p gls =
+let discriminate_tac (cstr,u as cstru) p gls =
   let t1=constr_of_term p.p_lhs and t2=constr_of_term p.p_rhs in
-  let intype = Termops.refresh_universes (pf_type_of gls t1) in
+  let intype = (* Termops.refresh_universes *) (pf_type_of gls t1) in
   let concl=pf_concl gls in
-  let outsort = mkType (Termops.new_univ ()) in
+  let outsort = mkType (Termops.new_univ (*FIXME*)empty_dirpath) in
   let xid=pf_get_new_id (Id.of_string "X") gls in
   let tid=pf_get_new_id (Id.of_string "t") gls in
   let identity=mkLambda(Name xid,outsort,mkLambda(Name tid,mkRel 1,mkRel 1)) in
   let trivial=pf_type_of gls identity in
-  let outtype = mkType (Termops.new_univ ()) in
+  let outtype = mkType (Termops.new_univ (*FIXME*)empty_dirpath) in
   let pred=mkLambda(Name xid,outtype,mkRel 1) in
   let hid=pf_get_new_id (Id.of_string "Heq") gls in
-  let proj=build_projection intype outtype cstr trivial concl gls in
+  let proj=build_projection intype outtype cstru trivial concl gls in
   let injt=mkApp (Lazy.force _f_equal,
 		  [|intype;outtype;proj;t1;t2;mkVar hid|]) in
   let endt=mkApp (Lazy.force _eq_rect,
@@ -369,7 +369,7 @@ let build_term_to_complete uf meta pac =
   let real_args = List.map (fun i -> constr_of_term (term uf i)) pac.args in
   let dummy_args = List.rev (List.tabulate meta pac.arity) in
   let all_args = List.rev_append real_args dummy_args in
-    applistc (mkConstruct cinfo.ci_constr) all_args
+    applistc (mkConstructU cinfo.ci_constr) all_args
 
 let cc_tactic depth additionnal_terms gls=
   Coqlib.check_required_library ["Coq";"Init";"Logic"];
@@ -446,7 +446,7 @@ let simple_reflexivity () = apply (Lazy.force _refl_equal)
 
 let f_equal gl =
   let cut_eq c1 c2 =
-    let ty = Termops.refresh_universes (pf_type_of gl c1) in
+    let ty = (* Termops.refresh_universes *) (pf_type_of gl c1) in
     tclTHENTRY
       (Tactics.cut (mkApp (Lazy.force _eq, [|ty; c1; c2|])))
       (simple_reflexivity ())
