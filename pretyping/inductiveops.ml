@@ -86,11 +86,11 @@ let mis_is_recursive (ind,mib,mip) =
   mis_is_recursive_subset (List.interval 0 (mib.mind_ntypes - 1))
     mip.mind_recargs
 
-let mis_nf_constructor_type (ind,mib,mip) j =
+let mis_nf_constructor_type ((ind,u),mib,mip) j =
   let specif = mip.mind_nf_lc
   and ntypes = mib.mind_ntypes
   and nconstr = Array.length mip.mind_consnames in
-  let make_Ik k = mkInd ((fst ind),ntypes-k-1) in
+  let make_Ik k = mkIndU (((fst ind),ntypes-k-1),u) in
   if j > nconstr then error "Not enough constructors in the type.";
   substl (List.tabulate make_Ik ntypes) specif.(j-1)
 
@@ -137,9 +137,10 @@ let constructor_nrealhyps (ind,j) =
   let (mib,mip) = Global.lookup_inductive ind in
   mip.mind_consnrealdecls.(j-1)
 
-let get_full_arity_sign env ind =
+let get_full_arity_sign env (ind,u) =
   let (mib,mip) = Inductive.lookup_mind_specif env ind in
-  mip.mind_arity_ctxt
+  let subst = make_universe_subst u mib.mind_universes in
+    Sign.subst_univs_context subst mip.mind_arity_ctxt
 
 let nconstructors ind =
   let (mib,mip) = Inductive.lookup_mind_specif (Global.env()) ind in
@@ -216,9 +217,9 @@ let instantiate_params t args sign =
     | _ -> anomaly"instantiate_params: type, ctxt and args mismatch"
   in inst [] t (List.rev sign,args)
 
-let get_constructor ((ind,u),mib,mip,params) j =
+let get_constructor ((ind,u as indu),mib,mip,params) j =
   assert (j <= Array.length mip.mind_consnames);
-  let typi = mis_nf_constructor_type (ind,mib,mip) j in
+  let typi = mis_nf_constructor_type (indu,mib,mip) j in
   let typi = instantiate_params typi params mib.mind_params_ctxt in
   let (args,ccl) = decompose_prod_assum typi in
   let (_,allargs) = decompose_app ccl in
@@ -454,8 +455,9 @@ let rec instantiate_universes env scl is = function
   | sign, [] -> sign (* Uniform parameters are exhausted *)
   | [], _ -> assert false
 
-let type_of_inductive_knowing_conclusion env mip conclty =
-  mip.mind_arity.mind_user_arity
+let type_of_inductive_knowing_conclusion env ((mib,mip),u) conclty =
+  let subst = make_universe_subst u mib.mind_universes in
+    subst_univs_constr subst mip.mind_arity.mind_user_arity
 
 (* FIXME: old code:
 Does not deal with universes, but only with Set/Type distinction *)

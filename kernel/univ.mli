@@ -50,6 +50,7 @@ type universe = Universe.t
 (** Alias name. *)
 
 module UniverseLSet : Set.S with type elt = universe_level
+module UniverseLMap : Map.S with type key = universe_level
 
 type universe_set = UniverseLSet.t
 val empty_universe_set : universe_set
@@ -95,7 +96,12 @@ val is_initial_universes : universes -> bool
 
 (** {6 Constraints. } *)
 
-type constraints
+type constraint_type = Lt | Le | Eq
+type univ_constraint = universe_level * constraint_type * universe_level
+
+module Constraint : Set.S with type elt = univ_constraint
+
+type constraints = Constraint.t
 
 (** A value with universe constraints. *)
 type 'a constrained = 'a * constraints
@@ -131,17 +137,22 @@ val empty_universe_context : universe_context
 val is_empty_universe_context : universe_context -> bool
 val fresh_universe_instance : ?dp:Names.dir_path -> universe_context -> universe_list
 
-
 (** Universe contexts (as sets) *)
 val empty_universe_context_set : universe_context_set
 val singleton_universe_context_set : universe_level -> universe_context_set
+val universe_context_set_of_list : universe_list -> universe_context_set
+
 val is_empty_universe_context_set : universe_context_set -> bool
 val union_universe_context_set : universe_context_set -> universe_context_set -> 
   universe_context_set
 val add_constraints_ctx : universe_context_set -> constraints -> universe_context_set
 
-(** [check_context_subset s s'] checks that [s] is implied by [s'] as a set of constraints. *)
-val check_context_subset : universe_context_set -> universe_context -> bool
+val add_universes_ctx : universe_list -> universe_context_set -> universe_context_set
+
+(** [check_context_subset s s'] checks that [s] is implied by [s'] as a set of constraints,
+    and shrinks [s'] to the set of variables declared in [s].
+. *)
+val check_context_subset : universe_context_set -> universe_context -> universe_context
 
 (** Arbitrary choice of linear order of the variables 
     and normalization of the constraints *)
@@ -166,6 +177,8 @@ val fresh_instance_from : ?dp:Names.dir_path -> universe_context ->
 val subst_univs_level : universe_subst -> universe_level -> universe_level
 val subst_univs_universe : universe_subst -> universe -> universe
 val subst_univs_constraints : universe_subst -> constraints -> constraints
+val subst_univs_context : universe_context_set -> universe_level -> universe_level -> 
+  universe_context_set
 
 (** Raises universe inconsistency if not compatible. *)
 val check_consistent_constraints : universe_context_set -> constraints -> unit
@@ -181,8 +194,6 @@ val enforce_eq_level : universe_level -> universe_level -> constraints -> constr
   The function [merge_constraints] merges a set of constraints in a given
   universes graph. It raises the exception [UniverseInconsistency] if the
   constraints are not satisfiable. *)
-
-type constraint_type = Lt | Le | Eq
 
 (** Type explanation is used to decorate error messages to provide
   useful explanation why a given constraint is rejected. It is composed

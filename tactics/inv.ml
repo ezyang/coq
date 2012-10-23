@@ -118,6 +118,7 @@ let make_inv_predicate env sigma indf realargs id status concl =
   (* Now, we can recurse down this list, for each ai,(mkRel k) whether to
      push <Ai>(mkRel k)=ai (when   Ai is closed).
    In any case, we carry along the rest of pairs *)
+  let eqdata, ctx = Coqlib.build_coq_eq_data_in env in
   let rec build_concl eqns n = function
     | [] -> (it_mkProd concl eqns,n)
     | (ai,(xi,ti))::restlist ->
@@ -127,7 +128,7 @@ let make_inv_predicate env sigma indf realargs id status concl =
           else
 	    make_iterated_tuple env' sigma ai (xi,ti)
 	in
-        let eq_term = Coqlib.build_coq_eq () in
+        let eq_term = eqdata.Coqlib.eq in
         let eqn = applist (eq_term ,[eqnty;lhs;rhs]) in
 	build_concl ((Anonymous,lift n eqn)::eqns) (n+1) restlist
   in
@@ -135,7 +136,7 @@ let make_inv_predicate env sigma indf realargs id status concl =
   let predicate = it_mkLambda_or_LetIn_name env newconcl hyps in
   (* OK - this predicate should now be usable by res_elimination_then to
      do elimination on the conclusion. *)
-  (predicate,neqns)
+  (predicate,neqns), ctx
 
 (* The result of the elimination is a bunch of goals like:
 
@@ -453,7 +454,7 @@ let raw_inversion inv_kind id status names gl =
   let ccl = clenv_type indclause in
   check_no_metas indclause ccl;
   let IndType (indf,realargs) = find_rectype env sigma ccl in
-  let (elim_predicate,neqns) =
+  let (elim_predicate,neqns),ctx =
     make_inv_predicate env sigma indf realargs id status (pf_concl gl) in
   let (cut_concl,case_tac) =
     if status != NoDep && (dependent c (pf_concl gl)) then
@@ -463,7 +464,7 @@ let raw_inversion inv_kind id status names gl =
       Reduction.beta_appvect elim_predicate (Array.of_list realargs),
       case_nodep_then_using
   in
-  (tclTHENS
+    (Refiner.tclPUSHCONTEXT ctx (tclTHENS
      (assert_tac Anonymous cut_concl)
      [case_tac names
        (introCaseAssumsThen (rewrite_equations_tac inv_kind id neqns))
@@ -473,7 +474,7 @@ let raw_inversion inv_kind id status names gl =
            (tclTHEN
               (apply_term (mkVar id)
                  (List.tabulate (fun _ -> Evarutil.mk_new_meta()) neqns))
-              reflexivity))])
+              reflexivity))]))
   gl
 
 (* Error messages of the inversion tactics *)

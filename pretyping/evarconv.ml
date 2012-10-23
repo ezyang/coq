@@ -741,7 +741,8 @@ let apply_conversion_problem_heuristic ts env evd pbty t1 t2 =
       solve_refl ~can_drop:true f env evd evk1 args1 args2, true
   | Evar ev1, Evar ev2 ->
       solve_evar_evar ~force:true
-        (evar_define (evar_conv_x ts)) (evar_conv_x ts) env evd ev1 ev2, true
+        (evar_define (evar_conv_x ts) (position_problem true pbty)) 
+         (evar_conv_x ts) env evd ev1 ev2, true
   | Evar ev1,_ when List.length l1 <= List.length l2 ->
       (* On "?n t1 .. tn = u u1 .. u(n+p)", try first-order unification *)
       (* and otherwise second-order matching *)
@@ -797,7 +798,7 @@ let rec solve_unconstrained_evars_with_canditates evd =
       | a::l ->
           try
             let conv_algo = evar_conv_x full_transparent_state in
-            let evd = check_evar_instance evd evk a conv_algo in
+            let evd = check_evar_instance evd evk a None (* FIXME Not sure *) conv_algo in
             let evd = Evd.define evk a evd in
             let evd,b = reconsider_conv_pbs conv_algo evd in
             if b then solve_unconstrained_evars_with_canditates evd

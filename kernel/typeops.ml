@@ -73,8 +73,9 @@ let judge_of_prop_contents = function
 
 let judge_of_type u =
   let uu = super u in
-  { uj_val = mkType u;
-    uj_type = mkType uu }
+    ({ uj_val = mkType u;
+       uj_type = mkType uu }, 
+     (Univ.singleton_universe_context_set (Option.get (universe_level u))))
 
 (*s Type of a de Bruijn index. *)
 
@@ -133,10 +134,11 @@ let type_of_constant env cst = constant_type env cst
 let type_of_constant_inenv env cst = constant_type_inenv env cst
 let type_of_constant_knowing_parameters env t _ = t
 
-let judge_of_constant env cst =
+let judge_of_constant env (_,u as cst) =
+  let ctx = universe_context_set_of_list u in
   let c = mkConstU cst in
   let ty, cu = type_of_constant env cst in
-    (make_judge c ty, cu)
+    (make_judge c ty, add_constraints_ctx ctx cu)
 
 (* Type of a lambda-abstraction. *)
 
@@ -277,24 +279,26 @@ let judge_of_cast env cj k tj =
 (*   let t =  in *)
 (*   make_judge c t *)
 
-let judge_of_inductive env ind =
-  let c = mkIndU ind in
-  let (mib,mip) = lookup_mind_specif env (fst ind) in
-  let t,u = Inductive.constrained_type_of_inductive env ((mib,mip),snd ind) in
-    make_judge c t, u
+let judge_of_inductive env (ind,u as indu) =
+  let c = mkIndU indu in
+  let (mib,mip) = lookup_mind_specif env ind in
+  let ctx = universe_context_set_of_list u in
+  let t,cst = Inductive.constrained_type_of_inductive env ((mib,mip),u) in
+    (make_judge c t, Univ.add_constraints_ctx ctx cst)
 
 
 (* Constructors. *)
 
-let judge_of_constructor env c =
-  let constr = mkConstructU c in
+let judge_of_constructor env (c,u as cu) =
+  let constr = mkConstructU cu in
   let _ =
-    let (((kn,_),_),_) = c in
+    let ((kn,_),_) = c in
     let mib = lookup_mind kn env in
     check_args env constr mib.mind_hyps in
-  let specif = lookup_mind_specif env (inductive_of_constructor (fst c)) in
-  let t,u = constrained_type_of_constructor c specif in
-    make_judge constr t, u
+  let specif = lookup_mind_specif env (inductive_of_constructor c) in
+  let ctx = universe_context_set_of_list u in
+  let t,cst = constrained_type_of_constructor cu specif in
+    (make_judge constr t, Univ.add_constraints_ctx ctx cst)
 
 (* Case. *)
 
@@ -355,7 +359,7 @@ let rec execute env cstr cu =
 	(judge_of_prop_contents c, cu)
 
     | Sort (Type u) ->
-	(judge_of_type u, cu)
+       univ_combinator cu (judge_of_type u)
 
     | Rel n ->
 	(judge_of_relative env n, cu)
@@ -364,7 +368,7 @@ let rec execute env cstr cu =
 	(judge_of_variable env id, cu)
 
     | Const c ->
-      univ_check_constraints cu (judge_of_constant env c)
+        univ_combinator cu (judge_of_constant env c)
 
     (* Lambda calculus operators *)
     | App (f,args) ->
@@ -412,10 +416,10 @@ let rec execute env cstr cu =
 
     (* Inductive types *)
     | Ind ind ->
-       univ_combinator_cst cu (judge_of_inductive env ind)
+       univ_combinator cu (judge_of_inductive env ind)
 
     | Construct c ->
-       univ_combinator_cst cu (judge_of_constructor env c)
+       univ_combinator cu (judge_of_constructor env c)
 
     | Case (ci,p,c,lf) ->
         let (cj,cu1) = execute env c cu in

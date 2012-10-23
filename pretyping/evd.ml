@@ -211,7 +211,8 @@ module EvarMap = struct
   let empty = EvarInfoMap.empty, empty_universe_context Names.empty_dirpath
   let from_env_and_context e (dp,c) = EvarInfoMap.empty, (dp, c, universes e)
 
-  let is_empty (sigma,_) = EvarInfoMap.is_empty sigma
+  let is_empty (sigma,(_, ctx, _)) = 
+    EvarInfoMap.is_empty sigma && Univ.is_empty_universe_context_set ctx
   let has_undefined (sigma,_) = EvarInfoMap.has_undefined sigma
   let add (sigma,sm) k v = (EvarInfoMap.add sigma k v, sm)
   let add_undefined (sigma,sm) k v = (EvarInfoMap.add_undefined sigma k v, sm)
@@ -547,7 +548,9 @@ let fresh_constructor_instance env ({ evars = (sigma, (dp, _, _)) } as evd) c =
 let fresh_global env ({ evars = (sigma, (dp, _, _)) } as evd) gr =
   with_context_set evd (Termops.fresh_global_instance env ~dp gr)
 
-let is_sort_variable {evars=(_,(dp, us,_))} s = match s with Type u -> true | _ -> false 
+let is_sort_variable {evars=(_,(dp, us,_))} s = 
+  match s with Type u -> Univ.universe_level u <> None | _ -> false 
+
 let whd_sort_variable {evars=(_,sm)} t = t
 
 let univ_of_sort = function
@@ -563,8 +566,8 @@ let is_eq_sort s1 s2 =
       if Univ.Universe.equal u1 u2 then None
       else Some (u1, u2)
 
-let is_univ_var_or_set u =
-  Univ.is_univ_variable u || Univ.is_type0_univ u
+let is_univ_var_or_set u = 
+  not (Option.is_empty (Univ.universe_level u))
 
 let set_leq_sort ({evars = (sigma, (dp, us, sm))} as d) s1 s2 =
   match is_eq_sort s1 s2 with
@@ -585,32 +588,89 @@ let set_leq_sort ({evars = (sigma, (dp, us, sm))} as d) s1 s2 =
         add_constraints d cstr
       else raise (Univ.UniverseInconsistency (Univ.Le, u1, u2,[]))
 
+type universe_global = 
+  | LocalUniv of Univ.universe_level
+  | GlobalUniv of Univ.universe_level
+
+type universe_kind = 
+  | Algebraic of Univ.universe
+  | Variable of universe_global
+
 let is_univ_level_var (us, cst) u =
   match Univ.universe_level u with
-  | Some u -> Univ.UniverseLSet.mem u us
-  | None -> false
+  | Some u -> Variable (if Univ.UniverseLSet.mem u us then LocalUniv u else GlobalUniv u)
+  | None -> Algebraic u
 
 let set_eq_sort ({evars = (sigma, (dp, us, sm))} as d) s1 s2 =
   match is_eq_sort s1 s2 with
   | None -> d
   | Some (u1, u2) ->
       match s1, s2 with
-      | Prop c, Type u when is_univ_level_var us u ->
+      | Prop c, Type u when Univ.universe_level u <> None ->
 	  add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint)
-      | Type u, Prop c when is_univ_level_var us u ->
+
+      | Type u, Type v ->
+
+        (match is_univ_level_var us u, is_univ_level_var us v with
+        | Variable u, Variable v -> 
+
+	  (match u, v with
+	  | LocalUniv u, (LocalUniv v | GlobalUniv v) ->
+	    add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint)
+	  | GlobalUniv u, LocalUniv v -> 
+	    add_constraints d (Univ.enforce_eq u2 u1 Univ.empty_constraint)
+	    (* {d with evars = (sigma, (dp, Univ.subst_univs_context us v u, *)
+	    (* 			     Univ.enforce_eq u1 u2 sm)) } *)
+	  | GlobalUniv u, GlobalUniv v -> 
+	    add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint))
+
+	| (Variable _, Algebraic _) | (Algebraic _, Variable _) -> 
+        (* Will fail *)
 	  add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint)
-      | Type u, Type v when (is_univ_level_var us u) || (is_univ_level_var us v) ->
-	  add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint)
-      | Prop c, Type u when is_univ_var_or_set u &&
-	  Univ.check_eq sm u1 u2 -> d
-      | Type u, Prop c when is_univ_var_or_set u && Univ.check_eq sm u1 u2 -> d
-      | Type u, Type v when is_univ_var_or_set u && is_univ_var_or_set v ->
-	  add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint)
+
+	| Algebraic _, Algebraic _ -> 
+	(* Will fail *)
+	  add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint))
+
+      | Type u, Prop _ when Univ.universe_level u <> None -> 
+        add_constraints d (Univ.enforce_eq u1 u2 Univ.empty_constraint)
+
       | _, _ -> raise (Univ.UniverseInconsistency (Univ.Eq, u1, u2, []))
 
 let set_eq_level ({evars = (sigma, (dp, us, sm))} as d) u1 u2 =
   add_constraints d (Univ.enforce_eq_level u1 u2 Univ.empty_constraint)
-	    
+
+module LevelUnionFind = Unionfind.Make (Univ.UniverseLSet) (Univ.UniverseLMap)
+
+let normalize_context_set (ctx, csts) = 
+  let module UF = LevelUnionFind in 
+  let uf = UF.create () in
+  let noneqs = 
+    Univ.Constraint.fold (fun (l,d,r as cstr) noneq -> 
+      if d = Univ.Eq then (UF.union l r uf; noneq) else 
+	(Univ.Constraint.add cstr noneq)) csts Univ.empty_constraint
+  in
+  let partition = UF.partition uf in
+  let ctx', pcanons = List.fold_left (fun (ctx, canons) s -> 
+    let canon = Univ.UniverseLSet.choose s in
+    let rest = Univ.UniverseLSet.remove canon s in
+    let ctx' = Univ.UniverseLSet.diff ctx rest in
+    let canons' = (canon, Univ.UniverseLSet.elements rest) :: canons in
+      (ctx', canons')) 
+    (ctx, []) partition
+  in
+  let subst = List.concat (List.rev_map (fun (c, rs) -> 
+    List.rev_map (fun r -> (r, c)) rs) pcanons) in
+    (subst, (ctx', Univ.subst_univs_constraints subst noneqs))
+
+(* let normalize_constraints ({evars = (sigma, (dp, us, sm))} as d) = *)
+(*   let (ctx', us') = normalize_context_set us in *)
+(*     {d with evars = (sigma, (dp, us', sm))} *)
+
+let nf_constraints ({evars = (sigma, (dp, us, sm))} as d) = 
+  let (subst, us') = normalize_context_set us in
+    {d with evars = (sigma, (dp, us', sm))}, subst
+        	    
 (**********************************************************)
 (* Accessing metas *)
 

@@ -188,19 +188,6 @@ let fresh_global_instance env ?(dp=Names.empty_dirpath) gr =
      let c, ctx = fresh_inductive_instance env ~dp sp in
        mkIndU c, ctx
 
-(* This refreshes universes in types; works only for inferred types (i.e. for
-   types of the form (x1:A1)...(xn:An)B with B a sort or an atom in
-   head normal form) *)
-(* let refresh_universes_gen strict t = *)
-(*   let modified = ref false in *)
-(*   let rec refresh t = match kind_of_term t with *)
-(*     | Sort (Type u) when strict or u <> Univ.type0m_univ -> *)
-(* 	modified := true; new_Type () *)
-(*     | Prod (na,u,v) -> mkProd (na,u,refresh v) *)
-(*     | _ -> t in *)
-(*   let t' = refresh t in *)
-(*   if !modified then t' else t *)
-
 (* let refresh_universes = refresh_universes_gen false *)
 (* let refresh_universes_strict = refresh_universes_gen true *)
 (*TODO remove *)

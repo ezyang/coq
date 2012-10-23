@@ -308,6 +308,7 @@ let between g arcu arcv =
  *)
 
 type constraint_type = Lt | Le | Eq
+
 type explanation = (constraint_type * universe) list
 
 let constraint_type_ord c1 c2 = match c1, c2 with
@@ -648,11 +649,33 @@ let is_empty_universe_context_set (univs, cst) =
 let union_universe_context_set (univs, cst) (univs', cst') =
   UniverseLSet.union univs univs', union_constraints cst cst'
 
+let universe_context_set_of_list l =
+  (List.fold_left (fun acc x -> UniverseLSet.add x acc) UniverseLSet.empty l, 
+   empty_constraint)
+
+let constraint_depend (l,d,r) u =
+  eq_levels l u || eq_levels l r
+
+let constraint_depend_list (l,d,r) us =
+  List.mem l us || List.mem r us
+
+let constraints_depend cstr us = 
+  Constraint.exists (fun c -> constraint_depend_list c us) cstr
+
 let check_context_subset (univs, cst) (univs', cst') =
-  true (* TODO *)
+  let newunivs, dangling = List.partition (fun u -> UniverseLSet.mem u univs) univs' in
+    (* Some universe variables that don't appear in the term 
+       are still mentionned in the constraints. This is the 
+       case for "fake" universe variables that correspond to +1s.
+       assert(not (constraints_depend cst' dangling));*)
+    (* TODO: check implication *)
+    newunivs, cst
 
 let add_constraints_ctx (univs, cst) cst' =
   univs, union_constraints cst cst'
+
+let add_universes_ctx univs ctx =
+  union_universe_context_set (universe_context_set_of_list univs) ctx
 
 let context_of_universe_context_set (ctx, cst) =
   (UniverseLSet.elements ctx, cst)
@@ -687,6 +710,10 @@ let subst_univs_constraints subst csts =
   Constraint.fold 
     (fun c -> Constraint.add (subst_univs_constraint subst c)) 
     csts Constraint.empty 
+
+let subst_univs_context (ctx, csts) u v =
+  let ctx' = UniverseLSet.remove u ctx in
+    (ctx', subst_univs_constraints [u,v] csts)
 
 (** Substitute instance inst for ctx in csts *)
 let instantiate_univ_context subst (_, csts) = 

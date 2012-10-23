@@ -387,6 +387,10 @@ let tactic_list_tactic tac gls =
 (* Change evars *)
 let tclEVARS sigma gls = tclIDTAC {gls with sigma=sigma}
 
+(* Push universe context *)
+let tclPUSHCONTEXT ctx tac gl = 
+  tclTHEN (tclEVARS (Evd.merge_context_set (project gl) ctx)) tac gl
+
 (* Pretty-printers. *)
 
 let pp_info = ref (fun _ _ _ -> assert false)

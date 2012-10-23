@@ -46,6 +46,7 @@ val named_context_val : env -> named_context_val
 
 
 val engagement    : env -> engagement option
+val is_impredicative_set : env -> bool
 
 (** is the local context empty *)
 val empty_context : env -> bool

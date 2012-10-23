@@ -51,8 +51,8 @@ let find_rectype_a env c =
 
 (* Instantiate inductives and parameters in constructor type *)
 
-let type_constructor mind mib typ params =
-  let s = ind_subst mind mib in
+let type_constructor mind mib u typ params =
+  let s = ind_subst mind mib u in
   let ctyp = substl s typ in
   let nparams = Array.length params in
   if nparams = 0 then ctyp
@@ -80,7 +80,7 @@ let construct_of_constr const env tag typ =
     let nparams = mib.mind_nparams in
     let i = invert_tag const tag mip.mind_reloc_tbl in
     let params = Array.sub allargs 0 nparams in
-    let ctyp = type_constructor mind mib (mip.mind_nf_lc.(i-1)) params in
+    let ctyp = type_constructor mind mib u (mip.mind_nf_lc.(i-1)) params in
       (mkApp(mkConstruct(ind,i), params), ctyp)
 
 let construct_of_constr_const env tag typ =
@@ -104,12 +104,12 @@ let constr_type_of_idkey env idkey =
 let type_of_ind env ind =
   fst (fresh_type_of_inductive env (Inductive.lookup_mind_specif env ind))
 
-let build_branches_type env (mind,_ as _ind) mib mip params dep p =
+let build_branches_type env (mind,_ as _ind) mib mip u params dep p =
   let rtbl = mip.mind_reloc_tbl in
   (* [build_one_branch i cty] construit le type de la ieme branche (commence
      a 0) et les lambda correspondant aux realargs *)
   let build_one_branch i cty =
-    let typi = type_constructor mind mib cty params in
+    let typi = type_constructor mind mib u cty params in
     let decl,indapp = decompose_prod_assum typi in
     let ((ind,u),cargs) = find_rectype_a env indapp in
     let nparams = Array.length params in
@@ -120,7 +120,7 @@ let build_branches_type env (mind,_ as _ind) mib mip params dep p =
       if dep then
 	let cstr = ith_constructor_of_inductive ind (i+1) in
         let relargs = Array.init carity (fun i -> mkRel (carity-i)) in
-	let dep_cstr = mkApp(mkApp(mkConstruct cstr,params),relargs) in
+	let dep_cstr = mkApp(mkApp(mkConstructU (cstr,u),params),relargs) in
 	mkApp(papp,[|dep_cstr|])
       else papp
     in
@@ -189,7 +189,7 @@ and nf_stk env c t stk  =
       let pT = whd_betadeltaiota env pT in
       let dep, p = nf_predicate env ind mip params (type_of_switch sw) pT in
       (* Calcul du type des branches *)
-      let btypes = build_branches_type env ind mib mip params dep p in
+      let btypes = build_branches_type env ind mib mip u params dep p in
       (* calcul des branches *)
       let bsw = branch_of_switch (nb_rel env) sw in
       let mkbranch i (n,v) =

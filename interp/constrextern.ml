@@ -827,7 +827,7 @@ and extern_symbol (tmp_scope,scopes as allscopes) vars t = function
 		  select_impargs_size
 		    (List.length args) (implicits_of_global ref) in
 	      f, args, subscopes, impls
-	  | GRef _, Some 0 -> GApp (Loc.ghost,t,[]), [], [], []
+	  | GRef (_,ref,us), Some 0 -> GApp (Loc.ghost,t,[]), [], [], []
           | _, None -> t, [], [], []
           | _ -> raise No_match in
 	(* Try matching ... *)

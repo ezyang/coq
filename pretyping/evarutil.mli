@@ -63,11 +63,14 @@ val make_pure_subst : evar_info -> constr array -> (Id.t * constr) list
 type conv_fun =
   env ->  evar_map -> conv_pb -> constr -> constr -> evar_map * bool
 
-(** [evar_define choose env ev c] try to instantiate [ev] with [c] (typed in [env]),
+(** [evar_define pbty choose env ev c] try to instantiate [ev] with [c] (typed in [env]),
    possibly solving related unification problems, possibly leaving open
    some problems that cannot be solved in a unique way (except if choose is
-   true); fails if the instance is not valid for the given [ev] *)
-val evar_define : conv_fun -> ?choose:bool -> env -> evar_map -> 
+   true); fails if the instance is not valid for the given [ev].
+   [pbty] indicates if [c] is supposed to be in a subtype of [ev], or in a
+   supertype (hence equating the universe levels of [c] and [ev]).
+*)
+val evar_define : conv_fun -> bool option -> ?choose:bool -> env -> evar_map -> 
   existential -> constr -> evar_map
 
 (** {6 Evars/Metas switching...} *)
@@ -189,6 +192,8 @@ val nf_evar_info : evar_map -> evar_info -> evar_info
 val nf_evar_map : evar_map -> evar_map
 val nf_evar_map_undefined : evar_map -> evar_map
 
+val nf_evars_and_universes : evar_map ref -> constr -> constr
+
 (** Replacing all evars, possibly raising [Uninstantiated_evar] *)
 exception Uninstantiated_evar of existential_key
 val flush_and_check_evars :  evar_map -> constr -> constr
@@ -223,8 +228,8 @@ val push_rel_context_to_named_context : Environ.env -> types ->
 
 val generalize_evar_over_rels : evar_map -> existential -> types * constr list
 
-val check_evar_instance : evar_map -> existential_key -> constr -> conv_fun ->
-  evar_map
+val check_evar_instance : evar_map -> existential_key -> constr -> bool option -> 
+  conv_fun -> evar_map
 
 (** Evar combinators *)
 

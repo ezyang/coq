@@ -20,6 +20,21 @@ open Reductionops
 open Pretype_errors
 open Retyping
 
+let evd_comb0 f evdref =
+  let (evd',x) = f !evdref in
+    evdref := evd';
+    x
+
+let evd_comb1 f evdref x =
+  let (evd',y) = f !evdref x in
+    evdref := evd';
+    y
+
+let evd_comb2 f evdref x y =
+  let (evd',z) = f !evdref x y in
+    evdref := evd';
+    z
+
 (****************************************************)
 (* Expanding/testing/exposing existential variables *)
 (****************************************************)
@@ -41,6 +56,36 @@ let j_nf_evar = Pretype_errors.j_nf_evar
 let jl_nf_evar = Pretype_errors.jl_nf_evar
 let jv_nf_evar = Pretype_errors.jv_nf_evar
 let tj_nf_evar = Pretype_errors.tj_nf_evar
+
+let subst_puniverses subst (c, u as cu) =
+  let u' = CList.smartmap (Univ.subst_univs_level subst) u in
+    if u' == u then cu else (c, u')
+
+let nf_evars_and_universes_local sigma subst =
+  let rec aux c =
+    match kind_of_term c with
+    | Evar (evdk, _ as ev) ->
+      (match existential_opt_value sigma ev with
+      | None -> c
+      | Some c -> aux c)
+    | Const pu -> 
+      let pu' = subst_puniverses subst pu in
+	if pu' == pu then c else mkConstU pu'
+    | Ind pu ->
+      let pu' = subst_puniverses subst pu in
+	if pu' == pu then c else mkIndU pu'
+    | Construct pu ->
+      let pu' = subst_puniverses subst pu in
+	if pu' == pu then c else mkConstructU pu'
+    | Sort (Type u) ->
+      let u' = Univ.subst_univs_universe subst u in
+	if u' == u then c else mkSort (Type u')
+    | _ -> map_constr aux c
+  in aux
+  
+let nf_evars_and_universes evdref =
+  let subst = evd_comb0 Evd.nf_constraints evdref in
+    nf_evars_and_universes_local !evdref subst
 
 let nf_named_context_evar sigma ctx =
   Sign.map_named_context (Reductionops.nf_evar sigma) ctx
@@ -1457,15 +1502,26 @@ let solve_evar_evar ?(force=false) f g env evd (evk1,args1 as ev1) (evk2,args2 a
 type conv_fun =
   env ->  evar_map -> conv_pb -> constr -> constr -> evar_map * bool
 
-let check_evar_instance evd evk1 body conv_algo =
+let check_evar_instance evd evk1 body pbty conv_algo =
   let evi = Evd.find evd evk1 in
   let evenv = evar_unfiltered_env evi in
   (* FIXME: The body might be ill-typed when this is called from w_merge *)
   let ty =
-    try Retyping.get_type_of evenv evd body
+    try 
+      Retyping.get_type_of evenv evd body
     with _ -> error "Ill-typed evar instance"
   in
-  let evd,b = conv_algo evenv evd Reduction.CUMUL ty evi.evar_concl in
+  let direction, x, y = 
+    match pbty with
+    | Some true (* ?ev := (ty:Type(j)) : Type(i) <= Type(j) -> i = j *) ->
+      Reduction.CUMUL, ty, evi.evar_concl
+    | Some false -> 
+      (* ty : Type(j) <= ?ev : Type(i) -> j <= i *) 
+      Reduction.CUMUL, ty, evi.evar_concl
+    | None -> (*  ?ev : U = c : ty = -> ty <= U *)
+      Reduction.CUMUL, ty, evi.evar_concl
+  in
+  let evd,b = conv_algo evenv evd direction x y in
   if b then evd else
     user_err_loc (fst (evar_source evk1 evd),"",
 		  str "Unable to find a well-typed instantiation")
@@ -1519,6 +1575,25 @@ let solve_candidates conv_algo env evd (evk,argsv as ev) rhs =
           restrict_evar evd evk None (Some candidates)
       | l -> evd
 
+(* This refreshes universes in types; works only for inferred types (i.e. for
+   types of the form (x1:A1)...(xn:An)B with B a sort or an atom in
+   head normal form) *)
+let refresh_universes evd t =
+  let evdref = ref evd in
+  let modified = ref false in
+  let rec refresh t = match kind_of_term t with
+    | Sort s ->
+      let u = match s with Type u -> u | Prop Pos -> Univ.type0_univ | Prop Null -> Univ.type0m_univ in
+      (* when u <> Univ.type0m_univ && u <> Univ.type0_univ -> *)
+      (modified := true; 
+       let s' = evd_comb0 new_sort_variable evdref in
+	 evdref := set_leq_sort !evdref (Type (Univ.sup u Univ.type0m_univ)) s';
+         mkSort s')
+    | Prod (na,u,v) -> mkProd (na,u,refresh v)
+    | _ -> t in
+  let t' = refresh t in
+  if !modified then !evdref, t' else evd, t
+
 (* We try to instantiate the evar assuming the body won't depend
  * on arguments that are not Rels or Vars, or appearing several times
  * (i.e. we tackle a generalization of Miller-Pfenning patterns unification)
@@ -1546,7 +1621,8 @@ exception NotInvertibleUsingOurAlgorithm of constr
 exception NotEnoughInformationToProgress of (Id.t * evar_projection) list
 exception OccurCheckIn of evar_map * constr
 
-let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
+
+let rec invert_definition conv_algo pbty choose env evd (evk,argsv as ev) rhs =
   let aliases = make_alias_map env in
   let evdref = ref evd in
   let progress = ref false in
@@ -1565,7 +1641,7 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
 	    if choose then (mkVar id, p) else raise (NotUniqueInType sols)
       in
       let ty = lazy (Retyping.get_type_of env !evdref t) in
-      let evd = do_projection_effects (evar_define conv_algo) env ty !evdref p in
+      let evd = do_projection_effects (evar_define conv_algo pbty) env ty !evdref p in
       evdref := evd;
       c
     with
@@ -1579,7 +1655,7 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
           let sign = evar_filtered_context evi in
           let ty' = instantiate_evar sign ty (Array.to_list argsv) in
 	  let (evd,evar,(evk',argsv' as ev')) =
-            materialize_evar (evar_define conv_algo) env !evdref 0 ev ty' in
+            materialize_evar (evar_define conv_algo pbty) env !evdref 0 ev ty' in
 	  let ts = expansions_of_var aliases t in
 	  let test c = isEvar c or List.mem c ts in
 	  let filter = Array.map_to_list test argsv' in
@@ -1628,7 +1704,7 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
 	  (* Make the virtual left evar real *)
 	  let ty = get_type_of env' !evdref t in
 	  let (evd,evar'',ev'') =
-             materialize_evar (evar_define conv_algo) env' !evdref k ev ty in
+             materialize_evar (evar_define conv_algo pbty) env' !evdref k ev ty in
           (* materialize_evar may instantiate ev' by another evar; adjust it *)
           let (evk',args' as ev') = normalize_evar evd ev' in
 	  let evd =
@@ -1640,7 +1716,7 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
             | EvarSolvedOnTheFly _ -> assert false (* ev has no candidates *)
             | CannotProject filter'' ->
 	      (* ... or postpone the problem *)
-	      postpone_evar_evar (evar_define conv_algo) env' evd filter'' ev'' filter' ev' in
+	      postpone_evar_evar (evar_define conv_algo pbty) env' evd filter'' ev'' filter' ev' in
 	  evdref := evd;
 	  evar'')
     | _ ->
@@ -1671,7 +1747,7 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
             | [x] -> x
             | _ ->
 	      let (evd,evar'',ev'') =
-                materialize_evar (evar_define conv_algo) env' !evdref k ev ty in
+                materialize_evar (evar_define conv_algo pbty) env' !evdref k ev ty in
               evdref := restrict_evar evd (fst ev'') None (Some candidates);
               evar'')
 	| None ->
@@ -1688,27 +1764,29 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
  * [define] tries to find an instance lhs such that
  * "lhs [hyps:=args]" unifies to rhs. The term "lhs" must be closed in
  * context "hyps" and not referring to itself.
+ * [pbty] indicates if [rhs] is supposed to be in a subtype of [ev], or in a
+ * supertype (hence equating the universe levels of [rhs] and [ev]).
  *)
 
-and evar_define conv_algo ?(choose=false) env evd (evk,argsv as ev) rhs =
+and evar_define conv_algo pbty ?(choose=false) env evd (evk,argsv as ev) rhs =
   match kind_of_term rhs with
   | Evar (evk2,argsv2 as ev2) ->
       if Int.equal evk evk2 then
         solve_refl ~can_drop:choose conv_algo env evd evk argsv argsv2
       else
         solve_evar_evar ~force:choose
-          (evar_define conv_algo) conv_algo env evd ev ev2
+          (evar_define conv_algo pbty) conv_algo env evd ev ev2
   | _ ->
   try solve_candidates conv_algo env evd ev rhs
   with NoCandidates ->
   try
-    let (evd',body) = invert_definition conv_algo choose env evd ev rhs in
+    let (evd',body) = invert_definition conv_algo pbty choose env evd ev rhs in
     if occur_meta body then error "Meta cannot occur in evar body.";
     (* invert_definition may have instantiate some evars of rhs with evk *)
     (* so we recheck acyclicity *)
     if occur_evar evk body then raise (OccurCheckIn (evd',body));
-    (* (\* needed only if an inferred type *\) *)
-    (* let body = refresh_universes body in *)
+    (* needed only if an inferred type *)
+    (* let evd', body = refresh_universes evd' body in *)
 (* Cannot strictly type instantiations since the unification algorithm
  * does not unify applications from left to right.
  * e.g problem f x == g y yields x==y and f==g (in that order)
@@ -1726,7 +1804,7 @@ and evar_define conv_algo ?(choose=false) env evd (evk,argsv as ev) rhs =
            print_constr body);
         raise e in*)
     let evd' = Evd.define evk body evd' in
-    check_evar_instance evd' evk body conv_algo
+    check_evar_instance evd' evk body pbty conv_algo
   with
     | NotEnoughInformationToProgress sols ->
 	postpone_non_unique_projection env evd ev sols rhs
@@ -1796,7 +1874,7 @@ let solve_simple_eqn conv_algo ?(choose=false) env evd (pbty,(evk1,args1 as ev1)
       | Some false when isEvar t2 ->
           add_conv_pb (Reduction.CUMUL,env,t2,mkEvar ev1) evd
       | _ ->
-          evar_define conv_algo ~choose env evd ev1 t2 in
+          evar_define conv_algo pbty ~choose env evd ev1 t2 in
     reconsider_conv_pbs conv_algo evd
   with e when precatchable_exception e ->
     (evd,false)
@@ -2046,7 +2124,10 @@ let define_evar_as_sort evd (ev,args) =
 
 let judge_of_new_Type evd =
   let evd', s = new_univ_variable evd in
-    evd', Typeops.judge_of_type s
+  (* let evd', s' = new_univ_variable evd in *)
+  (* let ss = mkSort (Type s) and ss' = mkSort (Type s') in *)
+  (* let evd' = set_leq_sort evd' (Type (Univ.super s)) (Type s') in *)
+    evd', { uj_val = mkSort (Type s); uj_type = mkSort (Type (Univ.super s)) }
 
 (* Propagation of constraints through application and abstraction:
    Given a type constraint on a functional term, returns the type
@@ -2079,18 +2160,3 @@ let lift_tycon n = Option.map (lift n)
 let pr_tycon env = function
     None -> str "None"
   | Some t -> Termops.print_constr_env env t
-
-let evd_comb0 f evdref =
-  let (evd',x) = f !evdref in
-    evdref := evd';
-    x
-
-let evd_comb1 f evdref x =
-  let (evd',y) = f !evdref x in
-    evdref := evd';
-    y
-
-let evd_comb2 f evdref x y =
-  let (evd',z) = f !evdref x y in
-    evdref := evd';
-    z

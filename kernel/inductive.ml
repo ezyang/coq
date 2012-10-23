@@ -54,15 +54,15 @@ let inductive_params (mib,_) = mib.mind_nparams
 
 (* Build the substitution that replaces Rels by the appropriate *)
 (* inductives *)
-let ind_subst mind mib =
+let ind_subst mind mib u =
   let ntypes = mib.mind_ntypes in
-  let make_Ik k = mkInd (mind,ntypes-k-1) in
+  let make_Ik k = mkIndU ((mind,ntypes-k-1),u) in
   List.tabulate make_Ik ntypes
 
 (* Instantiate inductives in constructor type *)
-let constructor_instantiate mind subst mib c =
-  let s = ind_subst mind mib in
-    subst_univs_constr subst (substl s c)
+let constructor_instantiate mind u subst mib c =
+  let s = ind_subst mind mib u in
+    substl s (subst_univs_constr subst c)
 
 let instantiate_params full t args sign =
   let fail () =
@@ -88,7 +88,7 @@ let full_inductive_instantiate mib params sign =
 
 let full_constructor_instantiate ((mind,_),u,(mib,_),params) =
   let subst = make_universe_subst u mib.mind_universes in
-  let inst_ind = constructor_instantiate mind subst mib in
+  let inst_ind = constructor_instantiate mind u subst mib in
   (fun t ->
     instantiate_params true (inst_ind t) params mib.mind_params_ctxt)
 
@@ -229,18 +229,18 @@ let max_inductive_sort =
 (************************************************************************)
 (* Type of a constructor *)
 
-let type_of_constructor_subst cstr subst (mib,mip) =
+let type_of_constructor_subst cstr u subst (mib,mip) =
   let ind = inductive_of_constructor cstr in
   let specif = mip.mind_user_lc in
   let i = index_of_constructor cstr in
   let nconstr = Array.length mip.mind_consnames in
   if i > nconstr then error "Not enough constructors in the type.";
-  let c = constructor_instantiate (fst ind) subst mib specif.(i-1) in
+  let c = constructor_instantiate (fst ind) u subst mib specif.(i-1) in
     c
 
 let type_of_constructor_gen (cstr,u) (mib,mip as mspec) =
   let subst = make_universe_subst u mib.mind_universes in
-    type_of_constructor_subst cstr subst mspec, subst
+    type_of_constructor_subst cstr u subst mspec, subst
 
 let type_of_constructor cstru mspec = 
   fst (type_of_constructor_gen cstru mspec)
@@ -252,13 +252,13 @@ let constrained_type_of_constructor (cstr,u as cstru) (mib,mip as ind) =
 
 let fresh_type_of_constructor cstr (mib, mip) =
   let (inst, subst), cst = fresh_instance_from_context mib.mind_universes in
-  let c = type_of_constructor_subst cstr subst (mib,mip) in
+  let c = type_of_constructor_subst cstr inst subst (mib,mip) in
     (c, cst)
 
 let arities_of_specif (kn,u) (mib,mip) =
   let specif = mip.mind_nf_lc in
   let subst = make_universe_subst u mib.mind_universes in
-    Array.map (constructor_instantiate kn subst mib) specif
+    Array.map (constructor_instantiate kn u subst mib) specif
 
 let arities_of_constructors ind specif =
   arities_of_specif (fst (fst ind), snd ind) specif
@@ -266,7 +266,7 @@ let arities_of_constructors ind specif =
 let type_of_constructors (ind,u) (mib,mip) =
   let specif = mip.mind_user_lc in
   let subst = make_universe_subst u mib.mind_universes in
-  Array.map (constructor_instantiate (fst ind) subst mib) specif
+  Array.map (constructor_instantiate (fst ind) u subst mib) specif
 
 (************************************************************************)
 
