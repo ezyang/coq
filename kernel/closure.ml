@@ -333,8 +333,8 @@ and fterm =
   | FAtom of constr (* Metas and Sorts *)
   | FCast of fconstr * cast_kind * fconstr
   | FFlex of table_key
-  | FInd of inductive puniverses
-  | FConstruct of constructor puniverses
+  | FInd of pinductive
+  | FConstruct of pconstructor
   | FApp of fconstr * fconstr array
   | FFix of fixpoint * fconstr subs
   | FCoFix of cofixpoint * fconstr subs

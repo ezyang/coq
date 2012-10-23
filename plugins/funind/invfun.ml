@@ -266,7 +266,7 @@ let prove_fun_correct functional_induction funs_constr graphs_constr schemes lem
     in
     (* before building the full intro pattern for the principle *)
     let eq_ind = Coqlib.build_coq_eq () in
-    let eq_construct = mkConstructUi (destInd eq_ind) 1 in
+    let eq_construct = mkConstructUi (destInd eq_ind, 1) in
     (* The next to referencies will be used to find out which constructor to apply in each branch *)
     let ind_number = ref 0
     and min_constr_number = ref 0 in
@@ -1086,8 +1086,7 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
     in
     let kn,_ as graph_ind  = fst (destInd graphs_constr.(0)) in
     let  mib,mip = Global.lookup_inductive graph_ind in
-    let schemes =
-      Array.of_list
+    let sigma, scheme = 
 	(Indrec.build_mutual_induction_scheme (Global.env ()) Evd.empty
 	   (Array.to_list
 	      (Array.mapi
@@ -1096,6 +1095,9 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
 	      )
 	   )
 	)
+    in
+    let schemes =
+      Array.of_list scheme
     in
     let proving_tac =
       prove_fun_complete funs_constr mib.Declarations.mind_packets schemes lemmas_types_infos

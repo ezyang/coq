@@ -489,10 +489,11 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
       )
       funs_indexes
   in
+  let sigma, schemes = 
+    Indrec.build_mutual_induction_scheme env sigma ind_list
+  in
   let l_schemes =
-    List.map
-      (Typing.type_of env sigma)
-      (Indrec.build_mutual_induction_scheme env sigma ind_list)
+    List.map (Typing.type_of env sigma) schemes
   in
   let i = ref (-1) in
   let sorts =
@@ -666,7 +667,9 @@ let build_case_scheme fa =
 	 let ind = first_fun_kn,funs_indexes in
 	   (ind,[])(*FIXME*),prop_sort
   in
-  let scheme_type =  (Typing.type_of env sigma ) ((fun (ind,sf) -> Indrec.build_case_analysis_scheme_default env sigma ind sf)  ind_fun) in
+  let sigma, scheme = 
+    (fun (ind,sf) -> Indrec.build_case_analysis_scheme_default env sigma ind sf)  ind_fun in
+  let scheme_type =  (Typing.type_of env sigma ) scheme in
   let sorts =
     (fun (_,_,x) ->
        Termops.new_sort_in_family (Pretyping.interp_elimination_sort x)
