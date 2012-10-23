@@ -104,3 +104,7 @@ val env_of_context : Environ.named_context_val -> Environ.env
 
 (** spiwack: register/unregister function for retroknowledge *)
 val register : Retroknowledge.field -> constr -> constr -> unit
+
+(* Modifies the global state, registering new universes *)
+
+val with_global : (Environ.env -> Names.dir_path -> 'a in_universe_context_set) -> 'a

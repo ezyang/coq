@@ -43,6 +43,12 @@ let empty_named_context_val = empty_named_context_val
 let empty_env = empty_env
 
 let engagement env = env.env_stratification.env_engagement
+
+let is_impredicative_set env = 
+  match engagement env with
+  | Some ImpredicativeSet -> true
+  | _ -> false
+
 let universes env = env.env_stratification.env_universes
 let named_context env = env.env_named_context
 let named_context_val env = env.env_named_context,env.env_named_vals

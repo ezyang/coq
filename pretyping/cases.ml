@@ -264,7 +264,8 @@ let rec find_row_ind = function
   | PatCstr(loc,c,_,_) :: _ -> Some (loc,c)
 
 let inductive_template evdref env tmloc ind =
-  let arsign = get_full_arity_sign env ind in
+  let indu = evd_comb1 (Evd.fresh_inductive_instance env) evdref ind in
+  let arsign = get_full_arity_sign env indu in
   let hole_source = match tmloc with
     | Some loc -> fun i -> (loc, Evar_kinds.TomatchTypeParameter (ind,i))
     | None -> fun _ -> (Loc.ghost, Evar_kinds.InternalHole) in
@@ -279,7 +280,7 @@ let inductive_template evdref env tmloc ind =
 	| Some b ->
 	    (substl subst b::subst,evarl,n+1))
       arsign ([],[],1) in
-   applist (mkInd ind,List.rev evarl)
+   applist (mkIndU indu,List.rev evarl)
 
 let try_find_ind env sigma typ realnames =
   let (IndType(_,realargs) as ind) = find_rectype env sigma typ in

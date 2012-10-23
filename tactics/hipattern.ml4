@@ -350,11 +350,11 @@ let is_sigma_type t=op2bool (match_with_sigma_type t)
 
 (***** Destructing patterns bound to some theory *)
 
-let rec first_match matcher = function
+let rec first_match matcher env = function
   | [] -> raise PatternMatchingFailure
   | (pat,build_set)::l ->
-      try (build_set (),matcher pat)
-      with PatternMatchingFailure -> first_match matcher l
+      try (build_set env,matcher pat)
+      with PatternMatchingFailure -> first_match matcher env l
 
 (*** Equality *)
 
@@ -375,13 +375,19 @@ let match_eq eqn eq_pat =
 	HeterogenousEq (t,x,t',x')
     | _ -> anomaly "match_eq: an eq pattern should match 3 or 4 terms"
 
-let equalities =
-  [coq_eq_pattern, build_coq_eq_data;
-   coq_jmeq_pattern, build_coq_jmeq_data;
-   coq_identity_pattern, build_coq_identity_data]
+let build_coq_jmeq_data_in env =
+  build_coq_jmeq_data (), Univ.empty_universe_context_set
 
-let find_eq_data eqn = (* fails with PatternMatchingFailure *)
-  first_match (match_eq eqn) equalities
+let build_coq_identity_data_in env =
+  build_coq_identity_data (), Univ.empty_universe_context_set
+
+let equalities =
+  [coq_eq_pattern, build_coq_eq_data_in;
+   coq_jmeq_pattern, build_coq_jmeq_data_in;
+   coq_identity_pattern, build_coq_identity_data_in]
+
+let find_eq_data env eqn = (* fails with PatternMatchingFailure *)
+  first_match (match_eq eqn) env equalities
 
 let extract_eq_args gl = function
   | MonomorphicLeibnizEq (e1,e2) ->
@@ -392,13 +398,13 @@ let extract_eq_args gl = function
       else raise PatternMatchingFailure
 
 let find_eq_data_decompose gl eqn =
-  let (lbeq,eq_args) = find_eq_data eqn in
+  let (lbeq,eq_args) = find_eq_data (Refiner.pf_env gl) eqn in
   (lbeq,extract_eq_args gl eq_args)
 
 let find_this_eq_data_decompose gl eqn =
   let (lbeq,eq_args) =
     try (*first_match (match_eq eqn) inversible_equalities*)
-      find_eq_data eqn
+      find_eq_data (Refiner.pf_env gl) eqn
     with PatternMatchingFailure ->
       errorlabstrm "" (str "No primitive equality found.") in
   let eq_args =
@@ -418,7 +424,7 @@ let match_eq_nf gls eqn eq_pat =
 
 let dest_nf_eq gls eqn =
   try
-    snd (first_match (match_eq_nf gls eqn) equalities)
+    snd (first_match (match_eq_nf gls eqn) (Refiner.pf_env gls) equalities)
   with PatternMatchingFailure ->
     error "Not an equality."
 
@@ -438,9 +444,9 @@ let match_sigma ex ex_pat =
 	anomaly "match_sigma: a successful sigma pattern should match 4 terms"
 
 let find_sigma_data_decompose ex = (* fails with PatternMatchingFailure *)
-  first_match (match_sigma ex)
-    [coq_existT_pattern, build_sigma_type;
-     coq_exist_pattern, build_sigma]
+  first_match (match_sigma ex) (Global.env())
+    [coq_existT_pattern, (fun _ -> build_sigma_type ());
+     coq_exist_pattern, (fun _ -> build_sigma ())]
 
 (* Pattern "(sig ?1 ?2)" *)
 let coq_sig_pattern = lazy PATTERN [ %coq_sig_ref ?X1 ?X2 ]

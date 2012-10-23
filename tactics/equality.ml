@@ -1,4 +1,4 @@
-(************************************************************************)
+1(************************************************************************)
 (*  v      *   The Coq Proof Assistant  /  The Coq Development Team     *)
 (* <O___,, *   INRIA - CNRS - LIX - LRI - PPS - Copyright 1999-2012     *)
 (*   \VV/  **************************************************************)
@@ -295,10 +295,10 @@ let leibniz_rewrite_ebindings_clause cls lft2rgt tac sigma c t l with_evars frze
   let dep_fun = if isatomic then dependent else dependent_no_evar in
   let dep = dep_proof_ok && dep_fun c (type_of_clause gl cls) in
   let elim = find_elim hdcncl lft2rgt dep cls (snd (decompose_app t)) gl in
-    pf_constr_of_global (ConstRef elim) (fun c -> 
+    pf_constr_of_global (ConstRef elim) (fun elim -> 
     general_elim_clause with_evars frzevars tac cls sigma c t l
       (match lft2rgt with None -> false | Some b -> b)
-      {elimindex = None; elimbody = (c,NoBindings)}) gl
+      {elimindex = None; elimbody = (elim,NoBindings)}) gl
 
 let adjust_rewriting_direction args lft2rgt =
   match args with
@@ -443,9 +443,6 @@ let rewriteRL = general_rewrite false AllOccurrences true true
    tac : Used to prove the equality c1 = c2
    gl : goal *)
 
-let tclPUSHCONTEXT ctx gl = 
-  Refiner.tclEVARS (Evd.merge_context_set (project gl) ctx) gl
-
 let multi_replace clause c2 c1 unsafe try_prove_eq_opt gl =
   let try_prove_eq =
     match try_prove_eq_opt with
@@ -459,7 +456,7 @@ let multi_replace clause c2 c1 unsafe try_prove_eq_opt gl =
     let e = eqdata.eq in
     let sym = eqdata.sym in
     let eq = applist (e, [t1;c1;c2]) in
-    tclTHEN (tclPUSHCONTEXT ctx)
+    (Refiner.tclPUSHCONTEXT ctx
     (tclTHENS (assert_as false None eq)
       [onLastHypId (fun id ->
 	tclTHEN
@@ -470,7 +467,7 @@ let multi_replace clause c2 c1 unsafe try_prove_eq_opt gl =
 	  tclTHEN (apply sym) assumption;
 	  try_prove_eq
 	 ]
-      ]) gl
+      ])) gl
   else
     error "Terms do not have convertible types."
 
@@ -753,14 +750,16 @@ let ind_scheme_of_eq lbeq =
   let kind =
     if kind == InProp then Elimschemes.ind_scheme_kind_from_prop
     else Elimschemes.ind_scheme_kind_from_type in
-  mkConst (find_scheme kind (fst (destInd lbeq.eq)))
+  let c = find_scheme kind (fst (destInd lbeq.eq)) in
+    ConstRef c
 
 
-let discrimination_pf e (t,t1,t2) discriminator lbeq =
+let discrimination_pf env sigma e (t,t1,t2) discriminator lbeq =
   let i           = build_coq_I () in
   let absurd_term = build_coq_False () in
   let eq_elim     = ind_scheme_of_eq lbeq in
-  (applist (eq_elim, [t;t1;mkNamedLambda e t discriminator;i;t2]), absurd_term)
+  let sigma, eq_elim = Evd.fresh_global env sigma eq_elim in
+    sigma, ((applist (eq_elim, [t;t1;mkNamedLambda e t discriminator;i;t2]), absurd_term))
 
 let eq_baseid = Id.of_string "e"
 
@@ -778,12 +777,13 @@ let discr_positions env sigma (lbeq,eqn,(t,t1,t2)) eq_clause cpath dirn sort =
   let e_env = push_named (e,None,t) env in
   let discriminator =
     build_discriminator sigma e_env dirn (mkVar e) sort cpath in
-  let (pf, absurd_term) = discrimination_pf e (t,t1,t2) discriminator lbeq in
+  let sigma,(pf, absurd_term) = discrimination_pf env sigma e (t,t1,t2) discriminator lbeq in
   let pf_ty = mkArrow eqn absurd_term in
   let absurd_clause = apply_on_clause (pf,pf_ty) eq_clause in
   let pf = clenv_value_cast_meta absurd_clause in
-  tclTHENS (cut_intro absurd_term)
-    [onLastHypId gen_absurdity; refine pf]
+  tclTHEN (Refiner.tclEVARS sigma)
+  (tclTHENS (cut_intro absurd_term)
+   [onLastHypId gen_absurdity; refine pf])
 
 let discrEq (lbeq,_,(t,t1,t2) as u) eq_clause gls =
   let sigma = eq_clause.evd in
@@ -801,9 +801,10 @@ let onEquality with_evars tac (c,lbindc) gls =
   let eq_clause = make_clenv_binding gls (c,t') lbindc in
   let eq_clause' = clenv_pose_dependent_evars with_evars eq_clause in
   let eqn = clenv_type eq_clause' in
-  let eq,eq_args = find_this_eq_data_decompose gls eqn in
+  let (eq,ctx),eq_args = find_this_eq_data_decompose gls eqn in
+  let sigma = Evd.merge_context_set eq_clause'.evd ctx in
   tclTHEN
-    (Refiner.tclEVARS eq_clause'.evd)
+    (Refiner.tclEVARS sigma)
     (tac (eq,eqn,eq_args) eq_clause') gls
 
 let onNegatedEquality with_evars tac gls =
@@ -1196,11 +1197,11 @@ let swap_equality_args = function
   | HeterogenousEq (t1,e1,t2,e2) -> [t2;e2;t1;e1]
 
 let swap_equands gls eqn =
-  let (lbeq,eq_args) = find_eq_data eqn in
+  let ((lbeq,ctx),eq_args) = find_eq_data (pf_env gls) eqn in
   applist(lbeq.eq,swap_equality_args eq_args)
 
 let swapEquandsInConcl gls =
-  let (lbeq,eq_args) = find_eq_data (pf_concl gls) in
+  let ((lbeq,ctx),eq_args) = find_eq_data (pf_env gls) (pf_concl gls) in
   let sym_equal = lbeq.sym in
   refine
     (applist(sym_equal,(swap_equality_args eq_args@[Evarutil.mk_new_meta()])))
@@ -1294,12 +1295,13 @@ let subst_tuple_term env sigma dep_pair1 dep_pair2 b =
 exception NothingToRewrite
 
 let cutSubstInConcl_RL eqn gls =
-  let (lbeq,(t,e1,e2 as eq)) = find_eq_data_decompose gls eqn in
+  let ((lbeq,ctx),(t,e1,e2 as eq)) = find_eq_data_decompose gls eqn in
   let body,expected_goal = pf_apply subst_tuple_term gls e2 e1 (pf_concl gls) in
   if not (dependent (mkRel 1) body) then raise NothingToRewrite;
-  tclTHENFIRST
-    (bareRevSubstInConcl lbeq body eq)
-    (convert_concl expected_goal DEFAULTcast) gls
+    (Refiner.tclPUSHCONTEXT ctx
+     (tclTHENFIRST
+      (bareRevSubstInConcl lbeq body eq)
+      (convert_concl expected_goal DEFAULTcast))) gls
 
 (* |- (P e1)
      BY CutSubstInConcl_LR (eq T e1 e2)
@@ -1314,14 +1316,15 @@ let cutSubstInConcl_LR eqn gls =
 let cutSubstInConcl l2r =if l2r then cutSubstInConcl_LR else cutSubstInConcl_RL
 
 let cutSubstInHyp_LR eqn id gls =
-  let (lbeq,(t,e1,e2 as eq)) = find_eq_data_decompose gls eqn in
+  let ((lbeq,ctx),(t,e1,e2 as eq)) = find_eq_data_decompose gls eqn in
   let idtyp = pf_get_hyp_typ gls id in
   let body,expected_goal = pf_apply subst_tuple_term gls e1 e2 idtyp in
   if not (dependent (mkRel 1) body) then raise NothingToRewrite;
-  cut_replacing id expected_goal
-    (tclTHENFIRST
+    (Refiner.tclPUSHCONTEXT ctx
+    (cut_replacing id expected_goal
+     (tclTHENFIRST
       (bareRevSubstInConcl lbeq body eq)
-      (refine_no_check (mkVar id))) gls
+      (refine_no_check (mkVar id))))) gls
 
 let cutSubstInHyp_RL eqn id gls =
   (tclTHENS (cutSubstInHyp_LR (swap_equands gls eqn) id)
@@ -1495,7 +1498,7 @@ let default_subst_tactic_flags () =
 let subst_all ?(flags=default_subst_tactic_flags ()) gl =
   let test (_,c) =
     try
-      let lbeq,(_,x,y) = find_eq_data_decompose gl c in
+      let (lbeq,_),(_,x,y) = find_eq_data_decompose gl c in
       if flags.only_leibniz then restrict_to_eq_and_identity lbeq.eq;
       (* J.F.: added to prevent failure on goal containing x=x as an hyp *)
       if eq_constr x y then failwith "caught";

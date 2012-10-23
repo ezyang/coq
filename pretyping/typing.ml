@@ -93,8 +93,8 @@ let e_is_correct_arity env evdref c pj ind specif params =
     | Sort s, [] ->
         if not (List.mem (family_of_sort s) allowed_sorts) then error ()
     | Evar (ev,_), [] ->
-        let s = Termops.new_sort_in_family (max_sort allowed_sorts) in
-        evdref := Evd.define ev (mkSort s) !evdref
+        let evd, s = Evd.fresh_sort_in_family env !evdref (max_sort allowed_sorts) in
+        evdref := Evd.define ev (mkSort s) evd
     | _, (_,Some _,_ as d)::ar' ->
         srec (push_rel d env) (lift 1 pt') ar'
     | _ ->
@@ -195,7 +195,7 @@ let rec execute env evdref cstr =
 	judge_of_prop_contents c
 
     | Sort (Type u) ->
-	judge_of_type u
+        let c, cst = judge_of_type u in c
 
     | App (f,args) ->
         let jl = execute_array env evdref args in

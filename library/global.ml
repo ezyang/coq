@@ -195,3 +195,6 @@ let register field value by_clause =
   global_env := senv
 
 
+let with_global f = 
+  let (a, (ctx, cst)) = f (env ()) (Names.empty_dirpath) in
+    add_constraints cst; a

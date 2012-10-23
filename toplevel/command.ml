@@ -78,7 +78,8 @@ let interp_definition bl p red_option c ctypopt =
     match ctypopt with
       None ->
 	let c, imps2 = interp_constr_evars_impls ~impls ~evdref ~fail_evar:false env_bl c in
-	let body = nf_evar !evdref (it_mkLambda_or_LetIn c ctx) in
+	let nf = nf_evars_and_universes evdref in
+	let body = nf (it_mkLambda_or_LetIn c ctx) in
 	imps1@(Impargs.lift_implicits nb_args imps2),
 	{ const_entry_body = body;
           const_entry_secctx = None;
@@ -88,10 +89,12 @@ let interp_definition bl p red_option c ctypopt =
           const_entry_opaque = false }
     | Some ctyp ->
 	let ty, impsty = interp_type_evars_impls ~impls ~evdref ~fail_evar:false env_bl ctyp in
-	let c, imps2 = interp_casted_constr_evars_impls ~impls ~evdref ~fail_evar:false env_bl c ty in
-	let body = nf_evar !evdref (it_mkLambda_or_LetIn c ctx) in
-	let typ = nf_evar !evdref (it_mkProd_or_LetIn ty ctx) in
-        let beq b1 b2 = if b1 then b2 else not b2 in
+	let c, imps2 = interp_casted_constr_evars_impls ~impls ~evdref
+	  ~fail_evar:false env_bl c ty in
+	let nf = nf_evars_and_universes evdref in 
+	let body = nf (it_mkLambda_or_LetIn c ctx) in
+	let typ = nf (it_mkProd_or_LetIn ty ctx) in
+	let beq x1 x2 = if x1 then x2 else not x2 in
         let impl_eq (x1, y1, z1) (x2, y2, z2) = beq x1 x2 && beq y1 y2 && beq z1 z2 in
 	(* Check that all implicit arguments inferable from the term is inferable from the type *)
 	if not (try List.for_all (fun (key,va) -> impl_eq (List.assoc key impsty) va) imps2 with Not_found -> false)
@@ -266,6 +269,28 @@ let interp_cstrs evdref env impls mldata arity ind =
   let ctyps'', cimpls = List.split (List.map (interp_type_evars_impls ~evdref env ~impls) ctyps') in
     (cnames, ctyps'', cimpls)
 
+let extract_level env evd tys = 
+  let sorts = List.map (fun ty -> destSort (Retyping.get_type_of env evd ty)) tys in
+    Inductive.max_inductive_sort (Array.of_list sorts)
+
+let inductive_levels env evdref arities inds =
+  let destarities = List.map destArity arities in
+  let levels = List.map (fun (_,a) -> 
+    if a = Prop Null then None else Some (Evd.univ_of_sort a)) destarities in
+  let cstrs_levels = List.map (fun (_,tys,_) -> extract_level env !evdref tys) inds in
+  (* Take the transitive closure of the system of constructors *)
+  (* level constraints and remove the recursive dependencies *)
+  let levels' = Univ.solve_constraints_system (Array.of_list levels)
+    (Array.of_list cstrs_levels) in
+    List.iter2 (fun cu (_,iu) -> 
+      if iu = Prop Null then (assert (Univ.is_type0m_univ cu))
+      else if iu = Prop Pos then
+	(if not (Univ.is_type0m_univ cu) then
+	  (evdref := Evd.set_eq_sort !evdref (Type cu) iu))
+      else (evdref := Evd.set_leq_sort !evdref (Type cu) iu))
+      (Array.to_list levels') destarities;
+    arities
+
 let interp_mutual_inductive (paramsl,indl) notations finite =
   check_all_names_different indl;
   let env0 = Global.env() in
@@ -302,11 +327,14 @@ let interp_mutual_inductive (paramsl,indl) notations finite =
 
   (* Instantiate evars and check all are resolved *)
   let evd = consider_remaining_unif_problems env_params !evdref in
-  let evd = Typeclasses.resolve_typeclasses ~filter:Typeclasses.no_goals ~fail:true env_params evd in
-  let sigma = evd in
-  let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map (nf_evar sigma) cl,impsl)) constructors in
-  let ctx_params = Sign.map_rel_context (nf_evar sigma) ctx_params in
-  let arities = List.map (nf_evar sigma) arities in
+  evdref := Typeclasses.resolve_typeclasses ~filter:Typeclasses.no_goals ~fail:true env_params evd;
+  (* Compute renewed arities *)
+  let arities = inductive_levels env_ar_params evdref arities constructors in
+  let nf = nf_evars_and_universes evdref in 
+  let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf cl,impsl)) constructors in
+  let ctx_params = Sign.map_rel_context nf ctx_params in
+  let arities = List.map nf arities in
+  let evd = !evdref in
   List.iter (check_evars env_params Evd.empty evd) arities;
   Sign.iter_rel_context (check_evars env0 Evd.empty evd) ctx_params;
   List.iter (fun (_,ctyps,_) ->

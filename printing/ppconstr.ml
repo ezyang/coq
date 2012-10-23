@@ -406,6 +406,7 @@ let pr_proj pr pr_app a f l =
 let pr_appexpl pr (f,us) l =
       hov 2 (
 	str "@" ++ pr_reference f ++
+	pr_universe_list us ++
 	prlist (pr_sep_com spc (pr (lapp,L))) l)
 
 let pr_app pr a l =

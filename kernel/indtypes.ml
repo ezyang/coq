@@ -238,24 +238,6 @@ let typecheck_inductive env ctx mie =
 
   let inds = Array.of_list inds in
   let arities = Array.of_list arity_list in
-  let fold l (_, b, p) = match b with
-  | None ->
-    (* Parameter contributes to polymorphism only if explicit Type *)
-    let c = strip_prod_assum p in
-    (* Add Type levels to the ordered list of parameters contributing to *)
-    (* polymorphism unless there is aliasing (i.e. non distinct levels) *)
-    begin match kind_of_term c with
-    | Sort (Type u) ->
-      if List.mem (Some u) l then
-        None :: List.map (function Some v when Universe.equal u v -> None | x -> x) l
-      else
-        Some u :: l
-    | _ ->
-      None :: l
-    end
-  | _ -> l
-  in
-  let param_ccls = List.fold_left fold [] params in
 
   (* Compute/check the sorts of the inductive types *)
   let ind_min_levels = inductive_levels arities inds in
@@ -269,23 +251,19 @@ let typecheck_inductive env ctx mie =
 	  (* conclusions of the parameters *)
           (* We enforce [u >= lev] in case [lev] has a strict upper *)
           (* constraints over [u] *)
-	  Inr (param_ccls, lev), enforce_leq lev u cst
+          (info, full_arity, s), enforce_leq lev u cst
       | Type u (* Not an explicit occurrence of Type *) ->
-	  Inl (info,full_arity,s), enforce_leq lev u cst
-      | Prop Pos when
-        begin match engagement env with
-        | Some ImpredicativeSet -> false
-        | _ -> true
-        end ->
+	  (info,full_arity,s), enforce_leq lev u cst
+      | Prop Pos when not (is_impredicative_set env) ->
 	  (* Predicative set: check that the content is indeed predicative *)
 	  if not (is_type0m_univ lev) & not (is_type0_univ lev) then
 	    raise (InductiveError LargeNonPropInductiveNotInType);
-	  Inl (info,full_arity,s), cst
+	  (info,full_arity,s), cst
       | Prop _ ->
-	  Inl (info,full_arity,s), cst in
+	  (info,full_arity,s), cst in
       (id,cn,lc,(sign,status)),cst)
       inds ind_min_levels (snd ctx) in
-
+  let univs = (fst univs, cst) in
   (env_arities, params, inds, univs)
 
 (************************************************************************)
@@ -619,17 +597,12 @@ let build_inductive env p ctx env_ar params isrecord isfinite inds nmr recargs =
       Array.map (fun (d,_) -> rel_context_length d - rel_context_length params)
 	splayed_lc in
     (* Elimination sorts *)
-    let arkind,kelim = match ar_kind with
-      | Inr (param_levels,lev) ->
-      { mind_user_arity = it_mkProd_or_LetIn (mkSort (Type lev)) ar_sign;
-	mind_sort = Type lev;
-      }, 
-	  (* FIXME probably wrong *) all_sorts
-      | Inl ((issmall,isunit),ar,s) ->
-	  let kelim = allowed_sorts issmall isunit s in
-	    { mind_user_arity = ar;
-	      mind_sort = s;
-	    }, kelim in
+    let arkind,kelim = 
+      let ((issmall,isunit),ar,s) = ar_kind in
+      let kelim = allowed_sorts issmall isunit s in
+	{ mind_user_arity = ar;
+	  mind_sort = s;
+	}, kelim in
     (* Assigning VM tags to constructors *)
     let nconst, nblock = ref 0, ref 0 in
     let transf num =

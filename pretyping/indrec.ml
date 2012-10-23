@@ -414,7 +414,8 @@ let mis_make_indrec env sigma listdepkind mib u =
     let rec put_arity env i = function
       | ((indi,u),_,_,dep,kinds)::rest ->
 	  let indf = make_ind_family ((indi,u), Termops.extended_rel_list i lnamesparrec) in
-	  let typP = make_arity env dep indf (Termops.new_sort_in_family kinds) in
+	  let s = Evarutil.evd_comb1 (Evd.fresh_sort_in_family env) evdref kinds in
+	  let typP = make_arity env dep indf s in
 	    mkLambda_string "P" typP
 	      (put_arity (push_rel (Anonymous,None,typP) env) (i+1) rest)
       | [] ->

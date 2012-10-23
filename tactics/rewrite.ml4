@@ -847,6 +847,34 @@ let subterm all flags (s : strategy) : strategy =
 	     | Some (Some r) -> Some (Some { r with rew_to = unfold r.rew_to })
 	     | _ -> res)
 
+(* TODO: real rewriting under binders: introduce x x' (H : R x x') and rewrite with 
+   H at any occurrence of x. Ask for (R ==> R') for the lambda. Formalize this.
+   B. Barras' idea is to have a context of relations, of length 1, with Σ for gluing
+   dependent relations and using projections to get them out.
+ *)
+      (* | Lambda (n, t, b) when flags.under_lambdas -> *)
+      (* 	  let n' = name_app (fun id -> Tactics.fresh_id_in_env avoid id env) n in *)
+      (* 	  let n'' = name_app (fun id -> Tactics.fresh_id_in_env avoid id env) n' in *)
+      (* 	  let n''' = name_app (fun id -> Tactics.fresh_id_in_env avoid id env) n'' in *)
+      (* 	  let rel = new_cstr_evar cstr env (mkApp (Lazy.force coq_relation, [|t|])) in *)
+      (* 	  let env' = Environ.push_rel_context [(n'',None,lift 2 rel);(n'',None,lift 1 t);(n', None, t)] env in *)
+      (* 	  let b' = s env' avoid b (Typing.type_of env' (goalevars evars) (lift 2 b)) (unlift_cstr env (goalevars evars) cstr) evars in *)
+      (* 	    (match b' with *)
+      (* 	    | Some (Some r) -> *)
+      (* 		let prf = match r.rew_prf with *)
+      (* 		  | RewPrf (rel, prf) -> *)
+      (* 		      let rel = pointwise_or_dep_relation n' t r.rew_car rel in *)
+      (* 		      let prf = mkLambda (n', t, prf) in *)
+      (* 			RewPrf (rel, prf) *)
+      (* 		  | x -> x *)
+      (* 		in *)
+      (* 		  Some (Some { r with *)
+      (* 		    rew_prf = prf; *)
+      (* 		    rew_car = mkProd (n, t, r.rew_car); *)
+      (* 		    rew_from = mkLambda(n, t, r.rew_from); *)
+      (* 		    rew_to = mkLambda (n, t, r.rew_to) }) *)
+      (* 	    | _ -> b') *)
+
       | Lambda (n, t, b) when flags.under_lambdas ->
 	  let n' = name_app (fun id -> Tactics.fresh_id_in_env avoid id env) n in
 	  let env' = Environ.push_rel (n', None, t) env in

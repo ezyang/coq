@@ -44,7 +44,7 @@ val type_judgment          :  env -> unsafe_judgment -> unsafe_type_judgment
 val judge_of_prop : unsafe_judgment
 val judge_of_set  : unsafe_judgment
 val judge_of_prop_contents  : contents -> unsafe_judgment
-val judge_of_type           : universe -> unsafe_judgment
+val judge_of_type           : universe -> unsafe_judgment in_universe_context_set
 
 (** {6 Type of a bound variable. } *)
 val judge_of_relative : env -> int -> unsafe_judgment
@@ -53,7 +53,7 @@ val judge_of_relative : env -> int -> unsafe_judgment
 val judge_of_variable : env -> variable -> unsafe_judgment
 
 (** {6 type of a constant } *)
-val judge_of_constant : env -> constant puniverses -> unsafe_judgment constrained
+val judge_of_constant : env -> constant puniverses -> unsafe_judgment in_universe_context_set
 
 (* val judge_of_constant_knowing_parameters : *)
 (*   env -> constant -> unsafe_judgment array -> unsafe_judgment *)
@@ -85,12 +85,12 @@ val judge_of_cast :
 
 (** {6 Inductive types. } *)
 
-val judge_of_inductive : env -> inductive puniverses -> unsafe_judgment constrained
+val judge_of_inductive : env -> inductive puniverses -> unsafe_judgment in_universe_context_set
 
 (* val judge_of_inductive_knowing_parameters : *)
 (*   env -> inductive -> unsafe_judgment array -> unsafe_judgment *)
 
-val judge_of_constructor : env -> constructor puniverses -> unsafe_judgment constrained
+val judge_of_constructor : env -> constructor puniverses -> unsafe_judgment in_universe_context_set
 
 (** {6 Type of Cases. } *)
 val judge_of_case : env -> case_info

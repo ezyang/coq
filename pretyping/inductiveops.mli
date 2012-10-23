@@ -50,7 +50,7 @@ val mis_is_recursive_subset : int list -> wf_paths -> bool
 val mis_is_recursive :
   inductive * mutual_inductive_body * one_inductive_body -> bool
 val mis_nf_constructor_type :
-  inductive * mutual_inductive_body * one_inductive_body -> int -> constr
+  pinductive * mutual_inductive_body * one_inductive_body -> int -> constr
 
 (** {6 Extract information from an inductive name}
 
@@ -89,7 +89,7 @@ val constructor_nrealhyps : constructor -> int
 val mis_constructor_has_local_defs : constructor -> bool
 val inductive_has_local_defs : inductive -> bool
 
-val get_full_arity_sign : env -> inductive -> rel_context
+val get_full_arity_sign : env -> pinductive -> rel_context
 
 val allowed_sorts : env -> inductive -> sorts_family list
 
@@ -141,7 +141,7 @@ i*)
 (********************)
 
 val type_of_inductive_knowing_conclusion :
-  env -> one_inductive_body -> types -> types
+  env -> mind_specif puniverses -> types -> types
 
 (********************)
 val control_only_guard : env -> types -> unit

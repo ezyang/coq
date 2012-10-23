@@ -240,6 +240,7 @@ val subst_defined_metas : metabinding list -> constr -> constr option
 (*********************************************************
    Sort/universe variables *)
 
+val univ_of_sort : sorts -> Univ.universe
 val new_univ_variable : evar_map -> evar_map * Univ.universe
 val new_sort_variable : evar_map -> evar_map * sorts
 val is_sort_variable : evar_map -> sorts -> bool
@@ -254,6 +255,14 @@ val universe_context : evar_map -> Univ.universe_context
 val merge_context_set : evar_map -> Univ.universe_context_set -> evar_map
 
 val with_context_set : evar_map -> 'a Univ.in_universe_context_set -> evar_map * 'a
+
+(** Normalize the context w.r.t. equality constraints, 
+    chosing a canonical universe in each equivalence class and 
+    transitively saturating the constraints w.r.t to it. *)
+val normalize_context_set : Univ.universe_context_set -> 
+  Univ.universe_subst Univ.in_universe_context_set
+
+val nf_constraints : evar_map -> evar_map * Univ.universe_subst
 
 (** Polymorphic universes *)
 

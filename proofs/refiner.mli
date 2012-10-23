@@ -40,6 +40,8 @@ val tclIDTAC_MESSAGE  : Pp.std_ppcmds -> tactic
 (** [tclEVARS sigma] changes the current evar map *)
 val tclEVARS : evar_map -> tactic
 
+val tclPUSHCONTEXT : Univ.universe_context_set -> tactic -> tactic
+
 (** [tclTHEN tac1 tac2 gls] applies the tactic [tac1] to [gls] and applies
    [tac2] to every resulting subgoals *)
 val tclTHEN          : tactic -> tactic -> tactic
