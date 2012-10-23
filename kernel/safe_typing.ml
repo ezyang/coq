@@ -228,7 +228,7 @@ let add_field ((l,sfb) as field) gn senv =
     env = env';
     modlabels = Label.Set.union mlabs senv.modlabels;
     objlabels = Label.Set.union olabs senv.objlabels;
-    revstruct = field :: senv.revstruct }
+    revstruct = (l, sfb) :: senv.revstruct }
 
 (* Applying a certain function to the resolver of a safe environment *)
 

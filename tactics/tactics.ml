@@ -1248,7 +1248,7 @@ let one_constructor i lbind = constructor_tac false None i lbind
 
 let any_constructor with_evars tacopt gl =
   let t = match tacopt with None -> tclIDTAC | Some t -> t in
-  let mind = fst (pf_reduce_to_quantified_ind gl (pf_concl gl)) in
+  let mind,_ = pf_reduce_to_quantified_ind gl (pf_concl gl) in
   let nconstr =
     Array.length (snd (Global.lookup_pinductive mind)).mind_consnames in
   if Int.equal nconstr 0 then error "The type has no constructors.";
@@ -1786,14 +1786,14 @@ let letin_tac_gen with_eq name (sigmac,c) test ty occs gl =
 	| IntroFresh heq_base -> fresh_id [id] heq_base gl
         | IntroIdentifier id -> id
 	| _ -> error"Expect an introduction pattern naming one hypothesis." in
-      let eqdata = build_coq_eq_data () in
+      let eqdata,ctx = build_coq_eq_data_in (pf_env gl) in
       let args = if lr then [t;mkVar id;c] else [t;c;mkVar id]in
       let eq = applist (eqdata.eq,args) in
       let refl = applist (eqdata.refl, [t;mkVar id]) in
       mkNamedLetIn id c t (mkLetIn (Name heq, refl, eq, ccl)),
-      tclTHEN
+      tclPUSHCONTEXT ctx (tclTHEN
 	(intro_gen loc (IntroMustBe heq) lastlhyp true false)
-	(thin_body [heq;id])
+	(thin_body [heq;id]))
     | None ->
 	mkNamedLetIn id c t ccl, tclIDTAC in
   tclTHENLIST

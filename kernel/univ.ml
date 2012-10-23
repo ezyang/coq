@@ -669,6 +669,9 @@ let check_context_subset (univs, cst) (univs', cst') =
        case for "fake" universe variables that correspond to +1s.
        assert(not (constraints_depend cst' dangling));*)
     (* TODO: check implication *)
+  (** Remove local universes that do not appear in any constraint, they
+      are really entirely parametric. *)
+  let newunivs, dangling' = List.partition (fun u -> constraints_depend cst [u]) newunivs in 
     newunivs, cst
 
 let add_constraints_ctx (univs, cst) cst' =
