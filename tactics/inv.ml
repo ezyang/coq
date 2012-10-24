@@ -81,7 +81,7 @@ type inversion_status = Dep of constr option | NoDep
 let compute_eqn env sigma n i ai =
   (ai, (mkRel (n-i),get_type_of env sigma (mkRel (n-i))))
 
-let make_inv_predicate env sigma indf realargs id status concl =
+let make_inv_predicate env evd indf realargs id status concl =
   let nrealargs = List.length realargs in
   let (hyps,concl) =
     match status with
@@ -100,11 +100,11 @@ let make_inv_predicate env sigma indf realargs id status concl =
             match dflt_concl with
               | Some concl -> concl (*assumed it's some [x1..xn,H:I(x1..xn)]C*)
               | None ->
-		let sort = get_sort_family_of env sigma concl in
-		let p = make_arity env true indf (new_sort_in_family sort) in
+		let sort = get_sort_family_of env !evd concl in
+		let sort = Evarutil.evd_comb1 (Evd.fresh_sort_in_family env) evd sort in
+		let p = make_arity env true indf sort in
 		fst (Unification.abstract_list_all env
-                       (Evd.create_evar_defs sigma)
-		       p concl (realargs@[mkVar id])) in
+                       !evd p concl (realargs@[mkVar id])) in
 	  let hyps,bodypred = decompose_lam_n_assum (nrealargs+1) pred in
 	  (* We lift to make room for the equations *)
 	  (hyps,lift nrealargs bodypred)
@@ -112,13 +112,13 @@ let make_inv_predicate env sigma indf realargs id status concl =
   let nhyps = rel_context_length hyps in
   let env' = push_rel_context hyps env in
   let realargs' = List.map (lift nhyps) realargs in
-  let pairs = List.map_i (compute_eqn env' sigma nhyps) 0 realargs' in
+  let pairs = List.map_i (compute_eqn env' !evd nhyps) 0 realargs' in
   (* Now the arity is pushed, and we need to construct the pairs
    * ai,mkRel(n-i+1) *)
   (* Now, we can recurse down this list, for each ai,(mkRel k) whether to
      push <Ai>(mkRel k)=ai (when   Ai is closed).
    In any case, we carry along the rest of pairs *)
-  let eqdata, ctx = Coqlib.build_coq_eq_data_in env in
+  let eqdata = Evarutil.evd_comb1 Evd.with_context_set evd (Coqlib.build_coq_eq_data_in env) in
   let rec build_concl eqns n = function
     | [] -> (it_mkProd concl eqns,n)
     | (ai,(xi,ti))::restlist ->
@@ -126,7 +126,7 @@ let make_inv_predicate env sigma indf realargs id status concl =
           if closed0 ti then
 	    (xi,ti,ai)
           else
-	    make_iterated_tuple env' sigma ai (xi,ti)
+	    make_iterated_tuple env' !evd ai (xi,ti)
 	in
         let eq_term = eqdata.Coqlib.eq in
         let eqn = applist (eq_term ,[eqnty;lhs;rhs]) in
@@ -136,7 +136,7 @@ let make_inv_predicate env sigma indf realargs id status concl =
   let predicate = it_mkLambda_or_LetIn_name env newconcl hyps in
   (* OK - this predicate should now be usable by res_elimination_then to
      do elimination on the conclusion. *)
-  (predicate,neqns), ctx
+  (predicate,neqns)
 
 (* The result of the elimination is a bunch of goals like:
 
@@ -454,8 +454,9 @@ let raw_inversion inv_kind id status names gl =
   let ccl = clenv_type indclause in
   check_no_metas indclause ccl;
   let IndType (indf,realargs) = find_rectype env sigma ccl in
-  let (elim_predicate,neqns),ctx =
-    make_inv_predicate env sigma indf realargs id status (pf_concl gl) in
+  let evd = ref sigma in
+  let (elim_predicate,neqns) =
+    make_inv_predicate env evd indf realargs id status (pf_concl gl) in
   let (cut_concl,case_tac) =
     if status != NoDep && (dependent c (pf_concl gl)) then
       Reduction.beta_appvect elim_predicate (Array.of_list (realargs@[c])),
@@ -464,7 +465,7 @@ let raw_inversion inv_kind id status names gl =
       Reduction.beta_appvect elim_predicate (Array.of_list realargs),
       case_nodep_then_using
   in
-    (Refiner.tclPUSHCONTEXT ctx (tclTHENS
+    (tclTHEN (Refiner.tclEVARS !evd) (tclTHENS
      (assert_tac Anonymous cut_concl)
      [case_tac names
        (introCaseAssumsThen (rewrite_equations_tac inv_kind id neqns))

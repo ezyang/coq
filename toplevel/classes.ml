@@ -99,16 +99,15 @@ let instance_hook k pri global imps ?hook cst =
   Typeclasses.declare_instance pri (not global) cst;
   (match hook with Some h -> h cst | None -> ())
 
-let declare_instance_constant k pri global imps ?hook id term termtype =
+let declare_instance_constant k pri global imps ?hook id poly ctx term termtype =
   let cdecl =
     let kind = IsDefinition Instance in
     let entry =
       { const_entry_body   = term;
         const_entry_secctx = None;
 	const_entry_type   = Some termtype;
-	(* FIXME *)
-	const_entry_polymorphic = false;
-	const_entry_universes = Univ.empty_universe_context (* FIXME *);
+	const_entry_polymorphic = poly;
+	const_entry_universes = ctx;
 	const_entry_opaque = false }
     in DefinitionEntry entry, kind
   in
@@ -173,10 +172,11 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
       begin
 	if not (Lib.is_modtype ()) then
 	  error "Declare Instance while not in Module Type.";
-	let _, ty_constr = instance_constructor k (List.rev subst) in
+	let (_, ty_constr),uctx = instance_constructor k (List.rev subst) in
+	  evars := Evd.merge_context_set !evars uctx;
 	let termtype =
 	  let t = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
-	    Evarutil.nf_evar !evars t
+	    Evarutil.nf_evars_and_universes evars t
 	in
 	Evarutil.check_evars env Evd.empty !evars termtype;
 	let cst = Declare.declare_constant ~internal:Declare.KernelSilent id
@@ -250,9 +250,10 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	    (fun subst' s (_, b, _) -> if Option.is_empty b then s :: subst' else subst')
 	    [] subst (k.cl_props @ snd k.cl_context)
 	  in
-	  let app, ty_constr = instance_constructor k subst in
+	  let (app, ty_constr),uctx = instance_constructor k subst in
 	  let termtype = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
 	  let term = Termops.it_mkLambda_or_LetIn (Option.get app) (ctx' @ ctx) in
+	    evars := Evd.merge_context_set !evars uctx;
 	    Some term, termtype
 	| Some (Inr (def, subst)) ->
 	  let termtype = it_mkProd_or_LetIn cty ctx in
@@ -267,18 +268,20 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	evars := Typeclasses.resolve_typeclasses ~filter:Typeclasses.all_evars ~fail:false
 	  env !evars
       in
-      let termtype = Evarutil.nf_evar !evars termtype in
+      let _ = evars := Evarutil.nf_evar_map_undefined !evars in
+      let nf = Evarutil.nf_evars_and_universes evars in
+      let termtype = nf termtype in
       let _ = (* Check that the type is free of evars now. *)
 	Evarutil.check_evars env Evd.empty !evars termtype
       in
-      let term = Option.map (Evarutil.nf_evar !evars) term in
-      let evm = Evarutil.nf_evar_map_undefined !evars in
-      let evm = undefined_evars evm in
+      let term = Option.map nf term in
+      let evm = undefined_evars !evars in
 	if Evd.is_empty evm && not (Option.is_empty term) then
-	  declare_instance_constant k pri global imps ?hook id (Option.get term) termtype
+	  let ctx = Evd.universe_context evm in
+	    declare_instance_constant k pri global imps ?hook
+	      id poly ctx (Option.get term) termtype
 	else begin
-	  let kind = Decl_kinds.Global, (*FIXME*) false,
-	    Decl_kinds.DefinitionBody Decl_kinds.Instance in
+	  let kind = Decl_kinds.Global, poly, Decl_kinds.DefinitionBody Decl_kinds.Instance in
 	    if Flags.is_program_mode () then
 	      let hook vis gr =
 		let cst = match gr with ConstRef kn -> kn | _ -> assert false in
@@ -293,8 +296,9 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 		  in obls, Some constr, typ
 		| None -> [||], None, termtype
 	      in
+	      let ctx = Evd.universe_context_set !evars in
 		ignore (Obligations.add_definition id ?term:constr
-			typ ~kind:(Global,(*FIXME*)false,Instance) ~hook obls);
+			typ ctx ~kind:(Global,poly,Instance) ~hook obls);
 		id
 	    else
 	      (Flags.silently 

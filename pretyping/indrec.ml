@@ -55,7 +55,7 @@ let mis_make_case_com dep env sigma (ind, u as pind) (mib,mip as specif) kind =
   if not (List.mem kind (elim_sorts specif)) then
     raise
       (RecursionSchemeError
-	 (NotAllowedCaseAnalysis (false, Termops.new_sort_in_family kind, pind)));
+	 (NotAllowedCaseAnalysis (false, fst (Universes.fresh_sort_in_family env kind), pind)));
 
   let ndepar = mip.mind_nrealargs_ctxt + 1 in
 
@@ -514,7 +514,8 @@ let check_arities listdepkind =
        let kelim = elim_sorts (mibi,mipi) in
        if not (List.exists ((==) kind) kelim) then raise
 	 (RecursionSchemeError
-	   (NotAllowedCaseAnalysis (true, Termops.new_sort_in_family kind,(mind,u))))
+	  (NotAllowedCaseAnalysis (true, fst (Universes.fresh_sort_in_family (Global.env ())
+					      kind),(mind,u))))
        else if List.mem ni ln then raise
 	 (RecursionSchemeError (NotMutualInScheme (mind,mind)))
        else ni::ln)

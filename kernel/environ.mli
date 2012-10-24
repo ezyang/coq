@@ -141,9 +141,9 @@ val constant_value_and_type : env -> constant puniverses ->
 (* These functions should be called under the invariant that [env] 
    already contains the constraints corresponding to the constant 
    application. *)
-val constant_value_inenv : env -> constant puniverses -> constr
-val constant_type_inenv : env -> constant puniverses -> types
-val constant_opt_value_inenv : env -> constant puniverses -> constr option
+val constant_value_in : env -> constant puniverses -> constr
+val constant_type_in : env -> constant puniverses -> types
+val constant_opt_value_in : env -> constant puniverses -> constr option
 
 
 (** {5 Inductive types } *)

@@ -909,7 +909,7 @@ let vernac_declare_arguments local r l nargs flags =
     error "Arguments names must be distinct.";
   let sr = smart_global r in
   let inf_names =
-    Impargs.compute_implicits_names (Global.env()) (Global.type_of_global sr) in
+    Impargs.compute_implicits_names (Global.env()) (Global.type_of_global_unsafe sr) in
   let string_of_name = function Anonymous -> "_" | Name id -> Id.to_string id in
   let rec check li ld ls = match li, ld, ls with
     | [], [], [] -> ()

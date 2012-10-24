@@ -198,21 +198,6 @@ let constrained_type_of_inductive env ((mib,mip),u as pind) =
   let cst = instantiate_univ_context subst mib.mind_universes in
     (ty, cst)
 
-let fresh_type_of_inductive env (mib, mip) =
-  let (inst, subst), cst = fresh_instance_from_context mib.mind_universes in
-    (subst_univs_constr subst mip.mind_arity.mind_user_arity,
-     cst)
-
-let fresh_inductive_instance env ?(dp=Names.empty_dirpath) ind = 
-  let mib, mip = lookup_mind_specif env ind in
-  let inst, ctx = fresh_instance_from ~dp mib.mind_universes in
-    ((ind,inst), ctx)
-
-let fresh_constructor_instance env ?(dp=Names.empty_dirpath) (ind,i) = 
-  let mib, mip = lookup_mind_specif env ind in
-  let inst, ctx = fresh_instance_from ~dp mib.mind_universes in
-    (((ind,i),inst), ctx)
-        
 let type_of_inductive_knowing_parameters env ?(polyprop=false) mip args = 
   type_of_inductive env mip
 
@@ -250,10 +235,10 @@ let constrained_type_of_constructor (cstr,u as cstru) (mib,mip as ind) =
   let cst = instantiate_univ_context subst mib.mind_universes in
     (ty, cst)
 
-let fresh_type_of_constructor cstr (mib, mip) =
-  let (inst, subst), cst = fresh_instance_from_context mib.mind_universes in
-  let c = type_of_constructor_subst cstr inst subst (mib,mip) in
-    (c, cst)
+(* let fresh_type_of_constructor cstr (mib, mip) = *)
+(*   let (inst, subst), cst = fresh_instance_from_context mib.mind_universes in *)
+(*   let c = type_of_constructor_subst cstr inst subst (mib,mip) in *)
+(*     (c, cst) *)
 
 let arities_of_specif (kn,u) (mib,mip) =
   let specif = mip.mind_nf_lc in
@@ -760,7 +745,7 @@ let check_one_fix renv recpos def =
             if evaluable_constant kn renv.env then
               try List.iter (check_rec_call renv []) l
               with (FixGuardError _ ) ->
-		let value = (applist(constant_value_inenv renv.env cu, l)) in
+		let value = (applist(constant_value_in renv.env cu, l)) in
 	        check_rec_call renv stack value
 	    else List.iter (check_rec_call renv []) l
 

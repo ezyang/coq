@@ -40,20 +40,13 @@ val type_of_inductive : env -> mind_specif puniverses -> types
 
 val type_of_inductive_knowing_parameters : env -> ?polyprop:bool -> mind_specif puniverses -> types array -> types
 
-val fresh_type_of_inductive : env -> mind_specif -> types constrained
-
-val fresh_inductive_instance : env -> ?dp:Names.dir_path -> 
-  inductive -> pinductive in_universe_context_set
-val fresh_constructor_instance : env -> ?dp:Names.dir_path -> 
-  constructor -> pconstructor in_universe_context_set
-
 val elim_sorts : mind_specif -> sorts_family list
 
 (** Return type as quoted by the user *)
 
 val constrained_type_of_constructor : pconstructor -> mind_specif -> types constrained
 val type_of_constructor : pconstructor -> mind_specif -> types
-val fresh_type_of_constructor : constructor -> mind_specif -> types constrained
+(* val fresh_type_of_constructor : constructor -> mind_specif -> types constrained *)
 
 (** Return constructor types in normal form *)
 val arities_of_constructors : pinductive -> mind_specif -> types array
@@ -105,13 +98,7 @@ val check_cofix : env -> cofixpoint -> unit
 
 exception SingletonInductiveBecomesProp of Id.t
 
-(* val type_of_inductive_knowing_parameters : ?polyprop:bool -> *)
-(*   env -> one_inductive_body -> types array -> types *)
-
 val max_inductive_sort : sorts array -> universe
-
-(* val instantiate_universes : env -> rel_context -> *)
-(*     inductive_arity -> types array -> rel_context * sorts *)
 
 (** {6 Debug} *)
 

@@ -75,7 +75,8 @@ val is_implicit_arg : Evar_kinds.t -> bool
 (** Returns the term and type for the given instance of the parameters and fields
    of the type class. *)
 
-val instance_constructor : typeclass -> constr list -> constr option * types
+val instance_constructor : typeclass -> constr list -> 
+  (constr option * types) Univ.in_universe_context_set
 
 (** Resolvability.
     Only undefined evars can be marked or checked for resolvability. *)

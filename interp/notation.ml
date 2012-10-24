@@ -597,12 +597,12 @@ let rebuild_arguments_scope (req,r,l,_) =
   match req with
     | ArgsScopeNoDischarge -> assert false
     | ArgsScopeAuto ->
-        let scs,cls = compute_arguments_scope_full (Global.type_of_global r) in
+        let scs,cls = compute_arguments_scope_full (fst(Universes.type_of_global r)(*FIXME?*)) in
 	(req,r,scs,cls)
     | ArgsScopeManual ->
 	(* Add to the manually given scopes the one found automatically
            for the extra parameters of the section *)
-	let l',cls = compute_arguments_scope_full (Global.type_of_global r) in
+	let l',cls = compute_arguments_scope_full (fst(Universes.type_of_global r)) in
 	let l1,_ = List.chop (List.length l' - List.length l) l' in
 	(req,r,l1@l,cls)
 
@@ -634,7 +634,7 @@ let find_arguments_scope r =
   with Not_found -> []
 
 let declare_ref_arguments_scope ref =
-  let t = Global.type_of_global ref in
+  let t = Global.type_of_global_unsafe ref in
   declare_arguments_scope_gen ArgsScopeAuto ref (compute_arguments_scope_full t)
 
 

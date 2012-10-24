@@ -911,7 +911,7 @@ let make_projection sigma params cstr sign elim i n c =
       (* goes from left to right when i increases! *)
       match List.nth l i with
       | Some proj ->
-	  let t = Typeops.type_of_constant_inenv (Global.env()) (proj,[]) (* FIXME *) in
+	  let t = Typeops.type_of_constant_in (Global.env()) (proj,[]) (* FIXME *) in
 	  let args = extended_rel_vect 0 sign in
 	  Some (beta_applist (mkConst proj,params),prod_applist t (params@[mkApp (c,args)]))
       | None -> None

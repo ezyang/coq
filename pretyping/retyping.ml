@@ -52,7 +52,7 @@ let retype ?(polyprop=true) sigma =
         let (_,_,ty) = lookup_rel n env in
         lift n ty
     | Var id -> type_of_var env id
-    | Const cst -> Typeops.type_of_constant_inenv env cst
+    | Const cst -> Typeops.type_of_constant_in env cst
     | Evar ev -> Evd.existential_type sigma ev
     | Ind ind -> type_of_inductive env ind
     | Construct cstr -> type_of_constructor env cstr
@@ -128,7 +128,7 @@ let retype ?(polyprop=true) sigma =
 	       ~polyprop env (mip,snd ind) argtyps
 	 with Reduction.NotArity -> anomaly "type_of: Not an arity")
     | Const cst ->
-      let t = constant_type_inenv env cst in
+      let t = constant_type_in env cst in
 	(try Typeops.type_of_constant_knowing_parameters env t argtyps
 	 with Reduction.NotArity -> anomaly "type_of: Not an arity")
     | Var id -> type_of_var env id
@@ -152,7 +152,7 @@ let type_of_global_reference_knowing_conclusion env sigma c conclty =
         let spec = Inductive.lookup_mind_specif env ind in
         type_of_inductive_knowing_conclusion env (spec,u) conclty
     | Const cst ->
-        let t = constant_type_inenv env cst in
+        let t = constant_type_in env cst in
         (* TODO *)
         Typeops.type_of_constant_knowing_parameters env t [||]
     | Var id -> type_of_var env id
@@ -168,10 +168,3 @@ let get_assumption_of env evc c = c
 
 (* Makes an unsafe judgment from a constr *)
 let get_judgment_of env evc c = { uj_val = c; uj_type = get_type_of env evc c }
-
-let fresh_type_of_constant_body ?(dp=empty_dirpath) cb = 
-  let (univ, subst), cst = Univ.fresh_instance_from_context ~dp cb.const_universes in
-    subst_univs_constr subst cb.const_type, cst
-
-let fresh_type_of_constant env ?(dp=empty_dirpath) c = 
-  fresh_type_of_constant_body ~dp (lookup_constant c env)

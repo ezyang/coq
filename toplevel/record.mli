@@ -24,7 +24,8 @@ val declare_projections :
   (Name.t * bool) list * constant option list
 
 val declare_structure : Decl_kinds.recursivity_kind ->
-  bool (**infer?*) -> Id.t -> Id.t ->
+  bool (**infer?*) -> bool (** polymorphic?*) -> Univ.universe_context ->
+  Id.t -> Id.t ->
   manual_explicitation list -> rel_context -> (** params *) constr -> (** arity *)
   Impargs.manual_explicitation list list -> rel_context -> (** fields *)
   ?kind:Decl_kinds.definition_object_kind -> ?name:Id.t ->

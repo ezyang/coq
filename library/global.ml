@@ -159,34 +159,19 @@ let env_of_context hyps =
 
 open Globnames
 
-(* FIXME we compute and forget constraints here *)
-(* let type_of_reference_full env = function *)
-(*   | VarRef id -> Environ.named_type id env, Univ.empty_constraint *)
-(*   | ConstRef c -> Typeops.fresh_type_of_constant env c *)
-(*   | IndRef ind -> *)
-(*      let specif = Inductive.lookup_mind_specif env ind in *)
-(*        Inductive.fresh_type_of_inductive env specif *)
-(*   | ConstructRef cstr -> *)
-(*      let specif = *)
-(*       Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in *)
-(*        Inductive.fresh_type_of_constructor cstr specif *)
-
-let type_of_reference_full env = function
+let type_of_global_unsafe r = 
+  let env = env() in
+  match r with
   | VarRef id -> Environ.named_type id env
-  | ConstRef c -> (Environ.lookup_constant c env).Declarations.const_type
+  | ConstRef c -> 
+     let cb = Environ.lookup_constant c env in cb.Declarations.const_type
   | IndRef ind ->
-     let (_, oib) = Inductive.lookup_mind_specif env ind in
+     let (mib, oib) = Inductive.lookup_mind_specif env ind in
        oib.Declarations.mind_arity.Declarations.mind_user_arity
   | ConstructRef cstr ->
-     let specif =
-      Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
-       fst (Inductive.fresh_type_of_constructor cstr specif)
-
-let type_of_reference env g =
-  type_of_reference_full env g
-
-let type_of_global t = type_of_reference (env ()) t
-
+     let (mib,oib as specif) = Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
+     let inst = fst mib.Declarations.mind_universes in
+       Inductive.type_of_constructor (cstr,inst) specif
 
 (* spiwack: register/unregister functions for retroknowledge *)
 let register field value by_clause =
@@ -194,7 +179,10 @@ let register field value by_clause =
   let senv = Safe_typing.register !global_env field entry by_clause in
   global_env := senv
 
+let current_dirpath () = 
+  current_dirpath (safe_env ())
 
 let with_global f = 
-  let (a, (ctx, cst)) = f (env ()) (Names.empty_dirpath) in
+  let (a, (ctx, cst)) = f (env ()) (current_dirpath ()) in
     add_constraints cst; a
+

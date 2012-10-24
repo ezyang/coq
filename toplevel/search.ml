@@ -71,7 +71,7 @@ let gen_crible refopt (fn : global_reference -> env -> constr -> unit) =
 	 with Not_found -> (* we are in a section *) ())
     | "CONSTANT" ->
 	let cst = Global.constant_of_delta_kn kn in
-	let typ = Typeops.type_of_constant_inenv env (cst,[]) (*FIXME*) in
+	let typ = Typeops.type_of_constant_in env (cst,[]) (*FIXME*)in
         begin match refopt with
         | None ->
           fn (ConstRef cst) env typ
@@ -191,7 +191,7 @@ let raw_search search_function extra_filter display_function pat =
   let env = Global.env() in
   List.iter
     (fun (gr,_,_) ->
-       let typ = Global.type_of_global gr in
+       let typ = Global.type_of_global_unsafe gr in
        if extra_filter gr env typ then
 	 display_function gr env typ
     ) (search_function pat)

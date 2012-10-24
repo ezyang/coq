@@ -121,7 +121,7 @@ let const_of_id id =
 let def_of_const t =
    match (Term.kind_of_term t) with
     Term.Const sp ->
-      (try (match Environ.constant_opt_value_inenv (Global.env()) sp with
+      (try (match Environ.constant_opt_value_in (Global.env()) sp with
              | Some c -> c
 	     | _ -> assert false)
        with _ -> assert false)
@@ -342,7 +342,7 @@ open Term
 let pr_info f_info =
   str "function_constant := " ++ Printer.pr_lconstr (mkConst f_info.function_constant)++ fnl () ++
     str "function_constant_type := " ++
-    (try Printer.pr_lconstr (Global.type_of_global (ConstRef f_info.function_constant)) with _ -> mt ()) ++ fnl () ++
+    (try Printer.pr_lconstr (Global.type_of_global_unsafe (ConstRef f_info.function_constant)) with _ -> mt ()) ++ fnl () ++
     str "equation_lemma := " ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.equation_lemma (mt ()) ) ++ fnl () ++
     str "completeness_lemma :=" ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.completeness_lemma (mt ()) ) ++ fnl () ++
     str "correctness_lemma := " ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.correctness_lemma (mt ()) ) ++ fnl () ++

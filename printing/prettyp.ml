@@ -67,7 +67,7 @@ let int_or_no n = if n=0 then str "no" else int n
 let print_basename sp = pr_global (ConstRef sp)
 
 let print_ref reduce ref =
-  let typ = Global.type_of_global ref in
+  let typ = Global.type_of_global_unsafe ref in
   let typ =
     if reduce then
       let ctx,ccl = Reductionops.splay_prod_assum (Global.env()) Evd.empty typ
@@ -123,7 +123,7 @@ let print_renames_list prefix l =
     hv 2 (prlist_with_sep pr_comma (fun x -> x) (List.map pr_name l))]
 
 let need_expansion impl ref =
-  let typ = Global.type_of_global ref in
+  let typ = Global.type_of_global_unsafe ref in
   let ctx = (prod_assum typ) in
   let nprods = List.length (List.filter (fun (_,b,_) -> b=None) ctx) in
   impl <> [] & List.length impl >= nprods &

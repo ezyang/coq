@@ -1582,12 +1582,10 @@ let refresh_universes evd t =
   let evdref = ref evd in
   let modified = ref false in
   let rec refresh t = match kind_of_term t with
-    | Sort s ->
-      let u = match s with Type u -> u | Prop Pos -> Univ.type0_univ | Prop Null -> Univ.type0m_univ in
-      (* when u <> Univ.type0m_univ && u <> Univ.type0_univ -> *)
+    | Sort (Type u) ->
       (modified := true; 
        let s' = evd_comb0 new_sort_variable evdref in
-	 evdref := set_leq_sort !evdref (Type (Univ.sup u Univ.type0m_univ)) s';
+	 evdref := set_leq_sort !evdref s' (Type u);
          mkSort s')
     | Prod (na,u,v) -> mkProd (na,u,refresh v)
     | _ -> t in
@@ -1786,7 +1784,7 @@ and evar_define conv_algo pbty ?(choose=false) env evd (evk,argsv as ev) rhs =
     (* so we recheck acyclicity *)
     if occur_evar evk body then raise (OccurCheckIn (evd',body));
     (* needed only if an inferred type *)
-    (* let evd', body = refresh_universes evd' body in *)
+    let evd', body = refresh_universes evd' body in
 (* Cannot strictly type instantiations since the unification algorithm
  * does not unify applications from left to right.
  * e.g problem f x == g y yields x==y and f==g (in that order)

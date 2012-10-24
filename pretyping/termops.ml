@@ -149,63 +149,6 @@ let print_env env =
 
 let set_module m = current_module := m*)
 
-let new_univ_level =
-  let univ_gen = ref 0 in
-  (fun dp ->
-    incr univ_gen;
-    Univ.UniverseLevel.make dp !univ_gen)
-
-let new_univ dp = Univ.Universe.make (new_univ_level dp)
-let new_Type dp = mkType (new_univ dp)
-let new_Type_sort dp = Type (new_univ dp)
-
-let fresh_constant_instance env ?(dp=Names.empty_dirpath) c =
-  let cb = lookup_constant c env in
-  let inst, ctx = Univ.fresh_instance_from ~dp cb.Declarations.const_universes in
-    ((c, inst), ctx)
-
-let fresh_inductive_instance env ?(dp=Names.empty_dirpath) ind = 
-  let mib, mip = Inductive.lookup_mind_specif env ind in
-  let inst, ctx = Univ.fresh_instance_from ~dp mib.Declarations.mind_universes in
-    ((ind,inst), ctx)
-
-let fresh_constructor_instance env ?(dp=Names.empty_dirpath) (ind,i) = 
-  let mib, mip = Inductive.lookup_mind_specif env ind in
-  let inst, ctx = Univ.fresh_instance_from ~dp mib.Declarations.mind_universes in
-    (((ind,i),inst), ctx)
-
-open Globnames
-let fresh_global_instance env ?(dp=Names.empty_dirpath) gr =
-  match gr with
-  | VarRef id -> mkVar id, Univ.empty_universe_context_set
-  | ConstRef sp -> 
-     let c, ctx = fresh_constant_instance env ~dp sp in
-       mkConstU c, ctx
-  | ConstructRef sp ->
-     let c, ctx = fresh_constructor_instance env ~dp sp in
-       mkConstructU c, ctx
-  | IndRef sp -> 
-     let c, ctx = fresh_inductive_instance env ~dp sp in
-       mkIndU c, ctx
-
-(* let refresh_universes = refresh_universes_gen false *)
-(* let refresh_universes_strict = refresh_universes_gen true *)
-(*TODO remove *)
-let new_sort_in_family = function
-  | InProp -> prop_sort
-  | InSet -> set_sort
-  | InType -> Type (new_univ Names.empty_dirpath)
-
-
-let fresh_sort_in_family env ?(dp=Names.empty_dirpath) = function
-  | InProp -> prop_sort, Univ.empty_universe_context_set
-  | InSet -> set_sort, Univ.empty_universe_context_set
-  | InType -> 
-    let u = new_univ_level dp in
-      Type (Univ.Universe.make u), Univ.singleton_universe_context_set u
-
-
-
 (* [Rel (n+m);...;Rel(n+1)] *)
 let rel_vect n m = Array.init m (fun i -> mkRel(n+m-i))
 

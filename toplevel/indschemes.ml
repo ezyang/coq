@@ -408,7 +408,7 @@ let fold_left' f = function
 let build_combined_scheme env schemes =
   let defs = List.map (fun cst -> (* FIXME *)
     let evd, c = Evd.fresh_constant_instance env Evd.empty cst in
-      (c, Typeops.type_of_constant_inenv env c)) schemes in
+      (c, Typeops.type_of_constant_in env c)) schemes in
 (*   let nschemes = List.length schemes in *)
   let find_inductive ty =
     let (ctx, arity) = decompose_prod ty in

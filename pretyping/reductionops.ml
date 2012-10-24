@@ -405,7 +405,7 @@ let rec whd_state_gen ?(refold=false) flags env sigma =
 	     | Some body -> whrec (body, stack)
 	     | None -> s)
       | Const (const,u as cu) when Closure.RedFlags.red_set flags (Closure.RedFlags.fCONST const) ->
-	  (match constant_opt_value_inenv env cu with
+	  (match constant_opt_value_in env cu with
 	     | Some body -> whrec (body, stack)
 	     | None -> s)
       | LetIn (_,b,_,c) when Closure.RedFlags.red_set flags Closure.RedFlags.fZETA ->
@@ -1155,7 +1155,7 @@ let meta_reducible_instance evd b =
 let head_unfold_under_prod ts env _ c =
   let unfold (cst,u as cstu) =
     if Cpred.mem cst (snd ts) then
-      match constant_opt_value_inenv env cstu with
+      match constant_opt_value_in env cstu with
 	| Some c -> c
 	| None -> mkConstU cstu
     else mkConstU cstu in

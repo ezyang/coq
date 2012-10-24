@@ -28,9 +28,9 @@ let optimize_non_type_induction_scheme kind dep sort ind =
     (* in case the inductive has a type elimination, generates only one
        induction scheme, the other ones share the same code with the
        apropriate type *)
-    let cte,ctx = fresh_constant_instance env ~dp:(Lib.library_dp ()) (find_scheme kind ind) in
+    let cte,ctx = Universes.fresh_constant_instance env (find_scheme kind ind) in
     let c = mkConstU cte in
-    let t = type_of_constant_inenv (Global.env()) cte in
+    let t = type_of_constant_in (Global.env()) cte in
     let (mib,mip) = Global.lookup_inductive ind in
     let npars =
       (* if a constructor of [ind] contains a recursive call, the scheme
@@ -40,19 +40,20 @@ let optimize_non_type_induction_scheme kind dep sort ind =
 	mib.mind_nparams_rec
       else
 	mib.mind_nparams in
-    (snd (weaken_sort_scheme (new_sort_in_family sort) npars c t),
-     Univ.context_of_universe_context_set ctx)
+    let sort, ctx = Universes.extend_context (Universes.fresh_sort_in_family env sort) ctx in
+    let c = snd (weaken_sort_scheme sort npars c t) in      
+      c, ctx
   else
     let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
     let sigma, c = build_induction_scheme env sigma indu dep sort in
-      c, Evd.universe_context sigma
+      c, Evd.universe_context_set sigma
 
 let build_induction_scheme_in_type dep sort ind =
   let env = Global.env () in
   let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
   let sigma, c = build_induction_scheme env sigma indu dep sort in
-    c, Evd.universe_context sigma
-
+    c, Evd.universe_context_set sigma
+ 
 let rect_scheme_kind_from_type =
   declare_individual_scheme_object "_rect_nodep"
     (build_induction_scheme_in_type false InType)
@@ -92,7 +93,7 @@ let build_case_analysis_scheme_in_type dep sort ind =
   let sigma = Evd.from_env env in
   let sigma, indu = Evd.fresh_inductive_instance env sigma ind in
   let sigma, c = build_case_analysis_scheme env sigma indu dep sort in 
-    c, Evd.universe_context sigma
+    c, Evd.universe_context_set sigma
 
 let case_scheme_kind_from_type =
   declare_individual_scheme_object "_case_nodep"

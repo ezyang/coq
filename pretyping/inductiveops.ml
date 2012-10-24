@@ -436,24 +436,24 @@ let arity_of_case_predicate env (ind,params) dep k =
 (* Compute the inductive argument types: replace the sorts
    that appear in the type of the inductive by the sort of the
    conclusion, and the other ones by fresh universes. *)
-let rec instantiate_universes env scl is = function
-  | (_,Some _,_ as d)::sign, exp ->
-      d :: instantiate_universes env scl is (sign, exp)
-  | d::sign, None::exp ->
-      d :: instantiate_universes env scl is (sign, exp)
-  | (na,None,ty)::sign, Some u::exp ->
-      let ctx,_ = Reduction.dest_arity env ty in
-      let s =
-	(* Does the sort of parameter [u] appear in (or equal)
-           the sort of inductive [is] ? *)
-        if univ_depends u is then
-          scl (* constrained sort: replace by scl *)
-        else
-          (* unconstriained sort: replace by fresh universe *)
-          new_Type_sort Names.empty_dirpath in
-      (na,None,mkArity(ctx,s)):: instantiate_universes env scl is (sign, exp)
-  | sign, [] -> sign (* Uniform parameters are exhausted *)
-  | [], _ -> assert false
+(* let rec instantiate_universes env scl is = function *)
+(*   | (_,Some _,_ as d)::sign, exp -> *)
+(*       d :: instantiate_universes env scl is (sign, exp) *)
+(*   | d::sign, None::exp -> *)
+(*       d :: instantiate_universes env scl is (sign, exp) *)
+(*   | (na,None,ty)::sign, Some u::exp -> *)
+(*       let ctx,_ = Reduction.dest_arity env ty in *)
+(*       let s = *)
+(* 	(\* Does the sort of parameter [u] appear in (or equal) *)
+(*            the sort of inductive [is] ? *\) *)
+(*         if univ_depends u is then *)
+(*           scl (\* constrained sort: replace by scl *\) *)
+(*         else *)
+(*           (\* unconstriained sort: replace by fresh universe *\) *)
+(*           new_Type_sort Names.empty_dirpath in *)
+(*       (na,None,mkArity(ctx,s)):: instantiate_universes env scl is (sign, exp) *)
+(*   | sign, [] -> sign (\* Uniform parameters are exhausted *\) *)
+(*   | [], _ -> assert false *)
 
 let type_of_inductive_knowing_conclusion env ((mib,mip),u) conclty =
   let subst = make_universe_subst u mib.mind_universes in

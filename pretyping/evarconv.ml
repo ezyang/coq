@@ -43,7 +43,7 @@ let eval_flexible_term ts env c =
   match kind_of_term c with
   | Const (c,u as cu) ->
       if is_transparent_constant ts c
-      then constant_opt_value_inenv env cu
+      then constant_opt_value_in env cu
       else None
   | Rel n ->
       (try let (_,v,_) = lookup_rel n env in Option.map (lift n) v

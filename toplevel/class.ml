@@ -63,7 +63,7 @@ let explain_coercion_error g = function
 (* Verifications pour l'ajout d'une classe *)
 
 let check_reference_arity ref =
-  if not (Reductionops.is_arity (Global.env()) Evd.empty (Global.type_of_global ref)) then
+  if not (Reductionops.is_arity (Global.env()) Evd.empty (Global.type_of_global_unsafe ref)) then
     raise (CoercionError (NotAClass ref))
 
 let check_arity = function
@@ -179,7 +179,7 @@ let build_id_coercion idf_opt source =
   let vs = match source with
     | CL_CONST sp -> mkConst sp
     | _ -> error_not_transparent source in
-  let c = match constant_opt_value_inenv env (destConst vs) with
+  let c = match constant_opt_value_in env (destConst vs) with
     | Some c -> c
     | None -> error_not_transparent source in
   let lams,t = decompose_lam_assum c in
@@ -240,7 +240,7 @@ lorque source est None alors target est None aussi.
 
 let add_new_coercion_core coef stre source target isid =
   check_source source;
-  let t = Global.type_of_global coef in
+  let t = Global.type_of_global_unsafe coef in
   if coercion_exists coef then raise (CoercionError AlreadyExists);
   let tg,lp = prods_of t in
   let llp = List.length lp in

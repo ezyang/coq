@@ -203,7 +203,7 @@ let typeur sigma metamap =
           ty
         with Not_found ->
           Errors.anomaly ("type_of: variable "^(Names.Id.to_string id)^" unbound"))
-    | T.Const c -> Typeops.type_of_constant_inenv env c
+    | T.Const c -> Typeops.type_of_constant_in env c
     | T.Evar ev -> Evd.existential_type sigma ev
     | T.Ind ind -> Inductiveops.type_of_inductive env ind
     | T.Construct cstr -> Inductiveops.type_of_constructor env cstr

@@ -149,7 +149,7 @@ let check_inductive cst env mp1 l info1 mp2 mib2 spec2 subst1 subst2 reso1 reso2
       (* nparams done *)
       (* params_ctxt done because part of the inductive types *)
       (* Don't check the sort of the type if polymorphic *)
-      let u = fresh_universe_instance mib1.mind_universes in
+      let u = fst mib1.mind_universes in
       let ty1, cst1 = constrained_type_of_inductive env ((mib1,p1),u) in
       let ty2, cst2 = constrained_type_of_inductive env ((mib2,p2),u) in
       let cst = union_constraints cst1 (union_constraints cst2 cst) in
@@ -301,10 +301,10 @@ let check_constant cst env mp1 l info1 cb2 spec2 subst1 subst2 =
        "name."));
       let () = assert (List.is_empty mind1.mind_hyps && List.is_empty cb2.const_hyps) in
       if constant_has_body cb2 then error DefinitionFieldExpected;
-      let u1 = fresh_universe_instance mind1.mind_universes in
+      let u1 = fst mind1.mind_universes in
       let arity1,cst1 = constrained_type_of_inductive env ((mind1,mind1.mind_packets.(i)),u1) in
-      let (u2,subst2),cst2 = fresh_instance_from_context cb2.const_universes in
-      let typ2 = subst_univs_constr subst2 cb2.const_type in
+      let cst2 = snd cb2.const_universes in
+      let typ2 = cb2.const_type in
       let cst = union_constraints cst (union_constraints cst1 cst2) in
        check_conv NotConvertibleTypeField cst conv_leq env arity1 typ2
    | IndConstr (((kn,i),j) as cstr,mind1) ->
@@ -315,10 +315,10 @@ let check_constant cst env mp1 l info1 cb2 spec2 subst1 subst2 =
        "name."));
       let () = assert (List.is_empty mind1.mind_hyps && List.is_empty cb2.const_hyps) in
       if constant_has_body cb2 then error DefinitionFieldExpected;
-      let u1 = fresh_universe_instance mind1.mind_universes in
+      let u1 = fst mind1.mind_universes in
       let ty1,cst1 = constrained_type_of_constructor (cstr,u1) (mind1,mind1.mind_packets.(i)) in
-      let (u2,subst2),cst2 = fresh_instance_from_context cb2.const_universes in
-      let typ2 = subst_univs_constr subst2 cb2.const_type in
+      let cst2 = snd cb2.const_universes in
+      let typ2 = cb2.const_type in
       let cst = union_constraints cst (union_constraints cst1 cst2) in
        check_conv NotConvertibleTypeField cst conv env ty1 typ2
 

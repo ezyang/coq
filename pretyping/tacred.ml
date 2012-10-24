@@ -53,7 +53,7 @@ let is_evaluable env = function
 
 let value_of_evaluable_ref env evref u =
   match evref with
-  | EvalConstRef con -> constant_value_inenv env (con,u)
+  | EvalConstRef con -> constant_value_in env (con,u)
   | EvalVarRef id -> Option.get (pi2 (lookup_named id env))
 
 let constr_of_evaluable_ref evref u =
@@ -112,7 +112,7 @@ let destEvalRefU c = match kind_of_term c with
 
 let reference_opt_value sigma env eval u = 
   match eval with
-  | EvalConst cst -> constant_opt_value_inenv env (cst,u)
+  | EvalConst cst -> constant_opt_value_in env (cst,u)
   | EvalVar id ->
       let (_,v,_) = lookup_named id env in
       v
@@ -516,7 +516,7 @@ let reduce_mind_case_use_function func env sigma mia =
 		    let kn = map_puniverses (fun x -> con_with_label x (Label.of_id id))
 		      (destConst func)
 		    in
-		    try match constant_opt_value_inenv env kn with
+		    try match constant_opt_value_in env kn with
 		      | None -> None
                           (* TODO: check kn is correct *)
 		      | Some _ -> Some (minargs,mkConstU kn)
@@ -541,7 +541,7 @@ let match_eval_ref env constr =
 let match_eval_ref_value sigma env constr = 
   match kind_of_term constr with
   | Const (sp, u) when is_evaluable env (EvalConstRef sp) ->
-    Some (constant_value_inenv env (sp, u))
+    Some (constant_value_in env (sp, u))
   | Var id when is_evaluable env (EvalVarRef id) -> 
     let (_,v,_) = lookup_named id env in v
   | Rel n -> let (_,v,_) = lookup_rel n env in
@@ -678,7 +678,7 @@ let whd_nothing_for_iota env sigma s =
 	(try whrec (Evd.meta_value sigma ev, stack)
 	with Not_found -> s)
       | Const const when is_transparent_constant full_transparent_state (fst const) ->
-	  (match constant_opt_value_inenv env const with
+	  (match constant_opt_value_in env const with
 	     | Some  body -> whrec (body, stack)
 	     | None -> s)
       | LetIn (_,b,_,c) -> stacklam whrec [b] c stack

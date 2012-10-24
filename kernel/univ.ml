@@ -147,11 +147,17 @@ let pr_uni = function
 	  (fun x -> str "(" ++ pr_uni_level x ++ str ")+1") gtl) ++
       str ")"
 
+(* When typing [Prop] and [Set], there is no constraint on the level,
+   hence the definition of [type1_univ], the type of [Prop] *)
+
+let type1_univ = Max ([], [UniverseLevel.Set])
+
 (* Returns the formal universe that lies juste above the universe variable u.
    Used to type the sort u. *)
 let super = function
   | Atom u ->
       Max ([],[u])
+  | Max ([],[]) (* Prop *) -> type1_univ
   | Max _ ->
       anomaly ("Cannot take the successor of a non variable universe:\n"^
                "(maybe a bugged tactic)")
@@ -216,11 +222,6 @@ let is_univ_variable = function
   | Atom UniverseLevel.Set -> false
   | Atom _ -> true
   | _ -> false
-
-(* When typing [Prop] and [Set], there is no constraint on the level,
-   hence the definition of [type1_univ], the type of [Prop] *)
-
-let type1_univ = Max ([], [UniverseLevel.Set])
 
 let initial_universes = UniverseLMap.empty
 let is_initial_universes = UniverseLMap.is_empty
@@ -962,32 +963,6 @@ let sort_universes orig =
 
 (**********************************************************************)
 (* Tools for sort-polymorphic inductive types                         *)
-
-(* Temporary inductive type levels *)
-
-let fresh_level =
-  let n = ref 0 in fun dp -> incr n; UniverseLevel.Level (!n, dp)
-
-let fresh_local_univ () = Atom (fresh_level (Names.Dir_path.make []))
-
-let fresh_universe_instance ?(dp=Names.make_dirpath []) (ctx, _) =
-  List.map (fun _ -> fresh_level dp) ctx
-
-let fresh_instance_from_context ?(dp=Names.make_dirpath []) (vars, cst as ctx) =
-  let inst = fresh_universe_instance ~dp ctx in
-  let subst = List.combine vars inst in
-  let constraints = instantiate_univ_context subst ctx in
-    (inst, subst), constraints
-
-let fresh_universe_set_instance ?(dp=Names.make_dirpath []) (ctx, _) =
-  List.fold_left (fun s _ -> UniverseLSet.add (fresh_level dp) s) UniverseLSet.empty ctx
-
-let fresh_instance_from ?(dp=Names.make_dirpath []) (vars, cst as ctx) =
-  let ctx' = fresh_universe_set_instance ~dp ctx in
-  let inst = UniverseLSet.elements ctx' in
-  let subst = List.combine vars inst in
-  let constraints = instantiate_univ_context subst ctx in
-    inst, (ctx', constraints)
 
 (* Miscellaneous functions to remove or test local univ assumed to
    occur only in the le constraints *)

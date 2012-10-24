@@ -312,7 +312,7 @@ let generate_functional_principle
   try
 
   let f = funs.(i) in
-  let type_sort = Termops.new_sort_in_family InType in
+  let type_sort = Universes.new_sort_in_family InType in
   let new_sorts =
     match sorts with
       | None -> Array.make (Array.length funs) (type_sort)
@@ -331,7 +331,7 @@ let generate_functional_principle
     then
       (*     let id_of_f = Label.to_id (con_label f) in *)
       let register_with_sort fam_sort =
-	let s = Termops.new_sort_in_family fam_sort in
+	let s = Universes.new_sort_in_family fam_sort in
 	let name = Indrec.make_elimination_ident base_new_princ_name fam_sort in
 	let value = change_property_sort s new_principle_type new_princ_name in
 	(*       Pp.msgnl (str "new principle := " ++ pr_lconstr value); *)
@@ -498,7 +498,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
   let i = ref (-1) in
   let sorts =
     List.rev_map (fun (_,x) ->
-		Termops.new_sort_in_family (Pretyping.interp_elimination_sort x)
+		Universes.new_sort_in_family (Pretyping.interp_elimination_sort x)
 	     )
       fas
   in
@@ -672,7 +672,7 @@ let build_case_scheme fa =
   let scheme_type =  (Typing.type_of env sigma ) scheme in
   let sorts =
     (fun (_,_,x) ->
-       Termops.new_sort_in_family (Pretyping.interp_elimination_sort x)
+       Universes.new_sort_in_family (Pretyping.interp_elimination_sort x)
     )
       fa
   in
