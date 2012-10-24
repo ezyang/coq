@@ -392,7 +392,8 @@ let compute_semi_auto_implicits env f manual t =
 
 let compute_constant_implicits flags manual cst =
   let env = Global.env () in
-  compute_semi_auto_implicits env flags manual (fst (Retyping.fresh_type_of_constant env cst))
+  let ty = (Environ.lookup_constant cst env).const_type in
+  compute_semi_auto_implicits env flags manual ty
 
 (*s Inductives and constructors. Their implicit arguments are stored
    in an array, indexed by the inductive number, of pairs $(i,v)$ where
@@ -404,15 +405,15 @@ let compute_mib_implicits flags manual kn =
   let mib = lookup_mind kn env in
   let ar =
     Array.to_list
-      (Array.map  (* No need to lift, arities contain no de Bruijn *)
-        (fun mip ->
+      (Array.mapi  (* No need to lift, arities contain no de Bruijn *)
+        (fun i mip ->
 	  (** No need to care about constraints here *)
-	  (Name mip.mind_typename, None, fst (fresh_type_of_inductive env (mib,mip))))
+	  (Name mip.mind_typename, None, Global.type_of_global_unsafe (IndRef (kn,i))))
         mib.mind_packets) in
   let env_ar = push_rel_context ar env in
   let imps_one_inductive i mip =
     let ind = (kn,i) in
-    let ar = fst (fresh_type_of_inductive env ((mib,mip))) in
+    let ar = Global.type_of_global_unsafe (IndRef ind) in
     ((IndRef ind,compute_semi_auto_implicits env flags manual ar),
      Array.mapi (fun j c ->
        (ConstructRef (ind,j+1),compute_semi_auto_implicits env_ar flags manual c))
@@ -654,7 +655,7 @@ let check_rigidity isrigid =
 let declare_manual_implicits local ref ?enriching l =
   let flags = !implicit_args in
   let env = Global.env () in
-  let t = Global.type_of_global ref in
+  let t = Global.type_of_global_unsafe ref in
   let enriching = Option.default flags.auto enriching in
   let isrigid,autoimpls = compute_auto_implicits env flags enriching t in
   let l' = match l with

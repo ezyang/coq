@@ -23,24 +23,24 @@ val rew_r2l_dep_scheme_kind : individual scheme_kind
 val rew_r2l_scheme_kind : individual scheme_kind
 
 val build_r2l_rew_scheme : bool -> env -> inductive -> sorts_family -> 
-  constr Univ.in_universe_context
+  constr Univ.in_universe_context_set
 val build_l2r_rew_scheme : bool -> env -> inductive -> sorts_family -> 
-  constr Univ.in_universe_context
+  constr Univ.in_universe_context_set
 val build_r2l_forward_rew_scheme :
-  bool -> env -> inductive -> sorts_family -> constr Univ.in_universe_context
+  bool -> env -> inductive -> sorts_family -> constr Univ.in_universe_context_set
 val build_l2r_forward_rew_scheme :
-  bool -> env -> inductive -> sorts_family -> constr Univ.in_universe_context
+  bool -> env -> inductive -> sorts_family -> constr Univ.in_universe_context_set
 
 (** Builds a symmetry scheme for a symmetrical equality type *)
 
-val build_sym_scheme : env -> inductive -> constr Univ.in_universe_context
+val build_sym_scheme : env -> inductive -> constr Univ.in_universe_context_set
 val sym_scheme_kind : individual scheme_kind
 
-val build_sym_involutive_scheme : env -> inductive -> constr Univ.in_universe_context
+val build_sym_involutive_scheme : env -> inductive -> constr Univ.in_universe_context_set
 val sym_involutive_scheme_kind : individual scheme_kind
 
 (** Builds a congruence scheme for an equality type *)
 
 val congr_scheme_kind : individual scheme_kind
 val build_congr : env -> constr * constr * Univ.universe_context_set -> inductive -> 
-  constr Univ.in_universe_context
+  constr Univ.in_universe_context_set

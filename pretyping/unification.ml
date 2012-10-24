@@ -308,7 +308,7 @@ let use_metas_pattern_unification flags nb l =
      Array.for_all (fun c -> isRel c && destRel c <= nb) l
 
 let expand_key env = function
-  | Some (ConstKey cst) -> constant_opt_value_inenv env cst
+  | Some (ConstKey cst) -> constant_opt_value_in env cst
   | Some (VarKey id) -> (try named_body id env with Not_found -> None)
   | Some (RelKey _) -> None
   | None -> None

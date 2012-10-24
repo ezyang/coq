@@ -337,7 +337,7 @@ type coercion = coe_typ * locality * bool * cl_typ * cl_typ * int
 (* Calcul de l'arité d'une classe *)
 
 let reference_arity_length ref =
-  let t = Global.type_of_global ref in
+  let t,_ = Universes.type_of_global ref in
   List.length (fst (Reductionops.splay_arity (Global.env()) Evd.empty t))
 
 let class_params = function
@@ -370,7 +370,7 @@ let cache_coercion (_,(coe,stre,isid,cls,clt,ps)) =
   let it,_ = class_info clt in
   let xf =
     { coe_value = constr_of_global coe;
-      coe_type = Global.type_of_global coe;
+      coe_type = fst (Universes.type_of_global coe) (*FIXME*);
       coe_strength = stre;
       coe_is_identity = isid;
       coe_param = ps } in

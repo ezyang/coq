@@ -181,12 +181,12 @@ let declare_record_instance gr ctx params =
 	     const_entry_opaque=false } in
   let cst = Declare.declare_constant ident
     (DefinitionEntry ce,Decl_kinds.IsDefinition Decl_kinds.StructureComponent) in
-  new_instance_message ident (Typeops.type_of_constant_inenv (Global.env()) (cst,[])) def
+  new_instance_message ident (Typeops.type_of_constant_in (Global.env())(*FIXME*) (cst,[])) def
 
 let declare_class_instance gr ctx params =
   let ident = make_instance_ident gr in
   let cl = Typeclasses.class_info gr in
-  let (def,typ) = Typeclasses.instance_constructor cl params in
+  let (def,typ),uctx = Typeclasses.instance_constructor cl params in
   let (def,typ) = it_mkLambda_or_LetIn (Option.get def) ctx, it_mkProd_or_LetIn typ ctx in
   let ce = Entries.DefinitionEntry
     {  const_entry_type = Some typ;
@@ -194,7 +194,7 @@ let declare_class_instance gr ctx params =
        const_entry_body = def;
        (* FIXME *)
        const_entry_polymorphic = false;
-       const_entry_universes = Univ.empty_universe_context;
+       const_entry_universes = Univ.context_of_universe_context_set uctx;
        const_entry_opaque = false } in
   try
   let cst = Declare.declare_constant ident
@@ -279,7 +279,7 @@ let autoinstance_opt = ref true
 let search_declaration gr =
   if !autoinstance_opt &&
     not (Lib.is_modtype()) then
-    let deftyp = Global.type_of_global gr in
+    let deftyp = Global.type_of_global_unsafe gr in
     complete_signature_with_def gr deftyp declare_instance
 
 let search_record k cons sign =

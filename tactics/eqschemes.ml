@@ -80,7 +80,8 @@ let get_coq_eq ctx =
   try
     let eq = Globnames.destIndRef Coqlib.glob_eq in
     (* Do not force the lazy if they are not defined *)
-    let eq, ctx = with_context_set ctx (fresh_inductive_instance (Global.env ()) eq) in
+    let eq, ctx = with_context_set ctx 
+      (Universes.fresh_inductive_instance (Global.env ()) eq) in
       mkIndU eq, Coqlib.build_coq_eq_refl (), ctx
   with Not_found ->
     error "eq not found."
@@ -160,7 +161,7 @@ let get_non_sym_eq_data env ind =
 (**********************************************************************)
 
 let build_sym_scheme env ind =
-  let (ind,u as indu), ctx = fresh_inductive_instance env ind in
+  let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env indu in
   let cstr n =
@@ -182,7 +183,7 @@ let build_sym_scheme env ind =
 	   rel_vect (2*nrealargs+2) nrealargs])),
      mkRel 1 (* varH *),
        [|cstr (nrealargs+1)|]))))
-  in c, Univ.context_of_universe_context_set ctx
+  in c, ctx
 
 let sym_scheme_kind =
   declare_individual_scheme_object "_sym_internal"
@@ -206,11 +207,12 @@ let sym_scheme_kind =
 
 let const_of_sym_scheme env ind ctx = 
   let sym_scheme = (find_scheme sym_scheme_kind ind) in
-  let sym, ctx = with_context_set ctx (fresh_constant_instance env sym_scheme) in
+  let sym, ctx = with_context_set ctx 
+    (Universes.fresh_constant_instance env sym_scheme) in
     mkConstU sym, ctx
 
 let build_sym_involutive_scheme env ind =
-  let (ind,u as indu), ctx = fresh_inductive_instance env ind in
+  let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env indu in
   let eq,eqrefl,ctx = get_coq_eq ctx in
@@ -250,7 +252,7 @@ let build_sym_involutive_scheme env ind =
 	       mkRel 1|])),
 	       mkRel 1 (* varH *),
 	       [|mkApp(eqrefl,[|applied_ind_C;cstr (nrealargs+1)|])|]))))
-  in c, Univ.context_of_universe_context_set ctx
+  in c, ctx
 
 let sym_involutive_scheme_kind =
   declare_individual_scheme_object "_sym_involutive"
@@ -318,7 +320,7 @@ let sym_involutive_scheme_kind =
 (**********************************************************************)
 
 let build_l2r_rew_scheme dep env ind kind =
-  let (ind,u as indu), ctx = fresh_inductive_instance env ind in
+  let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env indu in
   let sym, ctx = const_of_sym_scheme env ind ctx in
@@ -357,7 +359,9 @@ let build_l2r_rew_scheme dep env ind kind =
                      rel_vect (nrealargs+4) nrealargs;
                      rel_vect 1 nrealargs;
 		     [|mkRel 1|]]) in
-  let s = mkSort (new_sort_in_family kind) in
+  let s, ctx' = Universes.fresh_sort_in_family (Global.env ()) kind in
+  let ctx = Univ.union_universe_context_set ctx ctx' in
+  let s = mkSort s in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let cieq = make_case_info (Global.env()) (fst (destInd eq)) RegularStyle in
   let applied_PC =
@@ -402,7 +406,7 @@ let build_l2r_rew_scheme dep env ind kind =
        [|main_body|])
    else
      main_body))))))
-  in c, Univ.context_of_universe_context_set ctx
+  in c, ctx
 
 (**********************************************************************)
 (* Build the left-to-right rewriting lemma for hypotheses associated  *)
@@ -431,7 +435,7 @@ let build_l2r_rew_scheme dep env ind kind =
 (**********************************************************************)
 
 let build_l2r_forward_rew_scheme dep env ind kind =
-  let (ind,u as indu), ctx = fresh_inductive_instance env ind in
+  let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env indu in
   let cstr n p =
@@ -457,7 +461,9 @@ let build_l2r_forward_rew_scheme dep env ind kind =
     name_context env ((Name varH,None,applied_ind)::realsign) in
   let realsign_ind_P n aP =
     name_context env ((Name varH,None,aP)::realsign_P n) in
-  let s = mkSort (new_sort_in_family kind) in
+  let s, ctx' = Universes.fresh_sort_in_family (Global.env ()) kind in
+  let ctx = Univ.union_universe_context_set ctx ctx' in
+  let s = mkSort s in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let applied_PC =
     mkApp (mkVar varP,Array.append
@@ -488,7 +494,7 @@ let build_l2r_forward_rew_scheme dep env ind kind =
 	  (if dep then realsign_ind_P 1 applied_ind_P' else realsign_P 2) s)
       (mkNamedLambda varHC applied_PC'
 	(mkVar varHC))|])))))
-  in c, Univ.context_of_universe_context_set ctx
+  in c, ctx
 
 (**********************************************************************)
 (* Build the right-to-left rewriting lemma for hypotheses associated  *)
@@ -521,7 +527,7 @@ let build_l2r_forward_rew_scheme dep env ind kind =
 (**********************************************************************)
 
 let build_r2l_forward_rew_scheme dep env ind kind = 
-  let (ind,u as indu), ctx = fresh_inductive_instance env ind in
+  let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
   let ((mib,mip as specif),constrargs,realsign,nrealargs) =
     get_non_sym_eq_data env ind in
   let cstr n =
@@ -533,7 +539,9 @@ let build_r2l_forward_rew_scheme dep env ind kind =
   let applied_ind = build_dependent_inductive indu specif in
   let realsign_ind =
     name_context env ((Name varH,None,applied_ind)::realsign) in
-  let s = mkSort (new_sort_in_family kind) in
+  let s, ctx' = Universes.fresh_sort_in_family (Global.env ()) kind in
+  let ctx = Univ.union_universe_context_set ctx ctx' in
+  let s = mkSort s in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let applied_PC =
     applist (mkVar varP,if dep then constrargs_cstr else constrargs) in
@@ -559,7 +567,7 @@ let build_r2l_forward_rew_scheme dep env ind kind =
 	   lift (nrealargs+3) applied_PC,
 	   mkRel 1)|]),
     [|mkVar varHC|]))))))
-  in c, Univ.context_of_universe_context_set ctx
+  in c, ctx
 
 (**********************************************************************)
 (* This function "repairs" the non-dependent r2l forward rewriting    *)
@@ -617,7 +625,7 @@ let fix_r2l_forward_rew_scheme (c, ctx') =
 let build_r2l_rew_scheme dep env ind k =
   let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
   let sigma', c = build_case_analysis_scheme env sigma indu dep k in
-    c, Evd.universe_context sigma
+    c, Evd.universe_context_set sigma
 
 let build_l2r_rew_scheme = build_l2r_rew_scheme
 let build_l2r_forward_rew_scheme = build_l2r_forward_rew_scheme
@@ -710,7 +718,8 @@ let rew_r2l_scheme_kind =
 (* TODO: extend it to types with more than one index *)
 
 let build_congr env (eq,refl,ctx) ind =
-  let (ind,u as indu), ctx = with_context_set ctx (fresh_inductive_instance env ind) in
+  let (ind,u as indu), ctx = with_context_set ctx 
+    (Universes.fresh_inductive_instance env ind) in
   let (mib,mip) = lookup_mind_specif env ind in
   if not (Int.equal (Array.length mib.mind_packets) 1) || not (Int.equal (Array.length mip.mind_nf_lc) 1) then
     error "Not an inductive type with a single constructor.";
@@ -731,9 +740,10 @@ let build_congr env (eq,refl,ctx) ind =
   let varH = fresh env (Id.of_string "H") in
   let varf = fresh env (Id.of_string "f") in
   let ci = make_case_info (Global.env()) ind RegularStyle in
+  let uni, ctx = Universes.extend_context (Universes.new_global_univ ()) ctx in
   let c = 
   my_it_mkLambda_or_LetIn mib.mind_params_ctxt
-     (mkNamedLambda varB (new_Type (Lib.library_dp ()))
+     (mkNamedLambda varB (mkSort (Type uni))
      (mkNamedLambda varf (mkArrow (lift 1 ty) (mkVar varB))
      (my_it_mkLambda_or_LetIn_name (lift_rel_context 2 realsign)
      (mkNamedLambda varH
@@ -759,7 +769,7 @@ let build_congr env (eq,refl,ctx) ind =
        [|mkApp (refl,
           [|mkVar varB;
 	    mkApp (mkVar varf, [|lift (mip.mind_nrealargs+3) b|])|])|]))))))
-  in c, Univ.context_of_universe_context_set ctx
+  in c, ctx
 let congr_scheme_kind = declare_individual_scheme_object "_congr"
   (fun ind ->
     (* May fail if equality is not defined *)

@@ -105,7 +105,7 @@ let mkFullInd ind n =
     else mkInd ind
 
 let check_bool_is_defined () =
-  try let _ = Global.type_of_global Coqlib.glob_bool in ()
+  try let _ = Global.type_of_global_unsafe Coqlib.glob_bool in ()
   with _ -> raise (UndefinedCst "bool")
 
 let beq_scheme_kind_aux = ref (fun _ -> failwith "Undefined")
@@ -199,7 +199,7 @@ let build_beq_scheme kn =
         | Lambda _-> raise (EqUnknown "Lambda")
         | LetIn _ -> raise (EqUnknown "LetIn")
         | Const kn ->
-	    (match Environ.constant_opt_value_inenv env kn with
+	    (match Environ.constant_opt_value_in env kn with
 	      | None -> raise (ParameterWithoutEquality (fst kn))
 	      | Some c -> aux (applist (c,a)))
         | Construct _ -> raise (EqUnknown "Construct")
@@ -286,7 +286,7 @@ let build_beq_scheme kn =
 	if not (List.mem InSet kelim) then
 	  raise (NonSingletonProp (kn,i));
         let fix = mkFix (((Array.make nb_ind 0),i),(names,types,cores)) in
-        create_input fix), Univ.empty_universe_context (* FIXME *)
+        create_input fix), Univ.empty_universe_context_set (* FIXME *)
 
 let beq_scheme_kind = declare_mutual_scheme_object "_beq" build_beq_scheme
 
@@ -588,7 +588,7 @@ let make_bl_scheme mind =
   [|Pfedit.build_by_tactic (Global.env())
     (compute_bl_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
     (compute_bl_tact (!bl_scheme_kind_aux()) (ind,[])(*FIXME*) lnamesparrec nparrec)|],
-    Univ.empty_universe_context
+    Univ.empty_universe_context_set
 
 let bl_scheme_kind = declare_mutual_scheme_object "_dec_bl" make_bl_scheme
 
@@ -701,7 +701,7 @@ let make_lb_scheme mind =
   [|Pfedit.build_by_tactic (Global.env())
     (compute_lb_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
     (compute_lb_tact (!lb_scheme_kind_aux()) ind lnamesparrec nparrec)|],
-    Univ.empty_universe_context (* FIXME *)
+    Univ.empty_universe_context_set (* FIXME *)
 
 let lb_scheme_kind = declare_mutual_scheme_object "_dec_lb" make_lb_scheme
 
@@ -856,7 +856,7 @@ let make_eq_decidability mind =
   [|Pfedit.build_by_tactic (Global.env())
     (compute_dec_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
     (compute_dec_tact ind lnamesparrec nparrec)|],
-    Univ.empty_universe_context (* FIXME *)
+    Univ.empty_universe_context_set (* FIXME *)
 
 let eq_dec_scheme_kind =
   declare_mutual_scheme_object "_eq_dec" make_eq_decidability

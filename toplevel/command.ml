@@ -70,8 +70,7 @@ let red_constant_entry n ce = function
 
 let interp_definition bl p red_option c ctypopt =
   let env = Global.env() in
-  let poly = if not p then Lib.library_dp () else Names.empty_dirpath in
-  let evdref = ref (Evd.from_env ~ctx:(poly, Univ.empty_universe_context_set) env) in
+  let evdref = ref (Evd.from_env ~ctx:(Univ.empty_universe_context_set) env) in
   let impls, ((env_bl, ctx), imps1) = interp_context_evars evdref env bl in
   let nb_args = List.length ctx in
   let imps,ce =
@@ -162,7 +161,8 @@ let do_definition ident k bl red_option c ctypopt hook =
       let obls, _, c, cty = 
 	Obligations.eterm_obligations env ident evd 0 c typ
       in
-	ignore(Obligations.add_definition ident ~term:c cty ~implicits:imps ~kind:k ~hook obls)
+      let ctx = Evd.universe_context_set evd in
+	ignore(Obligations.add_definition ident ~term:c cty ctx ~implicits:imps ~kind:k ~hook obls)
     else let ce = check_definition def in
       declare_definition ident k ce imps hook
 
@@ -759,7 +759,8 @@ let build_wellfounded (recname,n,bl,arityc,body) r measure notation =
   let evars, _, evars_def, evars_typ = 
     Obligations.eterm_obligations env recname !isevars 0 fullcoqc fullctyp 
   in
-    ignore(Obligations.add_definition recname ~term:evars_def evars_typ evars ~hook)
+  let ctx = Evd.universe_context_set !isevars in
+    ignore(Obligations.add_definition recname ~term:evars_def evars_typ ctx evars ~hook)
 
 
 let interp_recursive isfix fixl notations =
@@ -941,7 +942,8 @@ let do_program_recursive fixkind fixl ntns =
 	Pretyping.search_guard Loc.ghost (Global.env ()) possible_indexes fixdecls in
 	List.iteri (fun i _ -> Inductive.check_fix env ((indexes,i),fixdecls)) fixl
     end;
-    Obligations.add_mutual_definitions defs ntns fixkind
+    let ctx = Evd.universe_context_set evd in
+    Obligations.add_mutual_definitions defs ctx ntns fixkind
 
 let do_program_fixpoint l =
   let g = List.map (fun ((_,wf,_,_,_),_) -> wf) l in

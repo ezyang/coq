@@ -27,8 +27,8 @@ open Decl_kinds
 (**********************************************************************)
 (* Registering schemes in the environment *)
 
-type mutual_scheme_object_function = mutual_inductive -> constr array Univ.in_universe_context
-type individual_scheme_object_function = inductive -> constr Univ.in_universe_context
+type mutual_scheme_object_function = mutual_inductive -> constr array Univ.in_universe_context_set
+type individual_scheme_object_function = inductive -> constr Univ.in_universe_context_set
 
 type 'a scheme_kind = string
 
@@ -123,13 +123,15 @@ let compute_name internal id =
 let define internal id c p univs =
   let fd = declare_constant ~internal in
   let id = compute_name internal id in
+  let subst, ctx = Universes.normalize_context_set univs in
+  let c = subst_univs_constr subst c in
   let kn = fd id
     (DefinitionEntry
       { const_entry_body = c;
         const_entry_secctx = None;
         const_entry_type = None;
 	const_entry_polymorphic = p;
-	const_entry_universes = univs;
+	const_entry_universes = Univ.context_of_universe_context_set ctx;
         const_entry_opaque = false },
       Decl_kinds.IsDefinition Scheme) in
   (match internal with

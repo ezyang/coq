@@ -724,7 +724,7 @@ let fold_match ?(force=false) env sigma c =
 let unfold_match env sigma sk app =
   match kind_of_term app with
   | App (f', args) when eq_constant (fst (destConst f')) sk ->
-      let v = Environ.constant_value_inenv (Global.env ()) (sk,[])(*FIXME*) in
+      let v = Environ.constant_value_in (Global.env ()) (sk,[])(*FIXME*) in
 	Reductionops.whd_beta sigma (mkApp (v, args))
   | _ -> app
 
@@ -1765,7 +1765,7 @@ let proper_projection r ty =
     it_mkLambda_or_LetIn app ctx
 
 let declare_projection n instance_id r =
-  let ty = Global.type_of_global r in
+  let ty = Global.type_of_global_unsafe r in
   let c = constr_of_global r in
   let term = proper_projection c ty in
   let typ = Typing.type_of (Global.env ()) Evd.empty term in
@@ -2128,9 +2128,10 @@ TACTIC EXTEND myapply
     fun gl -> 
       let gr = id in
       let _, impls = List.hd (Impargs.implicits_of_global gr) in
-      let ty = Global.type_of_global gr in
       let env = pf_env gl in
       let evars = ref (project gl) in
+      let evd, ty = fresh_global env !evars gr in
+      let _ = evars := evd in
       let app =
 	let rec aux ty impls args args' =
 	  match impls, kind_of_term ty with

@@ -345,12 +345,12 @@ let discriminate_tac (cstr,u as cstru) p gls =
   let t1=constr_of_term p.p_lhs and t2=constr_of_term p.p_rhs in
   let intype = (* Termops.refresh_universes *) (pf_type_of gls t1) in
   let concl=pf_concl gls in
-  let outsort = mkType (Termops.new_univ (*FIXME*)empty_dirpath) in
+  let outsort = mkType (fst (Universes.new_global_univ () (*FIXME*))) in
   let xid=pf_get_new_id (Id.of_string "X") gls in
   let tid=pf_get_new_id (Id.of_string "t") gls in
   let identity=mkLambda(Name xid,outsort,mkLambda(Name tid,mkRel 1,mkRel 1)) in
   let trivial=pf_type_of gls identity in
-  let outtype = mkType (Termops.new_univ (*FIXME*)empty_dirpath) in
+  let outtype = mkType (fst (Universes.new_global_univ () (*FIXME*))) in
   let pred=mkLambda(Name xid,outtype,mkRel 1) in
   let hid=pf_get_new_id (Id.of_string "Heq") gls in
   let proj=build_projection intype outtype cstru trivial concl gls in

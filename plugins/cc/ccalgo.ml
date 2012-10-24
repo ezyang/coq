@@ -361,8 +361,8 @@ let _B_ = Name (Id.of_string "A")
 let _body_ =  mkProd(Anonymous,mkRel 2,mkRel 2)
 
 let cc_product s1 s2 =
-  mkLambda(_A_,mkSort(Termops.new_sort_in_family s1),
-	   mkLambda(_B_,mkSort(Termops.new_sort_in_family s2),_body_))
+  mkLambda(_A_,mkSort(Universes.new_sort_in_family s1),
+	   mkLambda(_B_,mkSort(Universes.new_sort_in_family s2),_body_))
 
 let rec constr_of_term = function
     Symb s->s

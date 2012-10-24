@@ -40,7 +40,3 @@ val type_of_global_reference_knowing_parameters : env -> evar_map -> constr ->
 
 val type_of_global_reference_knowing_conclusion :
   env -> evar_map -> constr -> types -> types
-
-val fresh_type_of_constant : env -> ?dp:Names.dir_path -> constant -> types Univ.constrained
-val fresh_type_of_constant_body : ?dp:Names.dir_path -> 
-  Declarations.constant_body -> types Univ.constrained

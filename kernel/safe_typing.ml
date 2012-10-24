@@ -205,7 +205,7 @@ type generic_name =
   | MT of module_path
   | M
 
-let add_field ((l,sfb) as field) gn senv =
+let add_field ((l,sfb) as _field) gn senv =
   let mlabs,olabs = match sfb with
     | SFBmind mib ->
       let l = labels_of_mib mib in
@@ -650,6 +650,7 @@ let end_modtype l senv =
         senv.local_retroknowledge@oldsenv.local_retroknowledge}
 
 let current_modpath senv = senv.modinfo.modpath
+let current_dirpath senv = Names.dp_of_mp (current_modpath senv)
 let delta_of_senv senv = senv.modinfo.resolver,senv.modinfo.resolver_of_param
 
 (* Check that the engagement expected by a library matches the initial one *)

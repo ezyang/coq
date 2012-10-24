@@ -81,7 +81,7 @@ let construct_of_constr const env tag typ =
     let i = invert_tag const tag mip.mind_reloc_tbl in
     let params = Array.sub allargs 0 nparams in
     let ctyp = type_constructor mind mib u (mip.mind_nf_lc.(i-1)) params in
-      (mkApp(mkConstruct(ind,i), params), ctyp)
+      (mkApp(mkConstructUi(indu,i), params), ctyp)
 
 let construct_of_constr_const env tag typ =
   fst (construct_of_constr true env tag typ)
@@ -102,7 +102,7 @@ let constr_type_of_idkey env idkey =
       mkRel n, lift n ty
 
 let type_of_ind env ind =
-  fst (fresh_type_of_inductive env (Inductive.lookup_mind_specif env ind))
+  type_of_inductive env (Inductive.lookup_mind_specif env ind,[](*FIXME*))
 
 let build_branches_type env (mind,_ as _ind) mib mip u params dep p =
   let rtbl = mip.mind_reloc_tbl in

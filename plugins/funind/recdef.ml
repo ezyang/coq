@@ -70,7 +70,7 @@ let defined () = Lemmas.save_named false
 let def_of_const t =
    match (kind_of_term t) with
     Const sp ->
-      (try (match constant_opt_value_inenv (Global.env()) sp with
+      (try (match constant_opt_value_in (Global.env()) sp with
              | Some c -> c
 	     | _ -> assert false)
        with _ ->

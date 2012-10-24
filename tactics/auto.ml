@@ -875,7 +875,7 @@ let interp_hints =
 	Dumpglob.dump_reference (fst (qualid_of_reference qid)) "<>" (string_of_reference qid) "ind";
         List.tabulate (fun i -> let c = (ind,i+1) in
 				let gr = ConstructRef c in
-			 None, true, PathHints [gr], IsGlobal gr)
+				  None, true, PathHints [gr], IsGlobal gr)
 	  (nconstructors ind) in
 	HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
   | HintsExtern (pri, patcom, tacexp) ->

@@ -99,12 +99,15 @@ val import : compiled_library -> Digest.t -> module_path
 (** Function to get an environment from the constants part of the global
  * environment and a given context. *)
 
-val type_of_global : Globnames.global_reference -> types
+(* val type_of_global : Globnames.global_reference -> types Univ.in_universe_context_set *)
+val type_of_global_unsafe : Globnames.global_reference -> types 
 val env_of_context : Environ.named_context_val -> Environ.env
 
 (** spiwack: register/unregister function for retroknowledge *)
 val register : Retroknowledge.field -> constr -> constr -> unit
 
 (* Modifies the global state, registering new universes *)
+
+val current_dirpath : unit -> Names.dir_path
 
 val with_global : (Environ.env -> Names.dir_path -> 'a in_universe_context_set) -> 'a

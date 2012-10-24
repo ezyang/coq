@@ -223,7 +223,7 @@ let cs_pattern_of_constr t =
 (* Intended to always succeed *)
 let compute_canonical_projections (con,ind) =
   let v = mkConst con in
-  let c = Environ.constant_value_inenv (Global.env()) (con,[]) in
+  let c = Environ.constant_value_in (Global.env()) (con,[]) in
   let lt,t = Reductionops.splay_lam (Global.env()) Evd.empty c in
   let lt = List.rev (List.map snd lt) in
   let args = snd (decompose_app t) in
@@ -315,7 +315,7 @@ let error_not_structure ref =
 let check_and_decompose_canonical_structure ref =
   let sp = match ref with ConstRef sp -> sp | _ -> error_not_structure ref in
   let env = Global.env () in
-  let vc = match Environ.constant_opt_value_inenv env (sp,[]) with
+  let vc = match Environ.constant_opt_value_in env (sp,[]) with
     | Some vc -> vc
     | None -> error_not_structure ref in
   let body = snd (splay_lam (Global.env()) Evd.empty vc) in

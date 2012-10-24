@@ -226,12 +226,12 @@ let constant_value_and_type env (kn, u) =
    application. *)
 
 (* constant_type gives the type of a constant *)
-let constant_type_inenv env (kn,u) =
+let constant_type_in env (kn,u) =
   let cb = lookup_constant kn env in
   let subst = make_universe_subst u cb.const_universes in
     subst_univs_constr subst cb.const_type
 
-let constant_value_inenv env (kn,u) =
+let constant_value_in env (kn,u) =
   let cb = lookup_constant kn env in
   match cb.const_body with
     | Def l_body -> 
@@ -240,8 +240,8 @@ let constant_value_inenv env (kn,u) =
     | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
     | Undef _ -> raise (NotEvaluableConst NoBody)
 
-let constant_opt_value_inenv env cst =
-  try Some (constant_value_inenv env cst)
+let constant_opt_value_in env cst =
+  try Some (constant_value_in env cst)
   with NotEvaluableConst _ -> None
 
 (* A global const is evaluable if it is defined and not opaque *)

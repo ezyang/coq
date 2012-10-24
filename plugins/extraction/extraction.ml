@@ -376,7 +376,8 @@ and extract_ind env kn = (* kn is supposed to be in long form *)
       Array.mapi
 	(fun i mip ->
 	   let b = snd (mind_arity mip) <> InProp in
-	   let (ind,u), ctx = Inductive.fresh_inductive_instance env (kn,i) in
+	   let (ind,u), ctx = 
+	     Universes.fresh_inductive_instance env (kn,i) in
 	   let ar = Inductive.type_of_inductive env ((mib,mip),u) in
 	   let s,v = if b then type_sign_vl env ar else [],[] in
 	   let t = Array.make (Array.length mip.mind_nf_lc) [] in

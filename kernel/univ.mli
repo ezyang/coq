@@ -135,7 +135,6 @@ val constraints_of : 'a constrained -> constraints
 (** Universe contexts (as lists) *)
 val empty_universe_context : universe_context
 val is_empty_universe_context : universe_context -> bool
-val fresh_universe_instance : ?dp:Names.dir_path -> universe_context -> universe_list
 
 (** Universe contexts (as sets) *)
 val empty_universe_context_set : universe_context_set
@@ -163,15 +162,6 @@ val make_universe_subst : universe_list -> universe_context -> universe_subst
 
 (** Get the instantiated graph. *)
 val instantiate_univ_context : universe_subst -> universe_context -> constraints
-
-(** Build a fresh instance for a given context, its associated substitution and 
-    the instantiated constraints. *)
-
-val fresh_instance_from_context : ?dp:Names.dir_path -> universe_context -> 
-  (universe_list * universe_subst) constrained
-
-val fresh_instance_from : ?dp:Names.dir_path -> universe_context -> 
-  universe_list in_universe_context_set
 
 (** Substitution of universes. *)
 val subst_univs_level : universe_subst -> universe_level -> universe_level
@@ -217,8 +207,6 @@ val normalize_universes : universes -> universes
 val sort_universes : universes -> universes
 
 (** {6 Support for sort-polymorphism } *)
-
-val fresh_local_univ : unit -> universe
 
 val solve_constraints_system : universe option array -> universe array ->
   universe array

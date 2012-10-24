@@ -335,9 +335,8 @@ let generate_principle  on_error
 	let _ =
 	  List.map_i
 	    (fun i x ->
-	       let princ = destConstRef (Indrec.lookup_eliminator (ind_kn,i) (InProp)) in
-	       let princ_type, cst = Retyping.fresh_type_of_constant (Global.env()) princ
-	       in
+	       let princ = Indrec.lookup_eliminator (ind_kn,i) (InProp) in
+	       let princ_type = Global.type_of_global_unsafe princ in
 	       Functional_principles_types.generate_functional_principle
 		 interactive_proof
 		 princ_type

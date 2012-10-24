@@ -146,7 +146,7 @@ let double_type_of env sigma cstr expectedty subterms_to_types =
         fst (*FIXME*) (Typeops.judge_of_type u)
  with _ -> (* Successor of a non universe-variable universe anomaly *)
   Pp.msg_warning (Pp.str "Universe refresh performed!!!");
-  fst (*FIXME*) (Typeops.judge_of_type (Termops.new_univ Names.empty_dirpath))
+  fst (*FIXME*) (Typeops.judge_of_type (Universes.new_univ Names.empty_dirpath))
 )
 
      | T.App (f,args) ->

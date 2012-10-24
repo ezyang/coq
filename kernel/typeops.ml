@@ -131,7 +131,7 @@ let check_hyps id env hyps =
 (* Type of constants *)
 
 let type_of_constant env cst = constant_type env cst
-let type_of_constant_inenv env cst = constant_type_inenv env cst
+let type_of_constant_in env cst = constant_type_in env cst
 let type_of_constant_knowing_parameters env t _ = t
 
 let judge_of_constant env (_,u as cst) =
