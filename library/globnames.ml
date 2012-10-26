@@ -67,13 +67,12 @@ let global_of_constr c = match kind_of_term c with
   | Var id -> VarRef id
   |  _ -> raise Not_found
 
-let constr_of_global = function
+let printable_constr_of_global = function
   | VarRef id -> mkVar id
   | ConstRef sp -> mkConst sp
   | ConstructRef sp -> mkConstruct sp
   | IndRef sp -> mkInd sp
 
-let constr_of_reference = constr_of_global
 let reference_of_constr = global_of_constr
 
 let global_ord_gen fc fmi x y =

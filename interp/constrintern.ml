@@ -1777,13 +1777,13 @@ let intern_context global_level sigma env impl_env params =
     user_err_loc (loc,"internalize", explain_internalization_error e)
 
 let interp_rawcontext_gen understand_type understand_judgment env bl =
-  let (env, par, _, impls) =
+  let (env, ctx, par, _, impls) =
     List.fold_left
-      (fun (env,params,n,impls) (na, k, b, t) ->
+      (fun (env,ctx,params,n,impls) (na, k, b, t) ->
 	match b with
 	    None ->
 	      let t' = locate_if_isevar (loc_of_glob_constr t) na t in
-	      let t = understand_type env t' in
+	      let t,ctx' = understand_type env t' in
 	      let d = (na,None,t) in
 	      let impls =
 		if k == Implicit then
@@ -1791,13 +1791,15 @@ let interp_rawcontext_gen understand_type understand_judgment env bl =
 		    (ExplByPos (n, na), (true, true, true)) :: impls
 		else impls
 	      in
-		(push_rel d env, d::params, succ n, impls)
+	      let ctx'' = Univ.union_universe_context_set ctx ctx' in
+		(push_rel d env, ctx'', d::params, succ n, impls)
 	  | Some b ->
-	      let c = understand_judgment env b in
-	      let d = (na, Some c.uj_val, (* Termops.refresh_universes  *)c.uj_type) in
-		(push_rel d env, d::params, succ n, impls))
-      (env,[],1,[]) (List.rev bl)
-  in (env, par), impls
+	      let c,ctx' = understand_judgment env b in
+	      let d = (na, Some c.uj_val, c.uj_type) in
+	      let ctx'' = Univ.union_universe_context_set ctx ctx' in
+		(push_rel d env, ctx'', d::params, succ n, impls))
+      (env,Univ.empty_universe_context_set,[],1,[]) (List.rev bl)
+  in (env, ctx, par), impls
 
 let interp_context_gen understand_type understand_judgment ?(global_level=false) ?(impl_env=empty_internalization_env) sigma env params =
   let int_env,bl = intern_context global_level sigma env impl_env params in
@@ -1808,6 +1810,12 @@ let interp_context ?(global_level=false) ?(impl_env=empty_internalization_env) s
     (understand_judgment sigma) ~global_level ~impl_env sigma env params
 
 let interp_context_evars ?(global_level=false) ?(impl_env=empty_internalization_env) evdref env params =
-  interp_context_gen (fun env t -> understand_tcc_evars evdref env IsType t)
-    (understand_judgment_tcc evdref) ~global_level ~impl_env !evdref env params
-
+  let int_env, ((env, ctx, par), impls) =
+    interp_context_gen (fun env t -> let t' = understand_tcc_evars evdref env IsType t in
+				       t', Evd.universe_context_set !evdref)
+    (fun env gc -> 
+      let j = understand_judgment_tcc evdref env gc in
+	j, Evd.universe_context_set !evdref) ~global_level ~impl_env !evdref env params
+  in
+  let _ = evdref := Evd.merge_context_set !evdref ctx in
+    int_env, ((env, par), impls)

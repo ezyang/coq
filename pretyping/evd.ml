@@ -149,7 +149,8 @@ module EvarInfoMap = struct
   | Evar_empty -> (def, ExistentialMap.add evk newinfo undef)
   | _ -> assert false
 
-  let map f (def,undef) = (ExistentialMap.map f def, ExistentialMap.map f undef)
+  let map (def,undef) f = (ExistentialMap.map f def, ExistentialMap.map f undef)
+  let map_undefined (def,undef) f = (def, ExistentialMap.map f undef)
 
   let define (def,undef) evk body =
     let oldinfo =
@@ -212,7 +213,7 @@ module EvarMap = struct
   let from_env_and_context e c = EvarInfoMap.empty, (c, universes e)
 
   let is_empty (sigma, (ctx, _)) = 
-    EvarInfoMap.is_empty sigma && Univ.is_empty_universe_context_set ctx
+    EvarInfoMap.is_empty sigma
   let is_universes_empty (sigma, (ctx,_)) =
     EvarInfoMap.is_empty sigma && Univ.is_empty_universe_context_set ctx
   let has_undefined (sigma,_) = EvarInfoMap.has_undefined sigma
@@ -226,6 +227,8 @@ module EvarMap = struct
   let undefined_list (sigma,_) = EvarInfoMap.undefined_list sigma
   let undefined_evars (sigma,sm) = (EvarInfoMap.undefined_evars sigma, sm)
   let defined_evars (sigma,sm) = (EvarInfoMap.defined_evars sigma, sm)
+  let map f (sigma,sm) = (EvarInfoMap.map sigma f, sm)
+  let map_undefined f (sigma,sm) = (EvarInfoMap.map_undefined sigma f, sm)
   let fold (sigma,_) = EvarInfoMap.fold sigma
   let fold_undefined (sigma,_) = EvarInfoMap.fold_undefined sigma
   let define (sigma,sm) k v = (EvarInfoMap.define sigma k v, sm)
@@ -364,6 +367,10 @@ let to_list d = EvarMap.to_list d.evars
 let undefined_list d = EvarMap.undefined_list d.evars
 let undefined_evars d = { d with evars=EvarMap.undefined_evars d.evars }
 let defined_evars d = { d with evars=EvarMap.defined_evars d.evars }
+
+let map f d = { d with evars = EvarMap.map f d.evars }
+let map_undefined f d = { d with evars = EvarMap.map_undefined f d.evars }
+
 (* spiwack: not clear what folding over an evar_map, for now we shall
     simply fold over the inner evar_map. *)
 let fold f d a = EvarMap.fold d.evars f a
@@ -401,7 +408,7 @@ let subst_evar_defs_light sub evd =
   assert (List.is_empty evd.conv_pbs);
   { evd with
       metas = Metamap.map (map_clb (subst_mps sub)) evd.metas;
-      evars = EvarInfoMap.map (subst_evar_info sub)  (fst evd.evars), (snd evd.evars)
+      evars = EvarInfoMap.map (fst evd.evars) (subst_evar_info sub), (snd evd.evars)
   }
 
 let subst_evar_map = subst_evar_defs_light
@@ -571,25 +578,6 @@ let is_eq_sort s1 s2 =
 let is_univ_var_or_set u = 
   not (Option.is_empty (Univ.universe_level u))
 
-let set_leq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
-  match is_eq_sort s1 s2 with
-  | None -> d
-  | Some (u1, u2) ->
-    match s1, s2 with
-    | Prop Null, Prop Pos -> d
-    | Prop _, Prop _ ->
-      raise (Univ.UniverseInconsistency (Univ.Le, u1, u2,[]))
-    | Type u, Prop Pos ->
-      let cstr = Univ.enforce_leq u Univ.type0_univ Univ.empty_constraint in
-      add_constraints d cstr
-    | Type _, Prop _ ->
-      raise (Univ.UniverseInconsistency (Univ.Le, u1, u2,[]))
-    | _, Type u ->
-      if is_univ_var_or_set u then
-        let cstr = Univ.enforce_leq u1 u2 Univ.empty_constraint in
-        add_constraints d cstr
-      else raise (Univ.UniverseInconsistency (Univ.Le, u1, u2,[]))
-
 type universe_global = 
   | LocalUniv of Univ.universe_level
   | GlobalUniv of Univ.universe_level
@@ -641,6 +629,24 @@ let set_eq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
 
 let set_eq_level ({evars = (sigma, (us, sm))} as d) u1 u2 =
   add_constraints d (Univ.enforce_eq_level u1 u2 Univ.empty_constraint)
+
+let set_leq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
+  match is_eq_sort s1 s2 with
+  | None -> d
+  | Some (u1, u2) ->
+      match s1, s2 with
+      | Prop c, Prop c' -> 
+	  if c = Null && c' = Pos then d
+	  else (raise (Univ.UniverseInconsistency (Univ.Le, u1, u2, [])))
+      | Type u, Prop c -> 
+          if c = Pos then 
+	    add_constraints d (Univ.enforce_leq u Univ.type0_univ Univ.empty_constraint)
+	  else (* Lower u to Prop *)
+	    set_eq_sort d s1 s2
+      | _, Type u ->
+	  if is_univ_var_or_set u then
+	    add_constraints d (Univ.enforce_leq u1 u2 Univ.empty_constraint)
+	  else raise (Univ.UniverseInconsistency (Univ.Le, u1, u2, []))
 
 let nf_constraints ({evars = (sigma, (us, sm))} as d) = 
   let (subst, us') = Universes.normalize_context_set us in
@@ -834,7 +840,7 @@ let pr_evar_source = function
   | Evar_kinds.ImplicitArg (c,(n,ido),b) ->
       let id = Option.get ido in
       str "parameter " ++ pr_id id ++ spc () ++ str "of" ++
-      spc () ++ print_constr (constr_of_global c)
+      spc () ++ print_constr (Universes.constr_of_global c)
   | Evar_kinds.InternalHole -> str "internal placeholder"
   | Evar_kinds.TomatchTypeParameter (ind,n) ->
       pr_nth n ++ str " argument of type " ++ print_constr (mkInd ind)

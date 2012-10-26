@@ -387,7 +387,8 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
 let interp_and_check_sort sort =
   Option.map (fun sort ->
     let env = Global.env() and sigma = Evd.empty in
-    let s = interp_constr sigma env sort in
+    let s,ctx = interp_constr sigma env sort in
+    let sigma = Evd.merge_context_set sigma ctx in
     if isSort (Reductionops.whd_betadeltaiota env sigma s) then s
     else user_err_loc (constr_loc sort,"", str"Sort expected.")) sort
 

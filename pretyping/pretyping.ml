@@ -690,7 +690,7 @@ let understand_judgment sigma env c =
     resolve_evars env evdref true true;
     let j = j_nf_evar !evdref j in
       check_evars env sigma !evdref (mkCast(j.uj_val,DEFAULTcast, j.uj_type));
-      j
+      j, Evd.universe_context_set !evdref
 
 let understand_judgment_tcc evdref env c =
   let j = pretype empty_tycon env evdref ([],[]) c in
@@ -706,16 +706,20 @@ let ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c 
   let c = pretype_gen expand_evar fail_evar resolve_classes evdref env lvar kind c in
     !evdref, c
 
+let ise_pretype_gen_ctx expand_evar fail_evar resolve_classes sigma env lvar kind c =
+  let evd, c = ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c in
+    c, Evd.universe_context_set evd
+
 (** Entry points of the high-level type synthesis algorithm *)
 
 let understand_gen kind sigma env c =
-  snd (ise_pretype_gen true true true sigma env ([],[]) kind c)
+  ise_pretype_gen_ctx true true true sigma env ([],[]) kind c
 
 let understand sigma env ?expected_type:exptyp c =
-  snd (ise_pretype_gen true true true sigma env ([],[]) (OfType exptyp) c)
+  ise_pretype_gen_ctx true true true sigma env ([],[]) (OfType exptyp) c
 
 let understand_type sigma env c =
-  snd (ise_pretype_gen true true true sigma env ([],[]) IsType c)
+  ise_pretype_gen_ctx true true true sigma env ([],[]) IsType c
 
 let understand_ltac ?(resolve_classes=false) expand_evar sigma env lvar kind c =
   ise_pretype_gen expand_evar false resolve_classes sigma env lvar kind c

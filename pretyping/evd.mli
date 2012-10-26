@@ -143,6 +143,8 @@ val remove : evar_map -> evar -> evar_map
 val mem : evar_map -> evar -> bool
 val undefined_list : evar_map -> (evar * evar_info) list
 val to_list : evar_map -> (evar * evar_info) list
+val map : (evar_info -> evar_info) -> evar_map -> evar_map
+val map_undefined : (evar_info -> evar_info) -> evar_map -> evar_map
 val fold : (evar -> evar_info -> 'a -> 'a) -> evar_map -> 'a -> 'a
 val fold_undefined : (evar -> evar_info -> 'a -> 'a) -> evar_map -> 'a -> 'a
 val merge : evar_map -> evar_map -> evar_map

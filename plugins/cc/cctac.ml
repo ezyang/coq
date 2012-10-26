@@ -446,7 +446,7 @@ let simple_reflexivity () = apply (Lazy.force _refl_equal)
 
 let f_equal gl =
   let cut_eq c1 c2 =
-    let ty = (* Termops.refresh_universes *) (pf_type_of gl c1) in
+    let ty = (pf_type_of gl c1) in
     tclTHENTRY
       (Tactics.cut (mkApp (Lazy.force _eq, [|ty; c1; c2|])))
       (simple_reflexivity ())

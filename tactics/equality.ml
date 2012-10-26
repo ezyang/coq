@@ -1154,7 +1154,7 @@ let injEq ipats (eq,_,(t,t1,t2) as u) eq_clause =
               tclTHENS (cut (mkApp (ceq,new_eq_args)) )
                [tclIDTAC; tclTHEN (apply (
                   mkApp(inj2,
-                        [|ar1.(0);mkConst (find_scheme (!eq_dec_scheme_kind_name()) (fst ind));
+                        [|ar1.(0);mkConst(*FIXME*) (find_scheme (!eq_dec_scheme_kind_name()) (fst ind));
                           ar1.(1);ar1.(2);ar1.(3);ar2.(3)|])
                   )) (Auto.trivial [] [])
                 ]

@@ -325,6 +325,11 @@ let check_conv_leq_goal env sigma arg ty conclty =
   if !check & not (is_conv_leq env sigma ty conclty) then
     raise (RefinerError (BadType (arg,ty,conclty)))
 
+let do_conv_leq_goal env sigma arg ty conclty =
+  try Evarconv.the_conv_x_leq env ty conclty sigma
+  with _ ->
+    raise (RefinerError (BadType (arg,ty,conclty)))
+
 let goal_type_of env sigma c =
   if !check then type_of env sigma c
   else Retyping.get_type_of env sigma c
@@ -370,7 +375,7 @@ let rec mk_refgoals sigma goal goalacc conclty trm =
 	in
 	let (acc'',conclty',sigma, args) =
 	  mk_arggoals sigma goal acc' hdty (Array.to_list l) in
-	check_conv_leq_goal env sigma trm conclty' conclty;
+	let sigma = do_conv_leq_goal env sigma trm conclty' conclty in
         (acc'',conclty',sigma, Term.mkApp (applicand, Array.of_list args))
 
     | Case (ci,p,c,lf) ->
@@ -545,12 +550,12 @@ let prim_refiner r sigma goal =
 		  check_ind (push_rel (na,None,c1) env) (k-1) b
             | _ -> error "Not enough products."
 	in
-	let (sp,_) = check_ind env n cl in
+	let ((sp,_),u) = check_ind env n cl in
 	let firsts,lasts = List.chop j rest in
 	let all = firsts@(f,n,cl)::lasts in
      	let rec mk_sign sign = function
 	  | (f,n,ar)::oth ->
-	      let (sp',_)  = check_ind env n ar in
+	      let ((sp',_),u')  = check_ind env n ar in
 	      if not (eq_ind sp sp') then
 		error ("Fixpoints should be on the same " ^
 		       "mutual inductive declaration.");

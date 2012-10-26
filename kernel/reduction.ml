@@ -188,6 +188,7 @@ type conv_pb =
   | CUMUL
 
 let is_cumul = function CUMUL -> true | CONV -> false
+let is_pos = function Pos -> true | Null -> false
 
 let sort_cmp pb s0 s1 cuniv =
   match (s0,s1) with
@@ -198,9 +199,11 @@ let sort_cmp pb s0 s1 cuniv =
       end
     | (Prop c1, Prop c2) ->
         if c1 == c2 then cuniv else raise NotConvertible
-    | (Prop c1, Type u) when is_cumul pb -> assert (is_univ_variable u); cuniv
+    | (Prop c1, Type u) when is_cumul pb -> 
+      enforce_leq (if is_pos c1 then type0_univ else type0m_univ) u cuniv
+    | (Type u, Prop c) when is_cumul pb -> 
+      enforce_leq u (if is_pos c then type0_univ else type0m_univ) cuniv
     | (Type u1, Type u2) ->
-	assert (is_univ_variable u2);
 	(match pb with
            | CONV -> enforce_eq u1 u2 cuniv
 	   | CUMUL -> enforce_leq u1 u2 cuniv)

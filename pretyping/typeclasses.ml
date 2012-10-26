@@ -117,7 +117,7 @@ let _ =
 
 let class_info c =
   try Gmap.find c !classes
-  with _ -> not_a_class (Global.env()) (constr_of_global c)
+  with _ -> not_a_class (Global.env()) (printable_constr_of_global c)
 
 let global_class_of_constr env c =
   try class_info (global_of_constr c)
@@ -283,7 +283,7 @@ let build_subclasses ~check env sigma glob pri =
 	  let rest = aux pri body path' in
 	    hints @ (path', pri, body) :: rest
 	in List.fold_left declare_proj [] projs 
-  in aux pri (constr_of_global glob) [glob]
+  in aux pri (fresh_constr_of_global glob) [glob]
 
 (*
  * instances persistent object
