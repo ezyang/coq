@@ -67,20 +67,20 @@ val understand_ltac : ?resolve_classes:bool ->
 (** Standard call to get a constr from a glob_constr, resolving implicit args *)
 
 val understand : evar_map -> env -> ?expected_type:Term.types ->
-  glob_constr -> constr
+  glob_constr -> constr Univ.in_universe_context_set
 
 (** Idem but the glob_constr is intended to be a type *)
 
-val understand_type : evar_map -> env -> glob_constr -> constr
+val understand_type : evar_map -> env -> glob_constr -> constr Univ.in_universe_context_set
 
 (** A generalization of the two previous case *)
 
 val understand_gen : typing_constraint -> evar_map -> env ->
-  glob_constr -> constr
+  glob_constr -> constr Univ.in_universe_context_set
 
 (** Idem but returns the judgment of the understood term *)
 
-val understand_judgment : evar_map -> env -> glob_constr -> unsafe_judgment
+val understand_judgment : evar_map -> env -> glob_constr -> unsafe_judgment Univ.in_universe_context_set
 
 (** Idem but do not fail on unresolved evars *)
 val understand_judgment_tcc : evar_map ref -> env -> glob_constr -> unsafe_judgment

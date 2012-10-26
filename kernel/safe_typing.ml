@@ -156,36 +156,25 @@ let add_constraints cst senv =
     env = Environ.add_constraints cst senv.env;
     univ = Univ.union_constraints cst senv.univ }
 
-let global_constraints_of (vars, cst) =
-  let subst = List.map (fun u -> u, u(* Termops.new_univ_level () *)) vars in
-    subst, subst_univs_constraints subst cst
-
-let subst_univs_constdef subst def =
-  match def with
-  | Undef i -> def
-  | Def cs -> Def (Declarations.from_val (Term.subst_univs_constr subst (Declarations.force cs)))
-  | OpaqueDef _ -> def
-
 let globalize_constant_universes cb =
   if cb.const_polymorphic then
     (Univ.empty_constraint, cb)
   else
-    let subst, cstrs = global_constraints_of cb.const_universes in
+    let ctx, cstrs = cb.const_universes in
       (cstrs, 
-       { cb with const_body = subst_univs_constdef subst cb.const_body;
-       const_type = Term.subst_univs_constr subst cb.const_type;
+       { cb with const_body = cb.const_body;
+       const_type = cb.const_type;
+       const_polymorphic = false;
        const_universes = Univ.empty_universe_context })
       
 let globalize_mind_universes mb =
   if mb.mind_polymorphic then
     (Univ.empty_constraint, mb)
   else
-    let subst, cstrs = global_constraints_of mb.mind_universes in
-      (cstrs, mb (* FIXME Wrong! *))
-       (* { mb with mind_entry_body = Term.subst_univs_constr subst mb.mind_entry_body; *)
-       (* mind_entry_types = Term.subst_univs_constr subst cb.mind_entry_type; *)
-       (* mind_universes = Univ.empty_universe_context}) *)
-
+    let ctx, cstrs = mb.mind_universes in
+    let mb' = 
+      {mb with mind_polymorphic = false; mind_universes = Univ.empty_universe_context}
+    in (cstrs, mb')
 
 let constraints_of_sfb sfb = 
   match sfb with

@@ -150,7 +150,7 @@ let build_newrecursive
     List.fold_left
       (fun (env,impls) ((_,recname),bl,arityc,_) ->
         let arityc = Constrexpr_ops.prod_constr_expr arityc bl in
-        let arity = Constrintern.interp_type sigma env0 arityc in
+        let arity,ctx = Constrintern.interp_type sigma env0 arityc in
 	let impl = Constrintern.compute_internalization_data env0 Constrintern.Recursive arity [] in
         (Environ.push_named (recname,None,arity) env, Id.Map.add recname impl impls))
       (env0,Constrintern.empty_internalization_env) lnameargsardef in

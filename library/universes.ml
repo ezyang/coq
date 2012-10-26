@@ -20,12 +20,12 @@ open Univ
 let new_univ_level =
   let n = ref 0 in 
     fun dp -> incr n; 
-      Univ.make_universe_level (dp, !n)
+      Univ.UniverseLevel.make dp !n
 
 let fresh_level () = new_univ_level (Global.current_dirpath ())
 
 (* TODO: remove *)
-let new_univ dp = Univ.make_universe (new_univ_level dp)
+let new_univ dp = Univ.Universe.make (new_univ_level dp)
 let new_Type dp = mkType (new_univ dp)
 let new_Type_sort dp = Type (new_univ dp)
 
@@ -52,18 +52,24 @@ let fresh_instance_from (vars, cst as ctx) =
 
 let fresh_constant_instance env c =
   let cb = lookup_constant c env in
-  let (inst,_), ctx = fresh_instance_from cb.Declarations.const_universes in
-    ((c, inst), ctx)
+    if cb.Declarations.const_polymorphic then
+      let (inst,_), ctx = fresh_instance_from cb.Declarations.const_universes in
+	((c, inst), ctx)
+    else ((c,[]), Univ.empty_universe_context_set)
 
 let fresh_inductive_instance env ind = 
   let mib, mip = Inductive.lookup_mind_specif env ind in
-  let (inst,_), ctx = fresh_instance_from mib.Declarations.mind_universes in
-    ((ind,inst), ctx)
+    if mib.Declarations.mind_polymorphic then
+      let (inst,_), ctx = fresh_instance_from mib.Declarations.mind_universes in
+	((ind,inst), ctx)
+    else ((ind,[]), Univ.empty_universe_context_set)
 
 let fresh_constructor_instance env (ind,i) = 
   let mib, mip = Inductive.lookup_mind_specif env ind in
-  let (inst,_), ctx = fresh_instance_from mib.Declarations.mind_universes in
-    (((ind,i),inst), ctx)
+    if mib.Declarations.mind_polymorphic then
+      let (inst,_), ctx = fresh_instance_from mib.Declarations.mind_universes in
+	(((ind,i),inst), ctx)
+    else (((ind,i),[]), Univ.empty_universe_context_set)
 
 open Globnames
 let fresh_global_instance env gr =
@@ -79,6 +85,10 @@ let fresh_global_instance env gr =
      let c, ctx = fresh_inductive_instance env sp in
        mkIndU c, ctx
 
+let constr_of_global gr =
+  let c, ctx = fresh_global_instance (Global.env ()) gr in
+    Global.add_constraints (snd ctx); c
+
 open Declarations
 
 let type_of_reference env r =
@@ -86,16 +96,23 @@ let type_of_reference env r =
   | VarRef id -> Environ.named_type id env, Univ.empty_universe_context_set
   | ConstRef c ->
      let cb = Environ.lookup_constant c env in
-     let (inst, subst), ctx = fresh_instance_from cb.const_universes in
-       subst_univs_constr subst cb.const_type, ctx
+       if cb.const_polymorphic then
+	 let (inst, subst), ctx = fresh_instance_from cb.const_universes in
+	   subst_univs_constr subst cb.const_type, ctx
+       else cb.const_type, Univ.empty_universe_context_set
+
   | IndRef ind ->
      let (mib, oib) = Inductive.lookup_mind_specif env ind in
-     let (inst, subst), ctx = fresh_instance_from mib.mind_universes in
-       subst_univs_constr subst oib.mind_arity.mind_user_arity, ctx
+       if mib.mind_polymorphic then
+	 let (inst, subst), ctx = fresh_instance_from mib.mind_universes in
+	   subst_univs_constr subst oib.mind_arity.mind_user_arity, ctx
+       else oib.mind_arity.mind_user_arity, Univ.empty_universe_context_set
   | ConstructRef cstr ->
      let (mib,oib as specif) = Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
-     let (inst, subst), ctx = fresh_instance_from mib.mind_universes in
-       Inductive.type_of_constructor (cstr,inst) specif, ctx
+       if mib.mind_polymorphic then
+	 let (inst, subst), ctx = fresh_instance_from mib.mind_universes in
+	   Inductive.type_of_constructor (cstr,inst) specif, ctx
+       else Inductive.type_of_constructor (cstr,[]) specif, Univ.empty_universe_context_set
 
 let type_of_global t = type_of_reference (Global.env ()) t
 
@@ -104,7 +121,7 @@ let fresh_sort_in_family env = function
   | InSet -> set_sort, Univ.empty_universe_context_set
   | InType -> 
     let u = fresh_level () in
-      Type (Univ.make_universe u), Univ.singleton_universe_context_set u
+      Type (Univ.Universe.make u), Univ.singleton_universe_context_set u
 
 let new_sort_in_family sf =
   fst (fresh_sort_in_family (Global.env ()) sf)
@@ -114,7 +131,7 @@ let extend_context (a, ctx) (ctx') =
 
 let new_global_univ () =
   let u = fresh_level () in
-    (Univ.make_universe u, Univ.singleton_universe_context_set u)
+    (Univ.Universe.make u, Univ.singleton_universe_context_set u)
 
 (** Simplification *)
 

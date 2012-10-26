@@ -140,6 +140,10 @@ let ic c =
   let env = Global.env() and sigma = Evd.empty in
   Constrintern.interp_constr sigma env c
 
+let ic_unsafe c = (*FIXME remove *)
+  let env = Global.env() and sigma = Evd.empty in
+    fst (Constrintern.interp_constr sigma env c)
+
 let ty c = Typing.type_of (Global.env()) Evd.empty c
 
 let decl_constant na c =
@@ -148,6 +152,7 @@ let decl_constant na c =
       const_entry_secctx = None;
       const_entry_type = None;
       const_entry_polymorphic = false;
+      const_entry_universes = Univ.empty_universe_context;(*FIXME*)
       const_entry_opaque = true },
     IsProof Lemma))
 
@@ -653,7 +658,7 @@ let interp_power env pow =
         | CstTac t -> Tacintern.glob_tactic t
         | Closed lc ->
             closed_term_ast (List.map Smartlocate.global_with_alias lc) in
-      let spec = make_hyp env (ic spec) in
+      let spec = make_hyp env (ic_unsafe spec) in
       (tac, lapp coq_Some [|carrier; spec|])
 
 let interp_sign env sign =
@@ -661,7 +666,7 @@ let interp_sign env sign =
   match sign with
   | None -> lapp coq_None [|carrier|]
   | Some spec ->
-      let spec = make_hyp env (ic spec) in
+      let spec = make_hyp env (ic_unsafe spec) in
       lapp coq_Some [|carrier;spec|]
        (* Same remark on ill-typed terms ... *)
 
@@ -670,7 +675,7 @@ let interp_div env div =
   match div with
   | None -> lapp coq_None [|carrier|]
   | Some spec ->
-      let spec = make_hyp env (ic spec) in
+      let spec = make_hyp env (ic_unsafe spec) in
       lapp coq_Some [|carrier;spec|]
        (* Same remark on ill-typed terms ... *)
 
@@ -732,9 +737,9 @@ type ring_mod =
 
 
 VERNAC ARGUMENT EXTEND ring_mod
-  | [ "decidable" constr(eq_test) ] -> [ Ring_kind(Computational (ic eq_test)) ]
+  | [ "decidable" constr(eq_test) ] -> [ Ring_kind(Computational (ic_unsafe eq_test)) ]
   | [ "abstract" ] -> [ Ring_kind Abstract ]
-  | [ "morphism" constr(morph) ] -> [ Ring_kind(Morphism (ic morph)) ]
+  | [ "morphism" constr(morph) ] -> [ Ring_kind(Morphism (ic_unsafe morph)) ]
   | [ "constants" "[" tactic(cst_tac) "]" ] -> [ Const_tac(CstTac cst_tac) ]
   | [ "closed" "[" ne_global_list(l) "]" ] -> [ Const_tac(Closed l) ]
   | [ "preprocess" "[" tactic(pre) "]" ] -> [ Pre_tac pre ]
@@ -765,7 +770,7 @@ let process_ring_mods l =
     | Const_tac t -> set_once "tactic recognizing constants" cst_tac t
     | Pre_tac t -> set_once "preprocess tactic" pre t
     | Post_tac t -> set_once "postprocess tactic" post t
-    | Setoid(sth,ext) -> set_once "setoid" set (ic sth,ic ext)
+    | Setoid(sth,ext) -> set_once "setoid" set (ic_unsafe sth,ic_unsafe ext)
     | Pow_spec(t,spec) -> set_once "power" power (t,spec)
     | Sign_spec t -> set_once "sign" sign t
     | Div_spec t -> set_once "div" div t) l;
@@ -775,7 +780,7 @@ let process_ring_mods l =
 VERNAC COMMAND EXTEND AddSetoidRing
   | [ "Add" "Ring" ident(id) ":" constr(t) ring_mods(l) ] ->
     [ let (k,set,cst,pre,post,power,sign, div) = process_ring_mods l in
-      add_theory id (ic t) set k cst (pre,post) power sign div]
+      add_theory id (ic_unsafe t) set k cst (pre,post) power sign div]
 END
 
 (*****************************************************************************)
@@ -1105,18 +1110,18 @@ let process_field_mods l =
         set_once "tactic recognizing constants" cst_tac t
     | Ring_mod(Pre_tac t) -> set_once "preprocess tactic" pre t
     | Ring_mod(Post_tac t) -> set_once "postprocess tactic" post t
-    | Ring_mod(Setoid(sth,ext)) -> set_once "setoid" set (ic sth,ic ext)
+    | Ring_mod(Setoid(sth,ext)) -> set_once "setoid" set (ic_unsafe sth,ic_unsafe ext)
     | Ring_mod(Pow_spec(t,spec)) -> set_once "power" power (t,spec)
     | Ring_mod(Sign_spec t) -> set_once "sign" sign t
     | Ring_mod(Div_spec t) -> set_once "div" div t
-    | Inject i -> set_once "infinite property" inj (ic i)) l;
+    | Inject i -> set_once "infinite property" inj (ic_unsafe i)) l;
   let k = match !kind with Some k -> k | None -> Abstract in
   (k, !set, !inj, !cst_tac, !pre, !post, !power, !sign, !div)
 
 VERNAC COMMAND EXTEND AddSetoidField
 | [ "Add" "Field" ident(id) ":" constr(t) field_mods(l) ] ->
   [ let (k,set,inj,cst_tac,pre,post,power,sign,div) = process_field_mods l in
-    add_field_theory id (ic t) set k cst_tac inj (pre,post) power sign div]
+    add_field_theory id (ic_unsafe t) set k cst_tac inj (pre,post) power sign div]
 END
 
 

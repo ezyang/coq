@@ -274,7 +274,7 @@ let extract_level env evd tys =
     Inductive.max_inductive_sort (Array.of_list sorts)
 
 let inductive_levels env evdref arities inds =
-  let destarities = List.map destArity arities in
+  let destarities = List.map (Reduction.dest_arity env) arities in
   let levels = List.map (fun (_,a) -> 
     if a = Prop Null then None else Some (Evd.univ_of_sort a)) destarities in
   let cstrs_levels = List.map (fun (_,tys,_) -> extract_level env !evdref tys) inds in

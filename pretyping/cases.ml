@@ -1653,7 +1653,7 @@ let build_inversion_problem loc env sigma tms t =
       return type of the original problem Xi *)
   (* let sigma, s = Evd.new_sort_variable sigma in *)
 (*FIXME TRY *)
-  let ty = Retyping.get_type_of pb_env sigma t in
+  let ty = Retyping.get_type_of env sigma t in
   let evdref = ref sigma in
   let pb =
     { env       = pb_env;

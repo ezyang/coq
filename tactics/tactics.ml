@@ -1108,8 +1108,8 @@ let vm_cast_no_check c gl =
 
 let exact_proof c gl =
   (* on experimente la synthese d'ise dans exact *)
-  let c = Constrintern.interp_casted_constr (project gl) (pf_env gl) c (pf_concl gl)
-  in refine_no_check c gl
+  let c,ctx = Constrintern.interp_casted_constr (project gl) (pf_env gl) c (pf_concl gl)
+  in tclPUSHCONTEXT ctx (refine_no_check c) gl
 
 let (assumption : tactic) = fun gl ->
   let concl =  pf_concl gl in

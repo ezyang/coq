@@ -1765,8 +1765,8 @@ let proper_projection r ty =
     it_mkLambda_or_LetIn app ctx
 
 let declare_projection n instance_id r =
-  let ty = Global.type_of_global_unsafe r in
-  let c = constr_of_global r in
+  let c,uctx = Universes.fresh_global_instance (Global.env()) r in
+  let ty = Retyping.get_type_of (Global.env ()) Evd.empty c in
   let term = proper_projection c ty in
   let typ = Typing.type_of (Global.env ()) Evd.empty term in
   let ctx, typ = decompose_prod_assum typ in
@@ -1794,7 +1794,7 @@ let declare_projection n instance_id r =
       const_entry_secctx = None;
       const_entry_type = Some typ;
       const_entry_polymorphic = false;
-      const_entry_universes = Univ.empty_universe_context (* FIXME *);
+      const_entry_universes = (Univ.context_of_universe_context_set uctx);
       const_entry_opaque = false }
   in
     ignore(Declare.declare_constant n 
@@ -1802,8 +1802,9 @@ let declare_projection n instance_id r =
 
 let build_morphism_signature m =
   let env = Global.env () in
-  let m = Constrintern.interp_constr Evd.empty env m in
-  let t = Typing.type_of env Evd.empty m in
+  let m,ctx = Constrintern.interp_constr Evd.empty env m in
+  let sigma = Evd.from_env ~ctx env in
+  let t = Typing.type_of env sigma m in
   let isevars = ref (Evd.empty, Evd.empty) in
   let cstrs =
     let rec aux t =
@@ -1864,7 +1865,7 @@ let add_morphism_infer (glob,poly) m n =
 				(Entries.ParameterEntry (None,instance,None), Decl_kinds.IsAssumption Decl_kinds.Logical)
       in
 	add_instance (Typeclasses.new_instance (Lazy.force proper_class) None glob 
-		      (*FIXME*) (Flags.use_polymorphic_flag ()) (ConstRef cst));
+		      (Flags.use_polymorphic_flag ()) (ConstRef cst));
 	declare_projection n instance_id (ConstRef cst)
     else
       let kind = Decl_kinds.Global, false, Decl_kinds.DefinitionBody Decl_kinds.Instance in

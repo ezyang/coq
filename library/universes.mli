@@ -47,8 +47,6 @@ val fresh_constructor_instance : env -> constructor ->
 val fresh_global_instance : env -> Globnames.global_reference -> 
   constr in_universe_context_set
 
-val type_of_global : Globnames.global_reference -> types in_universe_context_set
-
 val extend_context : 'a in_universe_context_set -> universe_context_set -> 
   'a in_universe_context_set
 
@@ -59,3 +57,12 @@ val extend_context : 'a in_universe_context_set -> universe_context_set ->
     transitively saturating the constraints w.r.t to it. *)
 
 val normalize_context_set : universe_context_set -> universe_subst in_universe_context_set
+
+
+(** Create a fresh global in the global environment, shouldn't be done while
+    building polymorphic values as the constraints are added to the global
+    environment already. *)
+
+val constr_of_global : Globnames.global_reference -> constr
+
+val type_of_global : Globnames.global_reference -> types in_universe_context_set

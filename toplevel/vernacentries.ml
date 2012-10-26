@@ -1001,7 +1001,7 @@ let vernac_declare_arguments local r l nargs flags =
 
 let vernac_reserve bl =
   let sb_decl = (fun (idl,c) ->
-    let t = Constrintern.interp_type Evd.empty (Global.env()) c in
+    let t,ctx = Constrintern.interp_type Evd.empty (Global.env()) c in
     let t = Detyping.detype false [] [] t in
     let t = Notation_ops.notation_constr_of_glob_constr [] [] t in
     Reserve.declare_reserved_type idl t)
@@ -1348,7 +1348,7 @@ let vernac_declare_reduction locality s r =
 let vernac_global_check c =
   let evmap = Evd.empty in
   let env = Global.env() in
-  let c = interp_constr evmap env c in
+  let c,ctx = interp_constr evmap env c in
   let senv = Global.safe_env() in
   let j = Safe_typing.typing senv c in
   msg_notice (print_safe_judgment env j)

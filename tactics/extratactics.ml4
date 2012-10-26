@@ -252,7 +252,7 @@ TACTIC EXTEND rewrite_star
 
 let add_rewrite_hint name ort t lcsr =
   let env = Global.env() and sigma = Evd.empty in
-  let f c = Constrexpr_ops.constr_loc c, Constrintern.interp_constr sigma env c, ort, t in
+  let f c = Constrexpr_ops.constr_loc c, fst (Constrintern.interp_constr sigma env c), ort, t(*FIXME*) in
   add_rew_rules name (List.map f lcsr)
 
 VERNAC COMMAND EXTEND HintRewrite
@@ -276,8 +276,8 @@ open Coqlib
 let project_hint pri l2r r =
   let gr = Smartlocate.global_with_alias r in
   let env = Global.env() in
-  let c = Globnames.constr_of_global gr in
-  let t = Retyping.get_type_of env Evd.empty c in
+  let c,ctx = Universes.fresh_global_instance env gr in
+  let t = Retyping.get_type_of env (Evd.from_env ~ctx env) c in
   let t =
     Tacred.reduce_to_quantified_ref env Evd.empty (Lazy.force coq_iff_ref) t in
   let sign,ccl = decompose_prod_assum t in
@@ -469,7 +469,7 @@ let _ =
 (* Main entry points *)
 
 let add_transitivity_lemma left lem =
- let lem' = Constrintern.interp_constr Evd.empty (Global.env ()) lem in
+ let lem',ctx (*FIXME*) = Constrintern.interp_constr Evd.empty (Global.env ()) lem in
   add_anonymous_leaf (inTransitivity (left,lem'))
 
 (* Vernacular syntax *)
@@ -507,8 +507,8 @@ END
 
 VERNAC COMMAND EXTEND RetroknowledgeRegister
  | [ "Register" constr(c) "as" retroknowledge_field(f) "by" constr(b)] ->
-           [ let tc = Constrintern.interp_constr Evd.empty (Global.env ()) c in
-             let tb = Constrintern.interp_constr Evd.empty (Global.env ()) b in
+           [ let tc,ctx = Constrintern.interp_constr Evd.empty (Global.env ()) c in
+             let tb,ctx(*FIXME*) = Constrintern.interp_constr Evd.empty (Global.env ()) b in
              Global.register f tc tb ]
 END
 
@@ -600,9 +600,11 @@ let hResolve id c occ t gl =
     | Loc.Exc_located (loc,Pretype_errors.PretypeError (_,_,Pretype_errors.UnsolvableImplicit _)) ->
         resolve_hole (subst_hole_with_term (fst (Loc.unloc loc)) c_raw t_hole)
   in
-  let t_constr = resolve_hole (subst_var_with_hole occ id t_raw) in
+  let t_constr,ctx = resolve_hole (subst_var_with_hole occ id t_raw) in
+  let sigma = Evd.merge_context_set sigma ctx in
   let t_constr_type = Retyping.get_type_of env sigma t_constr in
-  change_in_concl None (mkLetIn (Anonymous,t_constr,t_constr_type,pf_concl gl)) gl
+    tclTHEN (Refiner.tclEVARS sigma)
+     (change_in_concl None (mkLetIn (Anonymous,t_constr,t_constr_type,pf_concl gl))) gl
 
 let hResolve_auto id c t gl =
   let rec resolve_auto n = 

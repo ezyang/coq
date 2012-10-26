@@ -201,7 +201,7 @@ let (value_f:constr list -> global_reference -> constr) =
 			       Anonymous)],
 	  GVar(d0,v_id)])
     in
-    let body = understand Evd.empty env glob_body in
+    let body = fst (understand Evd.empty env glob_body)(*FIXME*) in
     it_mkLambda_or_LetIn body context
 
 let (declare_f : Id.t -> logical_kind -> constr list -> global_reference -> global_reference) =
@@ -1335,7 +1335,7 @@ let open_new_goal (build_proof:tactic -> tactic -> unit) using_lemmas ref_ goal_
 	 	     (fun c ->
 	 		tclTHENSEQ
 	 		  [intros;
-	 		   h_simplest_apply (interp_constr Evd.empty (Global.env()) c);
+	 		   h_simplest_apply (fst (interp_constr Evd.empty (Global.env()) c)(*FIXME*));
 	 		   tclCOMPLETE Auto.default_auto
 	 		  ]
 	 	     )
@@ -1452,12 +1452,12 @@ let (com_eqn : int -> Id.t ->
 let recursive_definition is_mes function_name rec_impls type_of_f r rec_arg_num eq
     generate_induction_principle using_lemmas : unit =
   let previous_label = Lib.current_command_label () in
-  let function_type = interp_constr Evd.empty (Global.env()) type_of_f in
+  let function_type,ctx = interp_constr Evd.empty (Global.env()) type_of_f in
   let env = push_named (function_name,None,function_type) (Global.env()) in
   (* Pp.msgnl (str "function type := " ++ Printer.pr_lconstr function_type);  *)
   let equation_lemma_type = 
     nf_betaiotazeta
-      (interp_gen (OfType None) Evd.empty env ~impls:rec_impls eq) 
+      (fst (*FIXME*) (interp_gen (OfType None) Evd.empty env ~impls:rec_impls eq) )
   in
  (* Pp.msgnl (str "lemma type := " ++ Printer.pr_lconstr equation_lemma_type ++ fnl ()); *)
   let res_vars,eq' = decompose_prod equation_lemma_type in
@@ -1481,10 +1481,10 @@ let recursive_definition is_mes function_name rec_impls type_of_f r rec_arg_num 
   let functional_ref = declare_fun functional_id (IsDefinition Decl_kinds.Definition) res in
   let env_with_pre_rec_args = push_rel_context(List.map (function (x,t) -> (x,None,t)) pre_rec_args) env in  
   let relation =
-    interp_constr
+    fst (*FIXME*)(interp_constr
       Evd.empty
       env_with_pre_rec_args
-      r
+      r)
   in
   let tcc_lemma_name = add_suffix function_name "_tcc" in
   let tcc_lemma_constr = ref None in

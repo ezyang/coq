@@ -82,7 +82,7 @@ let get_coq_eq ctx =
     (* Do not force the lazy if they are not defined *)
     let eq, ctx = with_context_set ctx 
       (Universes.fresh_inductive_instance (Global.env ()) eq) in
-      mkIndU eq, Coqlib.build_coq_eq_refl (), ctx
+      mkIndU eq, mkConstructUi (eq,1), ctx
   with Not_found ->
     error "eq not found."
 
@@ -208,7 +208,7 @@ let sym_scheme_kind =
 let const_of_sym_scheme env ind ctx = 
   let sym_scheme = (find_scheme sym_scheme_kind ind) in
   let sym, ctx = with_context_set ctx 
-    (Universes.fresh_constant_instance env sym_scheme) in
+    (Universes.fresh_constant_instance (Global.env()) sym_scheme) in
     mkConstU sym, ctx
 
 let build_sym_involutive_scheme env ind =
