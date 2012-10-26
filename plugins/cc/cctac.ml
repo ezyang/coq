@@ -442,9 +442,11 @@ let simple_reflexivity () = apply (Universes.constr_of_global _refl_equal)
 let f_equal gl =
   let cut_eq c1 c2 =
     let ty = (pf_type_of gl c1) in
-    tclTHENTRY
-      (Tactics.cut (app_global _eq [|ty; c1; c2|]))
-      (simple_reflexivity ())
+      if eq_constr c1 c2 then tclIDTAC
+      else
+	tclTHENTRY
+	(Tactics.cut (app_global _eq [|ty; c1; c2|]))
+	(simple_reflexivity ())
   in
   try match kind_of_term (pf_concl gl) with
     | App (r,[|_;t;t'|]) when Globnames.is_global _eq r ->
