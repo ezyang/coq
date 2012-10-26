@@ -306,7 +306,7 @@ let tauto_classical flags nnpp g =
 
 let tauto_gen flags g =
   try
-    let nnpp = constr_of_global (Nametab.global_of_path coq_nnpp_path) in
+    let nnpp = Universes.constr_of_global (Nametab.global_of_path coq_nnpp_path) in
     (* try intuitionistic version first to avoid an axiom if possible *)
     tclORELSE (tauto_intuitionistic flags) (tauto_classical flags nnpp) g
   with Not_found ->

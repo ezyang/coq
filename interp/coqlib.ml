@@ -29,7 +29,7 @@ let find_reference locstr dir s =
   with Not_found -> anomaly (locstr^": cannot find "^(string_of_path sp))
 
 let coq_reference locstr dir s = find_reference locstr ("Coq"::dir) s
-let coq_constant locstr dir s = constr_of_global (coq_reference locstr dir s)
+let coq_constant locstr dir s = Universes.constr_of_global (coq_reference locstr dir s)
 
 let gen_reference = coq_reference
 let gen_constant = coq_constant
@@ -48,7 +48,7 @@ let gen_constant_in_modules locstr dirs s =
   let all = List.uniquize (List.map_filter global_of_extended all) in
   let these = List.filter (has_suffix_in_dirs dirs) all in
   match these with
-    | [x] -> constr_of_global x
+    | [x] -> Universes.constr_of_global x
     | [] ->
 	anomalylabstrm "" (str (locstr^": cannot find "^s^
 	" in module"^(if List.length dirs > 1 then "s " else " ")) ++

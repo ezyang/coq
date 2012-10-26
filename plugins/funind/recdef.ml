@@ -84,6 +84,7 @@ let type_of_const t =
     Const sp -> Typeops.type_of_constant (Global.env()) sp
     |_ -> assert false
 
+let constr_of_global = Universes.constr_of_global
 
 let constant sl s =
   constr_of_global

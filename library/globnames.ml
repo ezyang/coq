@@ -67,6 +67,14 @@ let global_of_constr c = match kind_of_term c with
   | Var id -> VarRef id
   |  _ -> raise Not_found
 
+let is_global c t =
+  match c, kind_of_term t with
+  | ConstRef c, Const (c', _) -> eq_constant c c'
+  | IndRef i, Ind (i', _) -> eq_ind i i'
+  | ConstructRef i, Construct (i', _) -> eq_constructor i i'
+  | VarRef id, Var id' -> id_eq id id'
+  | _ -> false
+
 let printable_constr_of_global = function
   | VarRef id -> mkVar id
   | ConstRef sp -> mkConst sp

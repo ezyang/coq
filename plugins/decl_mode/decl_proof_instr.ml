@@ -488,14 +488,14 @@ let instr_cut mkstat _thus _then cut gls0 =
 
 
 (* iterated equality *)
-let _eq = Globnames.constr_of_global (Coqlib.glob_eq)
+let _eq = lazy (Universes.constr_of_global (Coqlib.glob_eq))
 
 let decompose_eq id gls =
   let typ = pf_get_hyp_typ gls id in
   let whd =  (special_whd gls typ) in
     match kind_of_term whd with
 	App (f,args)->
-	  if eq_constr f _eq && (Array.length args)=3
+	  if eq_constr f (Lazy.force _eq) && (Array.length args)=3
 	  then (args.(0),
 		args.(1),
 		args.(2))
@@ -528,14 +528,14 @@ let instr_rew _thus rew_side cut gls0 =
     else tclIDTAC gls in
     match rew_side with
 	Lhs ->
-	  let new_eq = mkApp(_eq,[|typ;cut.cut_stat.st_it;rhs|]) in
+	  let new_eq = mkApp(Lazy.force _eq,[|typ;cut.cut_stat.st_it;rhs|]) in
 	    tclTHENS (assert_postpone c_id new_eq)
 	      [tclTHEN tcl_erase_info
 		 (tclTHENS (transitivity lhs)
 		    [just_tac;exact_check (mkVar last_id)]);
 	       thus_tac new_eq] gls0
       | Rhs ->
-	  let new_eq = mkApp(_eq,[|typ;lhs;cut.cut_stat.st_it|]) in
+	  let new_eq = mkApp(Lazy.force _eq,[|typ;lhs;cut.cut_stat.st_it|]) in
 	    tclTHENS (assert_postpone c_id new_eq)
 	      [tclTHEN tcl_erase_info
 		 (tclTHENS (transitivity rhs)

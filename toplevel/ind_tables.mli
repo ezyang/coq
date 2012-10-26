@@ -52,3 +52,4 @@ val find_scheme : 'a scheme_kind -> inductive -> constant
 val check_scheme : 'a scheme_kind -> inductive -> bool
 
 
+val pr_scheme_kind : 'a scheme_kind -> Pp.std_ppcmds

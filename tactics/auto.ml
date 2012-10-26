@@ -738,11 +738,7 @@ let add_resolves env sigma clist local dbnames =
 	 (inAutoHint
 	    (local,dbname, AddHints
      	      (List.flatten (List.map (fun (x, hnf, path, gr) ->
-	        let c = 
-		  match gr with
-		  | IsConstr c -> c
-		  | IsGlobal gr -> constr_of_global gr
-		in
+	        let c = constr_of_global_or_constr gr in
 		  make_resolves env sigma (true,hnf,Flags.is_verbose()) x ~name:path c) clist)))))
     dbnames
 
@@ -845,7 +841,7 @@ let interp_hints =
     let evd,c = Constrintern.interp_open_constr Evd.empty (Global.env()) c in
     let c = prepare_hint (Global.env()) (evd,c) in
     Evarutil.check_evars (Global.env()) Evd.empty evd c;
-    c in
+    c, Evd.universe_context_set evd in
   let fr r =
     let gr = global_with_alias r in
     let r' = evaluable_of_global_reference (Global.env()) gr in

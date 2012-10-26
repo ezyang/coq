@@ -1398,7 +1398,7 @@ let vernac_print = function
     dump_global qid; msg_notice (print_impargs qid)
   | PrintAssumptions (o,t,r) ->
       (* Prints all the axioms and section variables used by a term *)
-      let cstr = constr_of_global (smart_global r) in
+      let cstr = printable_constr_of_global (smart_global r) in
       let st = Conv_oracle.get_transp_state () in
       let nassums =
 	Assumptions.assumptions st ~add_opaque:o ~add_transparent:t cstr in

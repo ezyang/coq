@@ -556,7 +556,7 @@ let prim_refiner r sigma goal =
      	let rec mk_sign sign = function
 	  | (f,n,ar)::oth ->
 	      let ((sp',_),u')  = check_ind env n ar in
-	      if not (eq_ind sp sp') then
+	      if not (eq_mind sp sp') then
 		error ("Fixpoints should be on the same " ^
 		       "mutual inductive declaration.");
 	      if !check && mem_named_context f (named_context_of_val sign) then

@@ -281,7 +281,7 @@ End universal_quantification.
     made explicit using the notation [x = y :> A]. This is Leibniz equality
     as it expresses that [x] and [y] are equal iff every property on
     [A] which is true of [x] is also true of [y] *)
-Set Printing Universes.
+
 Inductive eq (A:Type) (x:A) : A -> Prop :=
     eq_refl : x = x :>A
 

@@ -366,8 +366,7 @@ let remove_instance i =
   remove_instance_hint i.is_impl
 
 let declare_instance pri local glob =
-  let c = constr_of_global glob in
-  let ty = Retyping.get_type_of (Global.env ()) Evd.empty c in
+  let ty = Global.type_of_global_unsafe (*FIXME*) glob in
     match class_of_constr ty with
     | Some (rels, (tc, args) as _cl) ->
       add_instance (new_instance tc pri (not local) (Flags.use_polymorphic_flag ()) glob)

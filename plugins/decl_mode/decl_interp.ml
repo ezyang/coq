@@ -157,14 +157,14 @@ let special_whd env =
   let infos=Closure.create_clos_infos Closure.betadeltaiota env in
     (fun t -> Closure.whd_val infos (Closure.inject t))
 
-let _eq = Globnames.constr_of_global (Coqlib.glob_eq)
+let _eq = lazy (Universes.constr_of_global (Coqlib.glob_eq))
 
 let decompose_eq env id =
   let typ = Environ.named_type id env in
   let whd = special_whd env typ in
     match kind_of_term whd with
 	App (f,args)->
-	  if eq_constr f _eq && (Array.length args)=3
+	  if eq_constr f (Lazy.force _eq) && (Array.length args)=3
 	  then args.(0)
 	  else error "Previous step is not an equality."
       | _ -> error "Previous step is not an equality."

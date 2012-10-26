@@ -59,7 +59,7 @@ val declare_constant :
 
 val declare_definition : 
   ?internal:internal_flag -> ?opaque:bool -> ?kind:definition_object_kind ->
-  Id.t -> ?types:constr -> constr -> constant
+  ?poly:polymorphic -> Id.t -> ?types:constr -> constr Univ.in_universe_context_set -> constant
 
 (** [declare_mind me] declares a block of inductive types with
    their constructors in the current section; it returns the path of

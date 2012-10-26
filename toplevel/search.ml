@@ -64,7 +64,7 @@ let gen_crible refopt (fn : global_reference -> env -> constr -> unit) =
            begin match refopt with
            | None ->
              fn (VarRef id) env typ
-           | Some r when eq_constr (head_const typ) (constr_of_global r) ->
+           | Some r when eq_constr (head_const typ) (Universes.constr_of_global r) ->
 	     fn (VarRef id) env typ
            | _ -> ()
            end
@@ -75,7 +75,7 @@ let gen_crible refopt (fn : global_reference -> env -> constr -> unit) =
         begin match refopt with
         | None ->
           fn (ConstRef cst) env typ
-        | Some r when eq_constr (head_const typ) (constr_of_global r) ->
+        | Some r when eq_constr (head_const typ) (Universes.constr_of_global r) ->
           fn (ConstRef cst) env typ
         | _ -> ()
         end

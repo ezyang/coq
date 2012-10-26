@@ -53,7 +53,7 @@ let declare_class g =
 (** TODO: add subinstances *)
 let existing_instance glob g =
   let c = global g in
-  let instance = Typing.type_of (Global.env ()) Evd.empty (constr_of_global c) in
+  let instance = Typing.type_of (Global.env ()) Evd.empty (Universes.constr_of_global c) in
   let _, r = decompose_prod_assum instance in
     match class_of_constr r with
       | Some (_, (tc, _)) -> add_instance (new_instance tc None glob 

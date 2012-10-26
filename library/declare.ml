@@ -181,14 +181,14 @@ let declare_constant ?(internal = UserVerbose) id (cd,kind) =
   kn
 
 let declare_definition ?(internal=UserVerbose) ?(opaque=false) ?(kind=Decl_kinds.Definition)
-  id ?types body =
+  ?(poly=false) id ?types (body,ctx) =
   let cb = 
     { Entries.const_entry_body = body;
       const_entry_type = types;
       const_entry_opaque = opaque;
       const_entry_secctx = None; (*FIXME*)
-      const_entry_polymorphic = false;
-      const_entry_universes = Univ.empty_universe_context}
+      const_entry_polymorphic = poly;
+      const_entry_universes = Univ.context_of_universe_context_set ctx }
   in
     declare_constant ~internal id
       (Entries.DefinitionEntry cb, Decl_kinds.IsDefinition kind) 

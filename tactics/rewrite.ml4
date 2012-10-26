@@ -59,7 +59,7 @@ let try_find_global_reference dir s =
     Nametab.global_of_path sp
 
 let try_find_reference dir s =
-  constr_of_global (try_find_global_reference dir s)
+  Universes.constr_of_global (try_find_global_reference dir s)
 
 let gen_constant dir s = Coqlib.gen_constant "rewrite" dir s
 let coq_eq = lazy(gen_constant ["Init"; "Logic"] "eq")
@@ -101,9 +101,9 @@ let mk_relation a = mkApp (Lazy.force coq_relation, [| a |])
 
 let rewrite_relation_class = lazy (gen_constant ["Classes"; "RelationClasses"] "RewriteRelation")
 
-let proper_type = lazy (constr_of_global (Lazy.force proper_class).cl_impl)
+let proper_type = lazy (Universes.constr_of_global (Lazy.force proper_class).cl_impl)
 
-let proper_proxy_type = lazy (constr_of_global (Lazy.force proper_proxy_class).cl_impl)
+let proper_proxy_type = lazy (Universes.constr_of_global (Lazy.force proper_proxy_class).cl_impl)
 
 let is_applied_rewrite_relation env sigma rels t =
   match kind_of_term t with
@@ -2151,7 +2151,7 @@ TACTIC EXTEND myapply
 		       aux (subst1 arg t') impls args (arg :: args')
 	       | arg :: args -> 
 		   aux (subst1 arg t') impls args (arg :: args'))
-	  | _, _ -> mkApp (constr_of_global gr, Array.of_list (List.rev args'))
+	  | _, _ -> mkApp (Universes.constr_of_global gr, Array.of_list (List.rev args'))
 	in aux ty impls l []
       in
 	tclTHEN (Refiner.tclEVARS !evars) (apply app) gl ]

@@ -248,7 +248,8 @@ let intern_constr_reference strict ist = function
       GVar (dloc,id), if strict then None else Some (CRef (r,None))
   | r ->
       let loc,_ as lqid = qualid_of_reference r in
-      GRef (loc,locate_global_with_alias lqid,None), if strict then None else Some (CRef (r,None))
+      GRef (loc,locate_global_with_alias lqid,None), 
+	if strict then None else Some (CRef (r,None))
 
 let intern_move_location ist = function
   | MoveAfter id -> MoveAfter (intern_hyp_or_metaid ist id)

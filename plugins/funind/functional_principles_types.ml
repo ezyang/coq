@@ -646,7 +646,7 @@ let build_case_scheme fa =
 (*     Constrintern.global_reference  id *)
 (*   in  *)
   let funs =  (fun (_,f,_) ->
-		 try Globnames.constr_of_global (Nametab.global f)
+		 try Universes.constr_of_global (Nametab.global f)
 		 with Not_found ->
 		   Errors.error ("Cannot find "^ Libnames.string_of_reference f)) fa in
   let first_fun,u = destConst  funs in

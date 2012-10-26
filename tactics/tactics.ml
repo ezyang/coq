@@ -911,9 +911,10 @@ let make_projection sigma params cstr sign elim i n c =
       (* goes from left to right when i increases! *)
       match List.nth l i with
       | Some proj ->
-	  let t = Typeops.type_of_constant_in (Global.env()) (proj,[]) (* FIXME *) in
-	  let args = extended_rel_vect 0 sign in
-	  Some (beta_applist (mkConst proj,params),prod_applist t (params@[mkApp (c,args)]))
+         let proj = Universes.constr_of_global (ConstRef proj) in
+	 let t = Retyping.get_type_of (Global.env()) sigma proj in
+	 let args = extended_rel_vect 0 sign in
+	  Some (beta_applist (proj,params),prod_applist t (params@[mkApp (c,args)]))
       | None -> None
   in Option.map (fun (abselim,elimt) -> 
     let c = beta_applist (abselim,[mkApp (c,extended_rel_vect 0 sign)]) in
@@ -3566,7 +3567,7 @@ let admit_as_an_axiom gl =
     let cd = 
       Entries.ParameterEntry (Pfedit.get_used_variables(),concl,None) in
     let con = Declare.declare_constant ~internal:Declare.KernelSilent na (cd,IsAssumption Logical) in
-    constr_of_global (ConstRef con)
+    Universes.constr_of_global (ConstRef con)
   in
   exact_no_check
     (applist (axiom,
