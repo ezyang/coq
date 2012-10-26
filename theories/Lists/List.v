@@ -175,7 +175,7 @@ Section Facts.
 
   Theorem app_nil_r : forall l:list A, l ++ [] = l.
   Proof. 
-    induction l; simpl; f_equal; auto. intros.
+    induction l; simpl; f_equal; auto.
   Qed.
 
   (* begin hide *)

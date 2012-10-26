@@ -120,7 +120,7 @@ let rec hash_term = function
   | Product (s1, s2) -> combine3 2 (Hashtbl.hash s1) (Hashtbl.hash s2)
   | Eps i -> combine 3 (Hashtbl.hash i)
   | Appli (t1, t2) -> combine3 4 (hash_term t1) (hash_term t2)
-  | Constructor {ci_constr=c; ci_arity=i; ci_nhyps=j} -> combine4 5 (Hashtbl.hash c) i j
+  | Constructor {ci_constr=(c,u); ci_arity=i; ci_nhyps=j} -> combine4 5 (Hashtbl.hash c) i j
 
 type ccpattern =
     PApp of term * ccpattern list (* arguments are reversed *)

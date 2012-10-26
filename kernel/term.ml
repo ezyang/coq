@@ -1264,6 +1264,15 @@ let array_eqeq t1 t2 =
      (Int.equal i (Array.length t1)) || (t1.(i) == t2.(i) && aux (i + 1))
    in aux 0)
 
+let list_eqeq u1 u2 =
+  u1 == u2 ||
+  (let rec aux l r =
+     match l, r with
+     | u1 :: l1, u2 :: l2 -> u1 == u2 && (l1 == l2 || aux l1 l2)
+     | [], [] -> true
+     | _, _ -> false
+   in aux u1 u2)
+
 let equals_constr t1 t2 =
   match t1, t2 with
     | Rel n1, Rel n2 -> n1 == n2
@@ -1277,10 +1286,10 @@ let equals_constr t1 t2 =
       n1 == n2 & b1 == b2 & t1 == t2 & c1 == c2
     | App (c1,l1), App (c2,l2) -> c1 == c2 & array_eqeq l1 l2
     | Evar (e1,l1), Evar (e2,l2) -> Int.equal e1 e2 & array_eqeq l1 l2
-    | Const c1, Const c2 -> c1 == c2
-    | Ind ((sp1,i1),u1), Ind ((sp2,i2),u2) -> sp1 == sp2 && Int.equal i1 i2
+    | Const (c1,u1), Const (c2,u2) -> c1 == c2 && list_eqeq u1 u2
+    | Ind ((sp1,i1),u1), Ind ((sp2,i2),u2) -> sp1 == sp2 & Int.equal i1 i2 & list_eqeq u1 u2
     | Construct (((sp1,i1),j1),u1), Construct (((sp2,i2),j2),u2) ->
-      sp1 == sp2 && Int.equal i1 i2 && Int.equal j1 j2
+      sp1 == sp2 & Int.equal i1 i2 & Int.equal j1 j2 & list_eqeq u1 u2
     | Case (ci1,p1,c1,bl1), Case (ci2,p2,c2,bl2) ->
       ci1 == ci2 & p1 == p2 & c1 == c2 & array_eqeq bl1 bl2
     | Fix ((ln1, i1),(lna1,tl1,bl1)), Fix ((ln2, i2),(lna2,tl2,bl2)) ->
