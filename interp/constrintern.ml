@@ -94,7 +94,7 @@ let global_reference_of_reference ref =
   locate_reference (snd (qualid_of_reference ref))
 
 let global_reference id =
-  constr_of_global (locate_reference (qualid_of_ident id))
+  Universes.constr_of_global (locate_reference (qualid_of_ident id))
 
 let construct_reference ctx id =
   try
@@ -103,7 +103,7 @@ let construct_reference ctx id =
     global_reference id
 
 let global_reference_in_absolute_module dir id =
-  constr_of_global (Nametab.global_of_path (Libnames.make_path dir id))
+  Universes.constr_of_global (Nametab.global_of_path (Libnames.make_path dir id))
 
 (**********************************************************************)
 (* Internalization errors                                             *)

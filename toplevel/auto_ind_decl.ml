@@ -54,6 +54,8 @@ exception NonSingletonProp of inductive
 
 let dl = Loc.ghost
 
+let constr_of_global g = lazy (Universes.constr_of_global g)
+
 (* Some pre declaration of constant we are going to use *)
 let bb = constr_of_global Coqlib.glob_bool
 
@@ -141,7 +143,7 @@ let build_beq_scheme kn =
       let eqs_typ = List.map (fun aa ->
                                 let a = lift !lift_cnt aa in
                                   incr lift_cnt;
-                                  myArrow a (myArrow a bb)
+                                  myArrow a (myArrow a (Lazy.force bb))
                              ) ext_rel_list in
 
         let eq_input = List.fold_left2
@@ -216,7 +218,7 @@ let build_beq_scheme kn =
      List.fold_left (fun a b -> mkLambda(Anonymous,b,a))
       (mkLambda (Anonymous,
                  mkFullInd (fst ind) (*FIXME*) (n+3+(List.length rettyp_l)+nb_ind-1),
-                 bb))
+                 (Lazy.force bb)))
       (List.rev rettyp_l) in
   (* make_one_eq *)
   (* do the [| C1 ... =>  match Y with ... end
@@ -235,8 +237,8 @@ let build_beq_scheme kn =
 	    for j=0 to n-1 do
 	      if Int.equal i j then
 		ar2.(j) <- let cc = (match nb_cstr_args with
-                    | 0 -> tt
-                    | _ -> let eqs = Array.make nb_cstr_args tt in
+                    | 0 -> Lazy.force tt
+                    | _ -> let eqs = Array.make nb_cstr_args (Lazy.force tt) in
                       for ndx = 0 to nb_cstr_args-1 do
                         let _,_,cc = List.nth constrsi.(i).cs_args ndx in
                           let eqA = compute_A_equality rel_list
@@ -260,7 +262,7 @@ let build_beq_scheme kn =
                     (constrsj.(j).cs_args)
 		)
 	      else ar2.(j) <- (List.fold_left (fun a (p,q,r) ->
-			mkLambda (p,r,a)) ff (constrsj.(j).cs_args) )
+			mkLambda (p,r,a)) (Lazy.force ff) (constrsj.(j).cs_args) )
 	    done;
 
 	  ar.(i) <- (List.fold_left (fun a (p,q,r) -> mkLambda (p,r,a))
@@ -278,7 +280,7 @@ let build_beq_scheme kn =
     for i=0 to (nb_ind-1) do
         names.(i) <- Name (Id.of_string (rec_name i));
 	types.(i) <- mkArrow (mkFullInd (kn,i) 0)
-                     (mkArrow (mkFullInd (kn,i) 1) bb);
+                     (mkArrow (mkFullInd (kn,i) 1) (Lazy.force bb));
         cores.(i) <- make_one_eq i
     done;
     Array.init nb_ind (fun i ->
@@ -476,15 +478,15 @@ let compute_bl_goal ind lnamesparrec nparrec =
         mkNamedProd x (mkVar s) (
             mkNamedProd y (mkVar s) (
               mkArrow
-               ( mkApp(eq,[|bb;mkApp(mkVar seq,[|mkVar x;mkVar y|]);tt|]))
-               ( mkApp(eq,[|mkVar s;mkVar x;mkVar y|]))
+               ( mkApp(Lazy.force eq,[|(Lazy.force bb);mkApp(mkVar seq,[|mkVar x;mkVar y|]);(Lazy.force tt)|]))
+               ( mkApp(Lazy.force eq,[|mkVar s;mkVar x;mkVar y|]))
           ))
         ) list_id in
       let bl_input = List.fold_left2 ( fun a (s,_,sbl,_) b ->
         mkNamedProd sbl b a
       ) c (List.rev list_id) (List.rev bl_typ) in
       let eqs_typ = List.map (fun (s,_,_,_) ->
-          mkProd(Anonymous,mkVar s,mkProd(Anonymous,mkVar s,bb))
+          mkProd(Anonymous,mkVar s,mkProd(Anonymous,mkVar s,(Lazy.force bb)))
           ) list_id in
       let eq_input = List.fold_left2 ( fun a (s,seq,_,_) b ->
         mkNamedProd seq b a
@@ -499,8 +501,8 @@ let compute_bl_goal ind lnamesparrec nparrec =
         mkNamedProd n (mkFullInd ind nparrec) (
           mkNamedProd m (mkFullInd ind (nparrec+1)) (
             mkArrow
-              (mkApp(eq,[|bb;mkApp(eqI,[|mkVar n;mkVar m|]);tt|]))
-              (mkApp(eq,[|mkFullInd ind (nparrec+3);mkVar n;mkVar m|]))
+              (mkApp(Lazy.force eq,[|(Lazy.force bb);mkApp(eqI,[|mkVar n;mkVar m|]);(Lazy.force tt)|]))
+              (mkApp(Lazy.force eq,[|mkFullInd ind (nparrec+3);mkVar n;mkVar m|]))
         )))
 
 let compute_bl_tact bl_scheme_key ind lnamesparrec nparrec gsig =
@@ -599,6 +601,7 @@ let _ = bl_scheme_kind_aux := fun () -> bl_scheme_kind
 
 let compute_lb_goal ind lnamesparrec nparrec =
   let list_id = list_id lnamesparrec in
+  let eq = Lazy.force eq and tt = Lazy.force tt and bb = Lazy.force bb in
   let eqI = eqI ind lnamesparrec in
     let create_input c =
       let x = Id.of_string "x" and
@@ -716,6 +719,7 @@ let check_not_is_defined () =
 (* {n=m}+{n<>m}  part  *)
 let compute_dec_goal ind lnamesparrec nparrec =
   check_not_is_defined ();
+  let eq = Lazy.force eq and tt = Lazy.force tt and bb = Lazy.force bb in
   let list_id = list_id lnamesparrec in
     let create_input c =
       let x = Id.of_string "x" and
@@ -766,6 +770,8 @@ let compute_dec_goal ind lnamesparrec nparrec =
       )
 
 let compute_dec_tact ind lnamesparrec nparrec gsig =
+  let eq = Lazy.force eq and tt = Lazy.force tt 
+  and ff = Lazy.force ff and bb = Lazy.force bb in
   let list_id = list_id lnamesparrec in
   let eqI = eqI ind lnamesparrec in
   let avoid = ref [] in

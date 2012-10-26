@@ -31,6 +31,7 @@ val destConstRef : global_reference -> constant
 val destIndRef : global_reference -> inductive
 val destConstructRef : global_reference -> constructor
 
+val is_global : global_reference -> constr -> bool
 
 val subst_constructor : substitution -> constructor -> constructor * constr
 val subst_global : substitution -> global_reference -> global_reference * constr

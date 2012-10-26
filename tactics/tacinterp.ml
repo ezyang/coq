@@ -253,6 +253,9 @@ let interp_fresh_ident = interp_ident_gen true
 let pf_interp_ident id gl = interp_ident_gen false id (pf_env gl)
 let pf_interp_fresh_ident id gl = interp_ident_gen true id (pf_env gl)
 
+let interp_global ist gl gr = 
+  Evd.fresh_global (pf_env gl) (project gl) gr
+
 (* Interprets an optional identifier which must be fresh *)
 let interp_fresh_name ist env = function
   | Anonymous -> Anonymous
@@ -1822,8 +1825,10 @@ and interp_atomic ist gl tac =
     | VarArgType ->
         mk_hyp_value ist gl (out_gen globwit_var x)
     | RefArgType ->
-        VConstr ([],constr_of_global
-          (pf_interp_reference ist gl (out_gen globwit_ref x)))
+        let (sigma,c) =
+          interp_global ist gl (pf_interp_reference ist gl (out_gen globwit_ref x))
+	in evdref := sigma;
+	  VConstr ([], c)
     | SortArgType ->
         let (sigma,s) = interp_sort !evdref (out_gen globwit_sort x) in
 	evdref := sigma;

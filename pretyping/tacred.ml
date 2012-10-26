@@ -85,7 +85,7 @@ let evaluable_reference_eq r1 r2 = match r1, r2 with
 | _ -> false
 
 let mkEvalRef = function
-  | EvalConst cst -> mkConst cst
+  | EvalConst cst -> (Universes.constr_of_global (ConstRef cst))
   | EvalVar id -> mkVar id
   | EvalRel n -> mkRel n
   | EvalEvar ev -> mkEvar ev
@@ -96,19 +96,26 @@ let isEvalRef env c = match kind_of_term c with
   | Rel _ | Evar _ -> true
   | _ -> false
 
-let destEvalRef c = match kind_of_term c with
-  | Const (cst,_) ->  EvalConst cst
-  | Var id  -> EvalVar id
-  | Rel n -> EvalRel n
-  | Evar ev -> EvalEvar ev
-  | _ -> anomaly "Not an unfoldable reference"
-
 let destEvalRefU c = match kind_of_term c with
   | Const (cst,u) ->  EvalConst cst, u
   | Var id  -> (EvalVar id, [])
   | Rel n -> (EvalRel n, [])
   | Evar ev -> (EvalEvar ev, [])
   | _ -> anomaly "Not an unfoldable reference"
+
+let unsafe_reference_opt_value sigma env eval = 
+  match eval with
+  | EvalConst cst ->
+    (match (lookup_constant cst env).Declarations.const_body with 
+    | Declarations.Def c -> Some (Declarations.force c)
+    | _ -> None)
+  | EvalVar id ->
+      let (_,v,_) = lookup_named id env in
+      v
+  | EvalRel n ->
+      let (_,v,_) = lookup_rel n env in
+      Option.map (lift n) v
+  | EvalEvar ev -> Evd.existential_opt_value sigma ev
 
 let reference_opt_value sigma env eval u = 
   match eval with
@@ -241,7 +248,7 @@ let invert_name labs l na0 env sigma ref = function
 	match refi with
 	  | None -> None
 	  | Some ref ->
-	      try match reference_opt_value sigma env ref [] with
+	      try match unsafe_reference_opt_value sigma env ref with
 		| None -> None
 		| Some c ->
 		    let labs',ccl = decompose_lam c in
@@ -271,7 +278,7 @@ let compute_consteval_direct sigma env ref =
       | Case (_,_,d,_) when isRel d -> EliminationCases n
       | _ -> NotAnElimination
   in
-  match reference_opt_value sigma env ref [] with
+  match unsafe_reference_opt_value sigma env ref with
     | None -> NotAnElimination
     | Some c -> srec env 0 [] c
 
@@ -296,13 +303,13 @@ let compute_consteval_mutual_fix sigma env ref =
 	     | _ -> assert false)
       | _ when isEvalRef env c' ->
 	  (* Forget all \'s and args and do as if we had started with c' *)
-	  let ref = destEvalRef c' in
-	  (match reference_opt_value sigma env ref [] with
+	  let ref,_ = destEvalRefU c' in
+	  (match unsafe_reference_opt_value sigma env ref with
 	    | None -> anomaly "Should have been trapped by compute_direct"
 	    | Some c -> srec env (minarg-nargs) [] ref c)
       | _ -> (* Should not occur *) NotAnElimination
   in
-  match reference_opt_value sigma env ref [] with
+  match unsafe_reference_opt_value sigma env ref with
     | None -> (* Should not occur *) NotAnElimination
     | Some c -> srec env 0 [] ref c
 
@@ -729,14 +736,14 @@ let rec red_elim_const env sigma ref u largs =
 	   | NotReducible -> raise Redelimination
            | Reduced (c,rest) -> (nf_beta sigma c, rest))
     | EliminationMutualFix (min,refgoal,refinfos) when nargs >= min ->
-	let rec descend ref args =
+	let rec descend (ref,u) args =
 	  let c = reference_value sigma env ref u in
 	  if evaluable_reference_eq ref refgoal then
 	    (c,args)
 	  else
 	    let c', lrest = whd_betalet_stack sigma (applist(c,args)) in
-	    descend (destEvalRef c') lrest in
-	let (_, midargs as s) = descend ref largs in
+	    descend (destEvalRefU c') lrest in
+	let (_, midargs as s) = descend (ref,u) largs in
 	let d, lrest = whd_nothing_for_iota env sigma (applist s) in
 	let f = make_elim_fun refinfos midargs in
 	let whfun = whd_construct_stack env sigma in

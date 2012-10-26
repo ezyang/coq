@@ -688,7 +688,7 @@ let check_context_subset (univs, cst) (univs', cst') =
     (* TODO: check implication *)
   (** Remove local universes that do not appear in any constraint, they
       are really entirely parametric. *)
-  let newunivs, dangling' = List.partition (fun u -> constraints_depend cst [u]) newunivs in
+  (* let newunivs, dangling' = List.partition (fun u -> constraints_depend cst [u]) newunivs in *)
   let cst' = remove_dangling_constraints dangling cst in
     newunivs, cst'
 

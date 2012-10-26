@@ -62,6 +62,7 @@ Term_typing
 Subtyping
 Mod_typing
 Safe_typing
+Unionfind
 
 Summary
 Nameops
@@ -79,6 +80,7 @@ Locusops
 Miscops
 Termops
 Namegen
+Universes
 Evd
 Glob_ops
 Redops
@@ -152,4 +154,9 @@ Himsg
 Cerrors
 Locality
 Vernacinterp
+Dischargedhypsmap
+Discharge
+Declare
+Ind_tables
 Top_printers
+

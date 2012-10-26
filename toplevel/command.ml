@@ -661,7 +661,7 @@ let build_wellfounded (recname,n,bl,arityc,body) r measure notation =
       it_mkLambda_or_LetIn measure letbinders,
       it_mkLambda_or_LetIn measure binders
     in
-    let comb = constr_of_global (delayed_force measure_on_R_ref) in
+    let comb = Universes.constr_of_global (delayed_force measure_on_R_ref) in
     let wf_rel = mkApp (comb, [| argtyp; relargty; rel; measure |]) in
     let wf_rel_fun x y =
       mkApp (rel, [| subst1 x measure_body;
@@ -714,7 +714,7 @@ let build_wellfounded (recname,n,bl,arityc,body) r measure notation =
   let intern_body_lam = it_mkLambda_or_LetIn intern_body (curry_fun :: lift_lets @ fun_bl) in
   let prop = mkLambda (Name argname, argtyp, top_arity_let) in
   let def =
-    mkApp (constr_of_global (delayed_force fix_sub_ref),
+    mkApp (Universes.constr_of_global (delayed_force fix_sub_ref),
 	  [| argtyp ; wf_rel ;
 	     Evarutil.e_new_evar isevars env 
 	       ~src:(Loc.ghost, Evar_kinds.QuestionMark (Evar_kinds.Define false)) wf_proof;
@@ -728,7 +728,7 @@ let build_wellfounded (recname,n,bl,arityc,body) r measure notation =
     if List.length binders_rel > 1 then
       let name = add_suffix recname "_func" in
       let hook l gr = 
-	let body = it_mkLambda_or_LetIn (mkApp (constr_of_global gr, [|make|])) binders_rel in
+	let body = it_mkLambda_or_LetIn (mkApp (Universes.constr_of_global gr, [|make|])) binders_rel in
 	let ty = it_mkProd_or_LetIn top_arity binders_rel in
 	let ce =
           { const_entry_body = Evarutil.nf_evar !isevars body;

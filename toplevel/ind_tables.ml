@@ -32,6 +32,8 @@ type individual_scheme_object_function = inductive -> constr Univ.in_universe_co
 
 type 'a scheme_kind = string
 
+let pr_scheme_kind = Pp.str
+
 let scheme_map = ref Indmap.empty
 
 let cache_one_scheme kind (ind,const) =

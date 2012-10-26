@@ -205,8 +205,8 @@ let sym_scheme_kind =
 (*                                                                    *)
 (**********************************************************************)
 
-let const_of_sym_scheme env ind ctx = 
-  let sym_scheme = (find_scheme sym_scheme_kind ind) in
+let const_of_scheme kind env ind ctx = 
+  let sym_scheme = (find_scheme kind ind) in
   let sym, ctx = with_context_set ctx 
     (Universes.fresh_constant_instance (Global.env()) sym_scheme) in
     mkConstU sym, ctx
@@ -216,7 +216,7 @@ let build_sym_involutive_scheme env ind =
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env indu in
   let eq,eqrefl,ctx = get_coq_eq ctx in
-  let sym, ctx = const_of_sym_scheme env ind ctx in
+  let sym, ctx = const_of_scheme sym_scheme_kind env ind ctx in
   let cstr n = mkApp (mkConstructUi (indu,1),extended_rel_vect n paramsctxt) in
   let varH = fresh env (default_id_of_sort (snd (mind_arity mip))) in
   let applied_ind = build_dependent_inductive indu specif in
@@ -236,7 +236,7 @@ let build_sym_involutive_scheme env ind =
 	       (lift_rel_context (nrealargs+1) realsign_ind)
 	       (mkApp (eq,[|
 	       mkApp
-	       (mkInd ind, Array.concat
+	       (mkIndU indu, Array.concat
 	       [extended_rel_vect (3*nrealargs+2) paramsctxt1;
 		rel_vect (2*nrealargs+2) nrealargs;
 		rel_vect 1 nrealargs]);
@@ -323,11 +323,11 @@ let build_l2r_rew_scheme dep env ind kind =
   let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
   let (mib,mip as specif),nrealargs,realsign,paramsctxt,paramsctxt1 =
     get_sym_eq_data env indu in
-  let sym, ctx = const_of_sym_scheme env ind ctx in
-  let sym_involutive = mkConst (find_scheme sym_involutive_scheme_kind ind) in
+  let sym, ctx = const_of_scheme sym_scheme_kind env ind ctx in
+  let sym_involutive, ctx = const_of_scheme sym_involutive_scheme_kind env ind ctx in
   let eq,eqrefl,ctx = get_coq_eq ctx in
   let cstr n p =
-    mkApp (mkConstruct(ind,1),
+    mkApp (mkConstructUi(indu,1),
       Array.concat [extended_rel_vect n paramsctxt1;
                     rel_vect p nrealargs]) in
   let varH = fresh env (default_id_of_sort (snd (mind_arity mip))) in
@@ -335,12 +335,12 @@ let build_l2r_rew_scheme dep env ind kind =
   let varP = fresh env (Id.of_string "P") in
   let applied_ind = build_dependent_inductive indu specif in
   let applied_ind_P =
-    mkApp (mkInd ind, Array.concat
+    mkApp (mkIndU indu, Array.concat
        [extended_rel_vect (3*nrealargs) paramsctxt1;
         rel_vect 0 nrealargs;
         rel_vect nrealargs nrealargs]) in
   let applied_ind_G =
-    mkApp (mkInd ind, Array.concat
+    mkApp (mkIndU indu, Array.concat
        [extended_rel_vect (3*nrealargs+3) paramsctxt1;
         rel_vect (nrealargs+3) nrealargs;
         rel_vect 0 nrealargs]) in
@@ -447,12 +447,12 @@ let build_l2r_forward_rew_scheme dep env ind kind =
   let varP = fresh env (Id.of_string "P") in
   let applied_ind = build_dependent_inductive indu specif in
   let applied_ind_P =
-    mkApp (mkInd ind, Array.concat
+    mkApp (mkIndU indu, Array.concat
        [extended_rel_vect (4*nrealargs+2) paramsctxt1;
         rel_vect 0 nrealargs;
         rel_vect (nrealargs+1) nrealargs]) in
   let applied_ind_P' =
-    mkApp (mkInd ind, Array.concat
+    mkApp (mkIndU indu, Array.concat
        [extended_rel_vect (3*nrealargs+1) paramsctxt1;
         rel_vect 0 nrealargs;
         rel_vect (2*nrealargs+1) nrealargs]) in
@@ -531,7 +531,7 @@ let build_r2l_forward_rew_scheme dep env ind kind =
   let ((mib,mip as specif),constrargs,realsign,nrealargs) =
     get_non_sym_eq_data env ind in
   let cstr n =
-    mkApp (mkConstruct(ind,1),extended_rel_vect n mib.mind_params_ctxt) in
+    mkApp (mkConstructUi(indu,1),extended_rel_vect n mib.mind_params_ctxt) in
   let constrargs_cstr = constrargs@[cstr 0] in
   let varH = fresh env (default_id_of_sort (snd (mind_arity mip))) in
   let varHC = fresh env (Id.of_string "HC") in
@@ -748,7 +748,7 @@ let build_congr env (eq,refl,ctx) ind =
      (my_it_mkLambda_or_LetIn_name (lift_rel_context 2 realsign)
      (mkNamedLambda varH
         (applist
-           (mkInd ind,
+           (mkIndU indu,
 	    extended_rel_list (mip.mind_nrealargs+2) mib.mind_params_ctxt @
 	    extended_rel_list 0 realsign))
      (mkCase (ci,
@@ -757,7 +757,7 @@ let build_congr env (eq,refl,ctx) ind =
          (mkLambda
            (Anonymous,
             applist
-             (mkInd ind,
+             (mkIndU indu,
 	        extended_rel_list (2*mip.mind_nrealargs_ctxt+3)
 		  mib.mind_params_ctxt
 	        @ extended_rel_list 0 realsign),

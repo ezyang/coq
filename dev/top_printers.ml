@@ -22,6 +22,7 @@ open Evd
 open Goptions
 open Genarg
 open Clenv
+open Universes
 
 let _ = Constrextern.print_evar_arguments := true
 let _ = Constrextern.print_universes := true
@@ -40,9 +41,11 @@ let ppmp mp = pp(str (string_of_mp mp))
 let ppcon con = pp(debug_pr_con con)
 let ppkn kn = pp(pr_kn kn)
 let ppmind kn = pp(debug_pr_mind kn)
+let ppind (kn,i) = pp(debug_pr_mind kn ++ str"," ++int i)
 let ppsp sp = pp(pr_path sp)
 let ppqualid qid = pp(pr_qualid qid)
 let ppclindex cl = pp(Classops.pr_cl_index cl)
+let ppscheme k = pp (Ind_tables.pr_scheme_kind k)
 
 (* term printers *)
 let rawdebug = ref false
@@ -410,7 +413,7 @@ let in_current_context f c =
   let (evmap,sign) =
     try Pfedit.get_current_goal_context ()
     with e when Logic.catchable_exception e -> (Evd.empty, Global.env()) in
-  f (Constrintern.interp_constr evmap sign c)
+  f (fst (Constrintern.interp_constr evmap sign c))(*FIXME*)
 
 (* We expand the result of preprocessing to be independent of camlp4
 

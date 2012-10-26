@@ -52,7 +52,7 @@ let clear_global=function
     VarRef id->clear [id]
   | _->tclIDTAC
 
-
+let constr_of_global = Universes.constr_of_global
 (* connection rules *)
 
 let axiom_tac t seq=

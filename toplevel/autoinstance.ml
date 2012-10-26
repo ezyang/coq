@@ -106,7 +106,7 @@ let complete_evar (cl,gen,evm:signature) (ev,evi) (k:signature -> unit) =
 	let (_,genl,_) = Termops.decompose_prod_letin pat in
 	let genl = List.map (fun (_,_,t) -> t) genl in
 	let ((cl,gen,evm),argl) = add_gen_ctx (cl,gen,evm) genl in
-	let def = applistc (Globnames.constr_of_global gr) argl in
+	let def = applistc (Universes.constr_of_global gr) argl in (*FIXME*)
 (*	msgnl(str"essayons  ?"++Pp.int ev++spc()++str":="++spc()
 	      ++pr_constr def++spc()++str":"++spc()++pr_constr (Global.type_of_global gr)*)
 	(*++spc()++str"dans"++spc()++pr_evar_map evm++spc());*)
@@ -172,7 +172,7 @@ open Entries
 
 let declare_record_instance gr ctx params =
   let ident = make_instance_ident gr in
-  let def = it_mkLambda_or_LetIn (applistc (constr_of_global gr) params) ctx in
+  let def = it_mkLambda_or_LetIn (applistc (Universes.constr_of_global gr) params) ctx in
   let ce = { const_entry_body= def;
              const_entry_secctx = None;
 	     const_entry_type=None;
@@ -212,7 +212,7 @@ let rec iter_under_prod (f:rel_context->constr->unit) (ctx:rel_context) t = f ct
 (* main search function: search for total instances containing gr, and
    apply k to each of them *)
 let complete_signature_with_def gr deftyp (k:instance_decl_function -> signature -> unit) : unit =
-  let gr_c = Globnames.constr_of_global gr in
+  let gr_c = Universes.constr_of_global gr in
   let (smap:(Globnames.global_reference * Evd.evar_map,
    ('a * 'b * Term.constr) list * Evd.evar)
   Gmapl.t ref) = ref Gmapl.empty in
