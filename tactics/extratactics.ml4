@@ -605,7 +605,7 @@ let hResolve id c occ t gl =
         resolve_hole (subst_hole_with_term (fst (Loc.unloc loc)) c_raw t_hole)
   in
   let t_constr,ctx = resolve_hole (subst_var_with_hole occ id t_raw) in
-  let sigma = Evd.merge_context_set sigma ctx in
+  let sigma = Evd.merge_context_set true sigma ctx in
   let t_constr_type = Retyping.get_type_of env sigma t_constr in
     tclTHEN (Refiner.tclEVARS sigma)
      (change_in_concl None (mkLetIn (Anonymous,t_constr,t_constr_type,pf_concl gl))) gl

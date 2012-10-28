@@ -51,12 +51,30 @@ val extend_context : 'a in_universe_context_set -> universe_context_set ->
   'a in_universe_context_set
 
 (** Simplification and pruning of constraints:
-    
-    Normalizes the context w.r.t. equality constraints, 
-    choosing a canonical universe in each equivalence class and 
-    transitively saturating the constraints w.r.t to it. *)
+    [normalize_context_set ctx us]
 
-val normalize_context_set : universe_context_set -> universe_subst in_universe_context_set
+    - Instantiate the variables in [us] with their most precise
+    universe levels respecting the constraints.
+
+    - Normalizes the context [ctx] w.r.t. equality constraints, 
+    choosing a canonical universe in each equivalence class 
+    (a global one if there is one) and transitively saturate
+    the constraints w.r.t to the equalities. *)
+
+module UF : Unionfind.PartitionSig
+
+val instantiate_univ_variables : 
+  UF.t ->
+  (Univ.constraint_type * Univ.universe_level) list
+  Univ.UniverseLMap.t ->
+  (Univ.constraint_type * Univ.universe_level) list
+  Univ.UniverseLMap.t ->
+  UF.elt ->
+  (UF.elt * Univ.universe) list * Univ.constraints ->
+  (UF.elt * Univ.universe) list * Univ.constraints
+
+
+val normalize_context_set : universe_context_set -> universe_set -> universe_subst in_universe_context_set
 
 
 (** Create a fresh global in the global environment, shouldn't be done while

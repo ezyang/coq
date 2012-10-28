@@ -94,7 +94,7 @@ let ((constr_in : constr -> Dyn.t),
 let interp_sort evd = function
   | GProp -> evd, Prop Null
   | GSet -> evd, Prop Pos
-  | GType _ -> new_sort_variable evd
+  | GType _ -> new_sort_variable true evd
 
 let interp_elimination_sort = function
   | GProp -> InProp
@@ -241,7 +241,7 @@ let pretype_sort evdref = function
 
 let new_type_evar evdref env loc =
   let e, s = 
-    evd_comb0 (fun evd -> Evarutil.new_type_evar evd env ~src:(loc,Evar_kinds.InternalHole)) evdref
+    evd_comb0 (fun evd -> Evarutil.new_type_evar false evd env ~src:(loc,Evar_kinds.InternalHole)) evdref
   in e
 
 (* [pretype tycon env evdref lvar lmeta cstr] attempts to type [cstr] *)
@@ -656,7 +656,7 @@ and pretype_type valcon env evdref lvar = function
 	     { utj_val = v;
 	       utj_type = s }
        | None ->
-	   let s = evd_comb0 new_sort_variable evdref in
+	   let s = evd_comb0 (new_sort_variable false) evdref in
 	     { utj_val = e_new_evar evdref env ~src:loc (mkSort s);
 	       utj_type = s})
   | c ->
@@ -708,7 +708,8 @@ let ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c 
 
 let ise_pretype_gen_ctx expand_evar fail_evar resolve_classes sigma env lvar kind c =
   let evd, c = ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c in
-    c, Evd.universe_context_set evd
+  let evd, subst = Evd.nf_constraints evd in
+    subst_univs_constr subst c, Evd.universe_context_set evd
 
 (** Entry points of the high-level type synthesis algorithm *)
 

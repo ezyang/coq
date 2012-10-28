@@ -114,7 +114,7 @@ let is_applied_rewrite_relation env sigma rels t =
 	  (try
 	      let params, args = Array.chop (Array.length args - 2) args in
 	      let env' = Environ.push_rel_context rels env in
-	      let evd, (evar, _) = Evarutil.new_type_evar sigma env' in
+	      let evd, (evar, _) = Evarutil.new_type_evar false sigma env' in
 	      let inst = 
 		mkApp (Lazy.force rewrite_relation_class, [| evar; mkApp (c, params) |]) in
 	      let _ = Typeclasses.resolve_one_typeclass env' evd inst in

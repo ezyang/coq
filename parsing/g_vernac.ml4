@@ -176,7 +176,7 @@ GEXTEND Gram
         indl = LIST1 inductive_definition SEP "with" ->
 	  let (k,f) = f in
 	  let indl=List.map (fun ((a,b,c,d),e) -> ((a,b,c,k,d),e)) indl in
-          VernacInductive (f,false,indl)
+          VernacInductive (Flags.use_polymorphic_flag (), f,false,indl)
       | "Fixpoint"; recs = LIST1 rec_definition SEP "with" ->
           VernacFixpoint recs
       | "CoFixpoint"; corecs = LIST1 corec_definition SEP "with" ->
@@ -192,7 +192,8 @@ GEXTEND Gram
 	cfs = [ ":="; l = constructor_list_or_record_decl -> l
 	  | -> RecordDecl (None, []) ] ->
 	  let (recf,indf) = b in
-	    VernacInductive (indf,infer,[((oc,name),ps,s,recf,cfs),[]])
+	    VernacInductive (Flags.use_polymorphic_flag (),
+			     indf,infer,[((oc,name),ps,s,recf,cfs),[]])
   ] ]
   ;
   thm_token:

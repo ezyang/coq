@@ -42,7 +42,14 @@ type my_global_reference =
   | IndRef of inductive
   | ConstructRef of constructor
 
-let cache = (Hashtbl.create 13 : (my_global_reference, constr) Hashtbl.t)
+let instantiate_my_gr gr u =
+  match gr with
+  | ConstRef c -> mkConstU (c, u)
+  | IndRef i -> mkIndU (i, u)
+  | ConstructRef c -> mkConstructU (c, u)
+
+let cache = (Hashtbl.create 13 : 
+	     (my_global_reference, my_global_reference * constr array) Hashtbl.t)
 
 let clear_cooking_sharing () = Hashtbl.clear cache
 
@@ -52,24 +59,27 @@ let share r (cstl,knl) =
   let f,l =
     match r with
     | IndRef (kn,i) ->
-	mkInd (pop_mind kn,i), Mindmap.find kn knl
+	IndRef (pop_mind kn,i), Mindmap.find kn knl
     | ConstructRef ((kn,i),j) ->
-	mkConstruct ((pop_mind kn,i),j), Mindmap.find kn knl
+	ConstructRef ((pop_mind kn,i),j), Mindmap.find kn knl
     | ConstRef cst ->
-	mkConst (pop_con cst), Cmap.find cst cstl in
-  let c = mkApp (f, Array.map mkVar l) in
+	ConstRef (pop_con cst), Cmap.find cst cstl in
+  let c = (f, Array.map mkVar l) in
   Hashtbl.add cache r c;
   (* has raised Not_found if not in work_list *)
   c
 
+let share_univs r u cache =
+  let r', args = share r cache in
+    mkApp (instantiate_my_gr r' u, args)
+
 let update_case_info ci modlist =
   try
     let ind, n =
-      match kind_of_term (share (IndRef ci.ci_ind) modlist) with
-      | App (f,l) -> (destInd f, Array.length l)
-      | Ind ind -> ind, 0
+      match share (IndRef ci.ci_ind) modlist with
+      | (IndRef f,l) -> (f, Array.length l)
       | _ -> assert false in
-    { ci with ci_ind = fst ind; ci_npar = ci.ci_npar + n }
+    { ci with ci_ind = ind; ci_npar = ci.ci_npar + n }
   with Not_found ->
     ci
 
@@ -86,19 +96,19 @@ let expmod_constr modlist c =
 
       | Ind (ind,u) ->
 	  (try
-	    share (IndRef ind) modlist
+	    share_univs (IndRef ind) u modlist
 	   with
 	    | Not_found -> map_constr substrec c)
 
       | Construct (cstr,u) ->
 	  (try
-	    share (ConstructRef cstr) modlist
+	     share_univs (ConstructRef cstr) u modlist
 	   with
 	    | Not_found -> map_constr substrec c)
 
       | Const (cst,u) ->
 	  (try
-	    share (ConstRef cst) modlist
+	    share_univs (ConstRef cst) u modlist
 	   with
 	    | Not_found -> map_constr substrec c)
 

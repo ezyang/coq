@@ -504,6 +504,7 @@ Qed.
 
 End ALMOST_RING.
 
+Set Printing All. Set Printing Universes.
 
 Section AddRing.
 
@@ -528,8 +529,7 @@ Inductive ring_kind : Type :=
     phi
     (_ : ring_morph rO rI radd rmul rsub ropp req
                     cO cI cadd cmul csub copp ceqb phi).
-
-
+Print Universes. 
 End AddRing.
 
 

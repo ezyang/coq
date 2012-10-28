@@ -251,8 +251,8 @@ let typecheck_inductive env ctx mie =
 	  (* conclusions of the parameters *)
           (* We enforce [u >= lev] in case [lev] has a strict upper *)
           (* constraints over [u] *)
-          (* let arity = mkArity (sign, Type lev) in *)
-          (info,full_arity,s), enforce_leq lev u cst
+          let arity = mkArity (sign, Type lev) in
+          (info,arity,Type lev), enforce_leq lev u cst
       | Type u (* Not an explicit occurrence of Type *) ->
 	  (info,full_arity,s), enforce_leq lev u cst
       | Prop Pos when not (is_impredicative_set env) ->

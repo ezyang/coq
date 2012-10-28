@@ -138,34 +138,128 @@ let new_global_univ () =
 module LevelUnionFind = Unionfind.Make (Univ.UniverseLSet) (Univ.UniverseLMap)
 
 let remove_trivial_constraints cst =
-  Univ.Constraint.fold (fun (l,d,r as cstr) nontriv ->
-    if d <> Univ.Lt && Univ.eq_levels l r then nontriv
-    else Univ.Constraint.add cstr nontriv)
-    cst Univ.empty_constraint
+  Constraint.fold (fun (l,d,r as cstr) nontriv ->
+    if d <> Lt && eq_levels l r then nontriv
+    else Constraint.add cstr nontriv)
+    cst empty_constraint
 
-let normalize_context_set (ctx, csts) = 
-  let module UF = LevelUnionFind in 
+let add_list_map u t map = 
+  let l, d, r = UniverseLMap.split u map in
+  let d' = match d with None -> [t] | Some l -> t :: l in
+  let lr = 
+    UniverseLMap.merge (fun k lm rm -> 
+      if d = None && eq_levels k u then Some d'
+      else
+	match lm with Some t -> lm | None ->
+	match rm with Some t -> rm | None -> None) l r
+  in 
+    if d = None then UniverseLMap.add u d' lr
+    else lr
+
+let find_list_map u map =
+  try UniverseLMap.find u map with Not_found -> []
+
+module UF = LevelUnionFind
+
+let instantiate_univ_variables uf ucstrsl ucstrsr u (subst, cstrs) =
+  try 
+    (** The universe variable is already at a fixed level.
+	Simply produce the instantiated constraints. *)
+    let canon = UF.find u uf in
+    let cstrs = 
+      let l = find_list_map u ucstrsl in
+	List.fold_left (fun cstrs (d, r) -> Constraint.add (canon, d, r) cstrs)
+	cstrs l
+    in
+    let cstrs = 
+      let l = find_list_map u ucstrsr in
+	List.fold_left (fun cstrs (d, l) -> Constraint.add (l, d, canon) cstrs)
+	cstrs l
+    in (subst, cstrs)
+  with Not_found ->
+    (** The universe variable was not fixed yet.
+	Compute its level using its lower bound and generate
+	the upper bound constraints *)
+    let lbound = 
+      try
+        let r = UniverseLMap.find u ucstrsr in
+	let lbound = List.fold_left (fun lbound (d, l) -> 
+	    if d = Le (* l <= ?u *) then (sup (Universe.make l) lbound)
+	    else (* l < ?u *) (assert (d = Lt); (sup (super (Universe.make l)) lbound)))
+	    type0m_univ r
+	in Some lbound
+      with Not_found ->
+         (** No lower bound, choose the minimal level according to the
+	     upper bounds (greatest lower bound), if any.
+	 *)
+         None
+    in
+    let uinst, cstrs =
+      try 
+        let l = UniverseLMap.find u ucstrsl in
+	let lbound =
+	  match lbound with
+	  | None -> Universe.make u (** No lower bounds but some upper bounds, u has to stay *)
+	  | Some lbound -> lbound
+	in
+	let cstrs =
+	  List.fold_left (fun cstr (d,r) -> 
+	    if d = Le (* ?u <= r *) then enforce_leq lbound (Universe.make r) cstr
+	    else (* ?u < r *) enforce_leq (super lbound) (Universe.make r) cstr)
+	    cstrs l
+	in Some lbound, cstrs
+      with Not_found -> lbound, cstrs
+    in 
+    let subst' = 
+      match uinst with
+      | None -> subst 
+      | Some uinst -> ((u, uinst) :: subst)
+    in (subst', cstrs)
+  
+let normalize_context_set (ctx, csts) us = 
   let uf = UF.create () in
-  let noneqs = 
-    Univ.Constraint.fold (fun (l,d,r as cstr) noneq -> 
-      if d = Univ.Eq then (UF.union l r uf; noneq) else 
-	(Univ.Constraint.add cstr noneq)) csts Univ.empty_constraint
+  let noneqs, ucstrsl, ucstrsr = 
+    Constraint.fold (fun (l,d,r as cstr) (noneq, ucstrsl, ucstrsr) -> 
+      if d = Eq then (UF.union l r uf; (noneq, ucstrsl, ucstrsr)) else
+	let lus = UniverseLSet.mem l us 
+	and rus = UniverseLSet.mem r us
+	in
+	let ucstrsl' = 
+	  if lus then add_list_map l (d, r) ucstrsl
+	  else ucstrsl
+	and ucstrsr' = 
+	  if rus then add_list_map r (d, l) ucstrsr
+	  else ucstrsr
+	in 
+	let noneqs = 
+	  if lus || rus then noneq 
+	  else Constraint.add cstr noneq
+	in (noneqs, ucstrsl', ucstrsr'))
+    csts (empty_constraint, UniverseLMap.empty, UniverseLMap.empty)
   in
   let partition = UF.partition uf in
   let ctx', pcanons = List.fold_left (fun (ctx, canons) s -> 
-    let canon = Univ.UniverseLSet.max_elt s in
-    let rest = Univ.UniverseLSet.remove canon s in
-    let ctx' = Univ.UniverseLSet.diff ctx rest in
-    let canons' = (canon, Univ.UniverseLSet.elements rest) :: canons in
+    let canon = UniverseLSet.max_elt s in
+    let rest = UniverseLSet.remove canon s in
+    let ctx' = UniverseLSet.diff ctx rest in
+    let canons' = (canon, UniverseLSet.elements rest) :: canons in
       (ctx', canons')) 
     (ctx, []) partition
   in
   let subst = List.concat (List.rev_map (fun (c, rs) -> 
     List.rev_map (fun r -> (r, c)) rs) pcanons) in
+  let ussubst, noneqs = 
+    UniverseLSet.fold (instantiate_univ_variables uf ucstrsl ucstrsr)
+      us ([], noneqs)
+  in
+  let ctx', subst = 
+    List.fold_left (fun (ctx', subst') (u, us) -> 
+      match universe_level us with
+      | Some u' -> (UniverseLSet.remove u ctx', (u, u') :: subst')
+      | None -> (** Couldn't find a level, keep the universe *) 
+        (ctx', subst'))
+      (ctx, subst) ussubst
+  in
   let constraints = remove_trivial_constraints 
-    (Univ.subst_univs_constraints subst noneqs)
+    (subst_univs_constraints subst noneqs)
   in (subst, (ctx', constraints))
-
-(* let normalize_constraints ({evars = (sigma, (us, sm))} as d) = *)
-(*   let (ctx', us') = normalize_context_set us in *)
-(*     {d with evars = (sigma, (us', sm))} *)

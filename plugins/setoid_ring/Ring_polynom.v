@@ -6,10 +6,11 @@
 (*         *       GNU Lesser General Public License Version 2.1        *)
 (************************************************************************)
 
-Set Implicit Arguments.
-Require Import Setoid Morphisms BinList BinPos BinNat BinInt.
-Require Export Ring_theory.
 
+Set Implicit Arguments.
+Require Import Setoid Morphisms. 
+Require Import BinList BinPos BinNat BinInt.
+Require Export Ring_theory.
 Local Open Scope positive_scope.
 Import RingSyntax.
 
@@ -822,7 +823,8 @@ Section MakeRingPol.
  destruct cM as (c,M). revert M l.
  induction P; destruct M; intros l; simpl; auto;
  try (case ceqb_spec; intro He);
-  try (case Pos.compare_spec; intros He); rewrite ?He;
+  try (case Pos.compare_spec; intros He);
+  rewrite ?He;
    destr_factor; simpl; Esimpl.
  - assert (H := div_th.(div_eucl_th) c0 c).
    destruct cdiv as (q,r). rewrite H; Esimpl. add_permut.

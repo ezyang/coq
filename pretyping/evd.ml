@@ -201,21 +201,33 @@ module EvarInfoMap = struct
 
 end
 
+(* 2nd part used to check consistency on the fly. *)
+type evar_universe_context = 
+  { uctx_local : Univ.universe_context_set; (** The local context of variables *)
+    uctx_univ_variables : Univ.universe_set; (** The local universes that are unification variables *)
+    uctx_universes :  Univ.universes; (** The current graph extended with the local constraints *)
+  }
+  
+let empty_evar_universe_context = 
+  { uctx_local = Univ.empty_universe_context_set;
+    uctx_univ_variables = Univ.empty_universe_set;
+    uctx_universes = Univ.initial_universes }
+
+let is_empty_evar_universe_context ctx =
+  Univ.is_empty_universe_context_set ctx.uctx_local
+
 module EvarMap = struct
-  (* 2nd part used to check consistency on the fly. *)
-  type universe_context = Univ.universe_context_set * Univ.universes
 
-  let empty_universe_context =
-    Univ.empty_universe_context_set, Univ.initial_universes
+  type t = EvarInfoMap.t * evar_universe_context
+  let empty = EvarInfoMap.empty, empty_evar_universe_context
+  let evar_universe_context_from e c = 
+    {empty_evar_universe_context with uctx_local = c; uctx_universes = universes e}
+  let from_env_and_context e c = EvarInfoMap.empty, evar_universe_context_from e c
 
-  type t = EvarInfoMap.t * universe_context
-  let empty = EvarInfoMap.empty, empty_universe_context
-  let from_env_and_context e c = EvarInfoMap.empty, (c, universes e)
-
-  let is_empty (sigma, (ctx, _)) = 
+  let is_empty (sigma, ctx) = 
     EvarInfoMap.is_empty sigma
-  let is_universes_empty (sigma, (ctx,_)) =
-    EvarInfoMap.is_empty sigma && Univ.is_empty_universe_context_set ctx
+  let is_universes_empty (sigma, ctx) =
+    EvarInfoMap.is_empty sigma && is_empty_evar_universe_context ctx
   let has_undefined (sigma,_) = EvarInfoMap.has_undefined sigma
   let add (sigma,sm) k v = (EvarInfoMap.add sigma k v, sm)
   let add_undefined (sigma,sm) k v = (EvarInfoMap.add_undefined sigma k v, sm)
@@ -245,8 +257,12 @@ module EvarMap = struct
         EvarInfoMap.is_defined sigma2 k))
 
   let merge e e' = fold e' (fun n v sigma -> add sigma n v) e
-  let add_constraints (sigma, (ctx, us)) cstrs =
-    (sigma, (Univ.add_constraints_ctx ctx cstrs, Univ.merge_constraints cstrs us))
+
+  let add_constraints_context ctx cstrs =
+    { ctx with uctx_local = Univ.add_constraints_ctx ctx.uctx_local cstrs; 
+      uctx_universes = Univ.merge_constraints cstrs ctx.uctx_universes }
+  let add_constraints (sigma, ctx) cstrs =
+    (sigma, add_constraints_context ctx cstrs)
 end
 
 (*******************************************************************)
@@ -404,7 +420,7 @@ let subst_evar_info s evi =
       evar_body = subst_evb evi.evar_body }
 
 let subst_evar_defs_light sub evd =
-  assert (Univ.is_initial_universes (snd (snd evd.evars)));
+  assert (Univ.is_initial_universes (snd evd.evars).uctx_universes);
   assert (List.is_empty evd.conv_pbs);
   { evd with
       metas = Metamap.map (map_clb (subst_mps sub)) evd.metas;
@@ -517,24 +533,40 @@ let collect_evars c =
 (**********************************************************)
 (* Sort variables *)
 
-let universe_context_set ({evars = (sigma, (ctx, us)) }) = ctx
-let universe_context ({evars = (sigma, (ctx, us)) }) =
-  Univ.context_of_universe_context_set ctx
+type rigid = bool (** Rigid or flexible universe variables *)
 
-let merge_context_set ({evars = (sigma, (ctx, us))} as d) ctx' = 
-  {d with evars = (sigma, (Univ.union_universe_context_set ctx ctx', 
-			   Univ.merge_constraints (snd ctx') us))}
+let universe_context_set ({evars = (sigma, uctx) }) = uctx.uctx_local
+let universe_context ({evars = (sigma, uctx) }) =
+  Univ.context_of_universe_context_set uctx.uctx_local
 
-let with_context_set d (a, ctx) = 
-  (merge_context_set d ctx, a)
+let merge_uctx rigid uctx ctx' =
+  let uvars = 
+    if rigid then uctx.uctx_univ_variables 
+    else Univ.UniverseLSet.union uctx.uctx_univ_variables (fst ctx')
+  in
+    { uctx_local = Univ.union_universe_context_set uctx.uctx_local ctx';
+      uctx_universes = Univ.merge_constraints (snd ctx') uctx.uctx_universes;
+      uctx_univ_variables = uvars }
 
-let new_univ_variable ({ evars = (sigma, ((vars, cst), us)) } as d) =
+let merge_context_set rigid ({evars = (sigma, uctx)} as d) ctx' = 
+  {d with evars = (sigma, merge_uctx rigid uctx ctx')}
+
+let with_context_set rigid d (a, ctx) = 
+  (merge_context_set rigid d ctx, a)
+
+let uctx_new_univ_variable rigid 
+  ({ uctx_local = (vars, cst); uctx_univ_variables = uvars} as uctx) =
   let u = Universes.new_univ_level (Global.current_dirpath ()) in
   let vars' = Univ.UniverseLSet.add u vars in
-    ({d with evars = (sigma, ((vars', cst), us))}, Univ.Universe.make u)
+  let uvars' = if rigid then uvars else Univ.UniverseLSet.add u uvars in
+    {uctx with uctx_local = (vars', cst); uctx_univ_variables = uvars'}, u
 
-let new_sort_variable d =
-  let (d', u) = new_univ_variable d in
+let new_univ_variable rigid ({ evars = (sigma, uctx) } as d) =
+  let uctx', u = uctx_new_univ_variable rigid uctx in
+    ({d with evars = (sigma, uctx')}, Univ.Universe.make u)
+
+let new_sort_variable rigid d =
+  let (d', u) = new_univ_variable rigid d in
     (d', Type u)
 
 
@@ -542,23 +574,28 @@ let new_sort_variable d =
 (* Operations on constants              *)
 (****************************************)
 
-let fresh_sort_in_family env ({ evars = (sigma, (_, _)) } as evd) s = 
-  with_context_set evd (Universes.fresh_sort_in_family env s)
+let fresh_sort_in_family env evd s = 
+  with_context_set false evd (Universes.fresh_sort_in_family env s)
 
-let fresh_constant_instance env ({ evars = (sigma, (_, _)) } as evd) c = 
-  with_context_set evd (Universes.fresh_constant_instance env c)
+let fresh_constant_instance env evd c = 
+  with_context_set false evd (Universes.fresh_constant_instance env c)
 
-let fresh_inductive_instance env ({ evars = (sigma, (_, _)) } as evd) i =
-  with_context_set evd (Universes.fresh_inductive_instance env i)
+let fresh_inductive_instance env evd i =
+  with_context_set false evd (Universes.fresh_inductive_instance env i)
 
-let fresh_constructor_instance env ({ evars = (sigma, (_, _)) } as evd) c =
-  with_context_set evd (Universes.fresh_constructor_instance env c)
+let fresh_constructor_instance env evd c =
+  with_context_set false evd (Universes.fresh_constructor_instance env c)
 
-let fresh_global env ({ evars = (sigma, (_, _)) } as evd) gr =
-  with_context_set evd (Universes.fresh_global_instance env gr)
+let fresh_global env evd gr =
+  with_context_set false evd (Universes.fresh_global_instance env gr)
 
-let is_sort_variable {evars=(_,(us,_))} s = 
-  match s with Type u -> Univ.universe_level u <> None | _ -> false 
+let is_sort_variable {evars=(_,uctx)} s = 
+  match s with 
+  | Type u -> 
+    (match Univ.universe_level u with
+    | Some l -> Univ.UniverseLSet.mem l uctx.uctx_univ_variables
+    | None -> false)
+  | _ -> false 
 
 let whd_sort_variable {evars=(_,sm)} t = t
 
@@ -591,7 +628,8 @@ let is_univ_level_var (us, cst) u =
   | Some u -> Variable (if Univ.UniverseLSet.mem u us then LocalUniv u else GlobalUniv u)
   | None -> Algebraic u
 
-let set_eq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
+let set_eq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
+  let us = uctx.uctx_local in
   match is_eq_sort s1 s2 with
   | None -> d
   | Some (u1, u2) ->
@@ -627,10 +665,10 @@ let set_eq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
 
       | _, _ -> raise (Univ.UniverseInconsistency (Univ.Eq, u1, u2, []))
 
-let set_eq_level ({evars = (sigma, (us, sm))} as d) u1 u2 =
+let set_eq_level d u1 u2 =
   add_constraints d (Univ.enforce_eq_level u1 u2 Univ.empty_constraint)
 
-let set_leq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
+let set_leq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
   match is_eq_sort s1 s2 with
   | None -> d
   | Some (u1, u2) ->
@@ -644,13 +682,15 @@ let set_leq_sort ({evars = (sigma, (us, sm))} as d) s1 s2 =
 	  else (* Lower u to Prop *)
 	    set_eq_sort d s1 s2
       | _, Type u ->
-	  if is_univ_var_or_set u then
-	    add_constraints d (Univ.enforce_leq u1 u2 Univ.empty_constraint)
-	  else raise (Univ.UniverseInconsistency (Univ.Le, u1, u2, []))
+         (match is_univ_level_var uctx.uctx_local u with
+	 | Algebraic _ -> raise (Univ.UniverseInconsistency (Univ.Le, u1, u2, []))
+	 | Variable (LocalUniv u | GlobalUniv u) ->
+	   add_constraints d (Univ.enforce_leq u1 u2 Univ.empty_constraint))
 
-let nf_constraints ({evars = (sigma, (us, sm))} as d) = 
-  let (subst, us') = Universes.normalize_context_set us in
-    {d with evars = (sigma, (us', sm))}, subst
+let nf_constraints ({evars = (sigma, uctx)} as d) = 
+  let (subst, us') = Universes.normalize_context_set uctx.uctx_local uctx.uctx_univ_variables in
+  let uctx' = {uctx with uctx_local = us'; uctx_univ_variables = Univ.UniverseLSet.empty} in
+    {d with evars = (sigma, uctx')}, subst
         	    
 (**********************************************************)
 (* Accessing metas *)
@@ -898,7 +938,7 @@ let evar_dependency_closure n sigma =
   aux n (undefined_list sigma)
 
 let pr_evar_map_t depth sigma =
-  let (evars,(uvs,univs)) = sigma.evars in
+  let (evars,ctx) = sigma.evars in
   let pr_evar_list l =
     h 0 (prlist_with_sep fnl
 	   (fun (ev,evi) ->
@@ -918,8 +958,10 @@ let pr_evar_map_t depth sigma =
           brk(0,1)++
           pr_evar_list (evar_dependency_closure n sigma)++fnl()
   and svs =
-    if Univ.is_empty_universe_context_set uvs then mt ()
-    else str"UNIVERSES:"++brk(0,1)++ h 0 (Univ.pr_universe_context_set uvs)
+    if is_empty_evar_universe_context ctx then mt ()
+    else
+      (str"UNIVERSES:"++brk(0,1)++ h 0 (Univ.pr_universe_context_set ctx.uctx_local) ++ fnl () ++
+       str"UNDEFINED UNIVERSES:"++brk(0,1)++ h 0 (Univ.pr_universe_set ctx.uctx_univ_variables))
   in evs ++ svs
 
 let print_env_short env =
