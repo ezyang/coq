@@ -66,7 +66,7 @@ let typecheck_params_and_fields id t ps nots fs =
 	   | LocalRawAssum (ls, bk, ce) -> List.iter (error bk) ls) ps
   in 
   let impls_env, ((env1,newps), imps) = interp_context_evars evars env0 ps in
-  let t' = match t with Some t -> t | None -> mkSort (Evarutil.evd_comb0 Evd.new_sort_variable evars) in
+  let t' = match t with Some t -> t | None -> mkSort (Evarutil.evd_comb0 (Evd.new_sort_variable false) evars) in
   let fullarity = it_mkProd_or_LetIn t' newps in
   let env_ar = push_rel_context newps (push_rel (Name id,None,fullarity) env0) in
   let env2,impls,newfs,data =
@@ -351,7 +351,7 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
     | _ ->
 	let idarg = Namegen.next_ident_away (snd id) (Termops.ids_of_context (Global.env())) in
 	let sign, arity = match arity with Some a -> sign, a 
-	  | None -> let evd, s = Evd.new_sort_variable sign in
+	  | None -> let evd, s = Evd.new_sort_variable false sign in
 		      evd, mkSort s
 	in
 	let ind = declare_structure BiFinite infer poly ctx (snd id) idbuild paramimpls
@@ -388,7 +388,7 @@ let interp_and_check_sort sort =
   Option.map (fun sort ->
     let env = Global.env() and sigma = Evd.empty in
     let s,ctx = interp_constr sigma env sort in
-    let sigma = Evd.merge_context_set sigma ctx in
+    let sigma = Evd.merge_context_set true sigma ctx in
     if isSort (Reductionops.whd_betadeltaiota env sigma s) then s
     else user_err_loc (constr_loc sort,"", str"Sort expected.")) sort
 
@@ -426,7 +426,7 @@ let definition_structure (kind,finite,infer,(is_coe,(loc,idstruc)),ps,cfs,idbuil
 	gr
     | _ ->
         let sign, arity = match sc with 
-	  | None -> let evd, s = Evd.new_sort_variable sign in evd, mkSort s
+	  | None -> let evd, s = Evd.new_sort_variable false sign in evd, mkSort s
 	  | Some a -> sign, a
 	in
 	let implfs = List.map

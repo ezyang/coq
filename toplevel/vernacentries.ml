@@ -514,7 +514,7 @@ let vernac_assumption kind l nl=
   in
   if not status then raise UnsafeSuccess
 
-let vernac_record k finite infer struc binders sort nameopt cfs =
+let vernac_record k poly finite infer struc binders sort nameopt cfs =
   let const = match nameopt with
     | None -> add_prefix "Build_" (snd (snd struc))
     | Some (_,id as lid) ->
@@ -527,7 +527,7 @@ let vernac_record k finite infer struc binders sort nameopt cfs =
 	| _ -> ()) cfs);
     ignore(Record.definition_structure (k,finite,infer,struc,binders,cfs,const,sort))
 
-let vernac_inductive finite infer indl =
+let vernac_inductive poly finite infer indl =
   if Dumpglob.dump () then
     List.iter (fun (((coe,lid), _, _, _, cstrs), _) ->
       match cstrs with
@@ -540,13 +540,13 @@ let vernac_inductive finite infer indl =
   match indl with
   | [ ( id , bl , c , b, RecordDecl (oc,fs) ), [] ] ->
       vernac_record (match b with Class true -> Class false | _ -> b)
-	finite infer id bl c oc fs
+	poly finite infer id bl c oc fs
   | [ ( id , bl , c , Class true, Constructors [l]), _ ] ->
       let f =
 	let (coe, ((loc, id), ce)) = l in
 	let coe' = if coe then Some true else None in
 	  (((coe', AssumExpr ((loc, Name id), ce)), None), [])
-      in vernac_record (Class true) finite infer id bl c None [f]
+      in vernac_record (Class true) poly finite infer id bl c None [f]
   | [ ( id , bl , c , Class true, _), _ ] ->
       Errors.error "Definitional classes must have a single method"
   | [ ( id , bl , c , Class false, Constructors _), _ ] ->
@@ -558,7 +558,7 @@ let vernac_inductive finite infer indl =
       | _ -> Errors.error "Cannot handle mutually (co)inductive records."
     in
     let indl = List.map unpack indl in
-    do_mutual_inductive indl (finite != CoFinite)
+    do_mutual_inductive indl poly (finite != CoFinite)
 
 let vernac_fixpoint l =
   if Dumpglob.dump () then
@@ -1325,6 +1325,8 @@ let vernac_check_may_eval redexp glopt rc =
   let (sigma, env) = get_current_context_of_args glopt in
   let sigma', c = interp_open_constr sigma env rc in
   let sigma' = Evarconv.consider_remaining_unif_problems env sigma' in
+  let sigma',subst = Evd.nf_constraints sigma' in
+  let c = subst_univs_constr subst c in
   let j =
     try
       Evarutil.check_evars env sigma sigma' c;
@@ -1350,6 +1352,7 @@ let vernac_global_check c =
   let env = Global.env() in
   let c,ctx = interp_constr evmap env c in
   let senv = Global.safe_env() in
+  let senv = Safe_typing.add_constraints (snd ctx) senv in
   let j = Safe_typing.typing senv c in
   msg_notice (print_safe_judgment env j)
 
@@ -1678,7 +1681,7 @@ let interp c = match c with
   | VernacEndProof e -> vernac_end_proof e
   | VernacExactProof c -> vernac_exact_proof c
   | VernacAssumption (stre,nl,l) -> vernac_assumption stre l nl
-  | VernacInductive (finite,infer,l) -> vernac_inductive finite infer l
+  | VernacInductive (poly,finite,infer,l) -> vernac_inductive poly finite infer l
   | VernacFixpoint l -> vernac_fixpoint l
   | VernacCoFixpoint l -> vernac_cofixpoint l
   | VernacScheme l -> vernac_scheme l

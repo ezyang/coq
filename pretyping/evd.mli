@@ -242,9 +242,11 @@ val subst_defined_metas : metabinding list -> constr -> constr option
 (*********************************************************
    Sort/universe variables *)
 
+type rigid = bool (** Rigid or flexible universe variables *)
+
 val univ_of_sort : sorts -> Univ.universe
-val new_univ_variable : evar_map -> evar_map * Univ.universe
-val new_sort_variable : evar_map -> evar_map * sorts
+val new_univ_variable : rigid -> evar_map -> evar_map * Univ.universe
+val new_sort_variable : rigid -> evar_map -> evar_map * sorts
 val is_sort_variable : evar_map -> sorts -> bool
 val whd_sort_variable : evar_map -> constr -> constr
 val set_leq_sort : evar_map -> sorts -> sorts -> evar_map
@@ -254,9 +256,9 @@ val set_eq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> eva
 val universe_context_set : evar_map -> Univ.universe_context_set
 val universe_context : evar_map -> Univ.universe_context
 
-val merge_context_set : evar_map -> Univ.universe_context_set -> evar_map
+val merge_context_set : rigid -> evar_map -> Univ.universe_context_set -> evar_map
 
-val with_context_set : evar_map -> 'a Univ.in_universe_context_set -> evar_map * 'a
+val with_context_set : rigid -> evar_map -> 'a Univ.in_universe_context_set -> evar_map * 'a
 
 val nf_constraints : evar_map -> evar_map * Univ.universe_subst
 

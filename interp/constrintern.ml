@@ -1680,7 +1680,7 @@ let interp_open_constr_patvar sigma env c =
     | GPatVar (loc,(_,id)) ->
 	( try Gmap.find id !evars
 	  with Not_found ->
-	    let ev,_ = Evarutil.e_new_type_evar sigma env in
+	    let ev,_ = Evarutil.e_new_type_evar sigma false env in
 	    let ev = Evarutil.e_new_evar sigma env ev in
 	    let rev = GEvar (loc,(fst (Term.destEvar ev)),None) (*TODO*) in
 	    evars := Gmap.add id rev !evars;
@@ -1817,5 +1817,5 @@ let interp_context_evars ?(global_level=false) ?(impl_env=empty_internalization_
       let j = understand_judgment_tcc evdref env gc in
 	j, Evd.universe_context_set !evdref) ~global_level ~impl_env !evdref env params
   in
-  let _ = evdref := Evd.merge_context_set !evdref ctx in
+  let _ = evdref := Evd.merge_context_set true !evdref ctx in
     int_env, ((env, par), impls)

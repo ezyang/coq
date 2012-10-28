@@ -459,11 +459,12 @@ let check_eq g u v =
 
 let check_leq g u v =
   match u,v with
-    | Atom ul, Atom vl -> check_smaller g false ul vl
-    | Max(le,lt), Atom vl ->
-        List.for_all (fun ul -> check_smaller g false ul vl) le &&
-        List.for_all (fun ul -> check_smaller g true ul vl) lt
-    | _ -> anomaly "check_leq"
+  | Atom UniverseLevel.Prop, v -> true
+  | Atom ul, Atom vl -> check_smaller g false ul vl
+  | Max(le,lt), Atom vl ->
+    List.for_all (fun ul -> check_smaller g false ul vl) le &&
+    List.for_all (fun ul -> check_smaller g true ul vl) lt
+  | _ -> anomaly "check_leq"
 
 (** Enforcing new constraints : [setlt], [setleq], [merge], [merge_disc] *)
 
@@ -677,7 +678,10 @@ let constraints_depend cstr us =
 let remove_dangling_constraints dangling cst =
   Constraint.fold (fun (l,d,r as cstr) cst' -> 
     if List.mem l dangling || List.mem r dangling then cst'
-    else Constraint.add cstr cst') cst Constraint.empty
+    else
+      (** Unnecessary constraints Prop <= u *)
+      if l = UniverseLevel.Prop && d = Le then cst'
+      else Constraint.add cstr cst') cst Constraint.empty
   
 let check_context_subset (univs, cst) (univs', cst') =
   let newunivs, dangling = List.partition (fun u -> UniverseLSet.mem u univs) univs' in
@@ -713,6 +717,17 @@ let subst_univs_level subst l =
   try List.assoc l subst
   with Not_found -> l
 
+let rec normalize_univ x = 
+  match x with
+  | Atom _ -> x
+  | Max ([],[]) -> Atom UniverseLevel.Prop
+  | Max ([u],[]) -> Atom u
+  | Max (gel, gtl) -> 
+    let gel' = CList.uniquize gel in
+    let gtl' = CList.uniquize gtl in
+      if gel' == gel && gtl' == gtl then x
+      else normalize_univ (Max (gel', gtl'))
+
 let subst_univs_universe subst u =
   match u with
   | Atom a -> 
@@ -722,7 +737,7 @@ let subst_univs_universe subst u =
     let gel' = CList.smartmap (subst_univs_level subst) gel in
     let gtl' = CList.smartmap (subst_univs_level subst) gtl in
       if gel == gel' && gtl == gtl' then u
-      else Max (gel', gtl')
+      else normalize_univ (Max (gel', gtl'))
 
 let subst_univs_constraint subst (u,d,v) =
   (subst_univs_level subst u, d, subst_univs_level subst v)
@@ -747,7 +762,7 @@ type constraint_function =
 
 let constraint_add_leq v u c =
   (* We just discard trivial constraints like Set<=u or u<=u *)
-  if UniverseLevel.equal v UniverseLevel.Set || UniverseLevel.equal v u then c
+  if UniverseLevel.equal v UniverseLevel.Prop || UniverseLevel.equal v u then c
   else Constraint.add (v,Le,u) c
 
 let enforce_leq u v c =

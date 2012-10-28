@@ -238,8 +238,8 @@ let register_is_applied_rewrite_relation = (:=) is_applied_rewrite_relation
 
 let find_elim hdcncl lft2rgt dep cls args gl =
   let inccl = Option.is_empty cls in
-  if is_global Coqlib.glob_eq hdcncl ||
-    (is_global Coqlib.glob_jmeq hdcncl &&
+  if (is_global Coqlib.glob_eq hdcncl ||
+      (is_global Coqlib.glob_jmeq hdcncl) &&
       pf_conv_x gl (List.nth args 0) (List.nth args 2)) && not dep
     || Flags.version_less_or_equal Flags.V8_2
   then
@@ -802,7 +802,7 @@ let onEquality with_evars tac (c,lbindc) gls =
   let eq_clause' = clenv_pose_dependent_evars with_evars eq_clause in
   let eqn = clenv_type eq_clause' in
   let (eq,ctx),eq_args = find_this_eq_data_decompose gls eqn in
-  let sigma = Evd.merge_context_set eq_clause'.evd ctx in
+  let sigma = Evd.merge_context_set false eq_clause'.evd ctx in
   tclTHEN
     (Refiner.tclEVARS sigma)
     (tac (eq,eqn,eq_args) eq_clause') gls

@@ -122,7 +122,7 @@ let has_undefined_evars_or_sorts evd t =
             has_ev c; Array.iter has_ev args
         | Evar_empty ->
 	    raise NotInstantiatedEvar)
-    | Sort s when is_sort_variable evd s -> raise Not_found
+    | Sort (Type _) (*FIXME could be finer, excluding Prop and Set universes *) -> raise Not_found
     | _ -> iter_constr has_ev t in
   try let _ = has_ev t in false
   with (Not_found | NotInstantiatedEvar) -> true
@@ -385,8 +385,8 @@ let new_evar evd env ?src ?filter ?candidates typ =
     | Some filter -> List.filter_with filter instance in
   new_evar_instance sign evd typ' ?src ?filter ?candidates instance
 
-let new_type_evar ?src ?filter evd env =
-  let evd', s = new_sort_variable evd in
+let new_type_evar ?src ?filter rigid evd env =
+  let evd', s = new_sort_variable rigid evd in
   let evd', e = new_evar evd' env ?src ?filter (mkSort s) in
     evd', (e, s)
 
@@ -396,8 +396,8 @@ let e_new_evar evdref env ?(src=(Loc.ghost,Evar_kinds.InternalHole)) ?filter ?ca
   evdref := evd';
   ev
 
-let e_new_type_evar evdref ?src ?filter env =
-  let evd', c = new_type_evar ?src ?filter !evdref env in
+let e_new_type_evar evdref ?src ?filter rigid env =
+  let evd', c = new_type_evar ?src ?filter rigid !evdref env in
     evdref := evd';
     c
 
@@ -1575,7 +1575,7 @@ let refresh_universes evd t =
   let rec refresh t = match kind_of_term t with
     | Sort (Type u) ->
       (modified := true; 
-       let s' = evd_comb0 new_sort_variable evdref in
+       let s' = evd_comb0 (new_sort_variable false) evdref in
 	 evdref := set_leq_sort !evdref s' (Type u);
          mkSort s')
     | Prod (na,u,v) -> mkProd (na,u,refresh v)
@@ -2037,12 +2037,12 @@ let define_pure_evar_as_product evd evk =
   let evi = Evd.find_undefined evd evk in
   let evenv = evar_unfiltered_env evi in
   let id = next_ident_away idx (ids_of_named_context (evar_context evi)) in
-  let evd1,(dom,u1) = new_type_evar evd evenv ~filter:(evar_filter evi) in
+  let evd1,(dom,u1) = new_type_evar false evd evenv ~filter:(evar_filter evi) in
   let evd2,(rng,u2) =
     let newenv = push_named (id, None, dom) evenv in
     let src = evar_source evk evd1 in
     let filter = true::evar_filter evi in
-    new_type_evar evd1 newenv ~src ~filter in
+    new_type_evar false evd1 newenv ~src ~filter in
   let prod = mkProd (Name id, dom, subst_var id rng) in
   let evd3 = Evd.define evk prod evd2 in
   evd3,prod
@@ -2105,14 +2105,14 @@ let rec evar_absorb_arguments env evd (evk,args as ev) = function
 (* Refining an evar to a sort *)
 
 let define_evar_as_sort evd (ev,args) =
-  let evd, s = new_sort_variable evd in
+  let evd, s = new_sort_variable true evd in
     Evd.define ev (mkSort s) evd, s
 
 (* We don't try to guess in which sort the type should be defined, since
    any type has type Type. May cause some trouble, but not so far... *)
 
 let judge_of_new_Type evd =
-  let evd', s = new_univ_variable evd in
+  let evd', s = new_univ_variable true evd in
   (* let evd', s' = new_univ_variable evd in *)
   (* let ss = mkSort (Type s) and ss' = mkSort (Type s') in *)
   (* let evd' = set_leq_sort evd' (Type (Univ.super s)) (Type s') in *)

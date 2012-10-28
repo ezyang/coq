@@ -316,7 +316,7 @@ let coq_iff = lazy (constant "iff")
 
 (* For unfold *)
 let evaluable_ref_of_constr s c = match kind_of_term (Lazy.force c) with
-  | Const kn when Tacred.is_evaluable (Global.env()) (EvalConstRef kn) ->
+  | Const (kn,u) when Tacred.is_evaluable (Global.env()) (EvalConstRef kn) ->
       EvalConstRef kn
   | _ -> anomaly ("Coq_omega: "^s^" is not an evaluable constant")
 
@@ -402,11 +402,11 @@ let destructurate_prop t =
     | _, [_;_] when eq_constr c (Lazy.force coq_lt) -> Kapp (Lt,args)
     | _, [_;_] when eq_constr c (Lazy.force coq_ge) -> Kapp (Ge,args)
     | _, [_;_] when eq_constr c (Lazy.force coq_gt) -> Kapp (Gt,args)
-    | Const sp, args ->
+    | Const (sp,_), args ->
 	Kapp (Other (string_of_path (path_of_global (ConstRef sp))),args)
-    | Construct csp , args ->
+    | Construct (csp,_) , args ->
 	Kapp (Other (string_of_path (path_of_global (ConstructRef csp))), args)
-    | Ind isp, args ->
+    | Ind (isp,_), args ->
 	Kapp (Other (string_of_path (path_of_global (IndRef isp))),args)
     | Var id,[] -> Kvar id
     | Prod (Anonymous,typ,body), [] -> Kimp(typ,body)

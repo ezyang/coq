@@ -401,6 +401,11 @@ let pr_statement head (id,(bl,c,guard)) =
     pr_opt (pr_guard_annot pr_lconstr_expr bl) guard ++
     str":" ++ pr_spc_lconstr c)
 
+let pr_poly p = 
+  if Flags.is_universe_polymorphism () then
+    if not p then str"Monomorphic " else mt ()
+  else if p then str"Polymorphic " else mt ()
+
 (**************************************)
 (* Pretty printer for vernac commands *)
 (**************************************)
@@ -588,7 +593,9 @@ let rec pr_vernac = function
 
   (* Gallina *)
   | VernacDefinition (d,id,b,f) -> (* A verifier... *)
-      let pr_def_token (l,p,k) = str (Kindops.string_of_definition_kind (l,k)) in
+      let pr_def_token (l,p,k) =
+	pr_poly p ++
+	str (Kindops.string_of_definition_kind (l,k)) in
       let pr_reduce = function
         | None -> mt()
         | Some r ->
@@ -611,7 +618,7 @@ let rec pr_vernac = function
         | Some cc -> str" :=" ++ spc() ++ cc))
 
   | VernacStartTheoremProof (ki,p,l,_,_) ->
-      hov 1 (pr_statement (pr_thm_token ki) (List.hd l) ++
+      hov 1 (pr_poly p ++ pr_statement (pr_thm_token ki) (List.hd l) ++
              prlist (pr_statement (spc () ++ str "with")) (List.tl l))
 
   | VernacEndProof Admitted -> str"Admitted"
@@ -627,8 +634,7 @@ let rec pr_vernac = function
       hov 2
         (pr_assumption_token (n > 1) stre ++ spc() ++
 	 pr_ne_params_list pr_lconstr_expr l)
-  | VernacInductive (f,i,l) ->
-
+  | VernacInductive (p,f,i,l) ->
       let pr_constructor (coe,(id,c)) =
         hov 2 (pr_lident id ++ str" " ++
                (if coe then str":>" else str":") ++
@@ -658,7 +664,7 @@ let rec pr_vernac = function
 	match k with Record -> "Record" | Structure -> "Structure"
 	  | Inductive_kw -> "Inductive" | CoInductive -> "CoInductive"
 	  | Class _ -> "Class" in
-      hov 1 (pr_oneind key (List.hd l)) ++
+      hov 1 (pr_poly p ++ pr_oneind key (List.hd l)) ++
       (prlist (fun ind -> fnl() ++ hov 1 (pr_oneind "with" ind)) (List.tl l))
 
 

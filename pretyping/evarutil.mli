@@ -40,11 +40,11 @@ val e_new_evar :
 (** Create a new Type existential variable, as we keep track of 
     them during type-checking and unification. *)
 val new_type_evar :
-  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> evar_map -> env -> 
+  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> rigid -> evar_map -> env -> 
   evar_map * (constr * sorts)
 
 val e_new_type_evar : evar_map ref ->
-  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> env -> constr * sorts
+  ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> rigid -> env -> constr * sorts
 
 
 (** Create a fresh evar in a context different from its definition context:
