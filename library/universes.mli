@@ -61,7 +61,7 @@ val extend_context : 'a in_universe_context_set -> universe_context_set ->
     (a global one if there is one) and transitively saturate
     the constraints w.r.t to the equalities. *)
 
-module UF : Unionfind.PartitionSig
+module UF : Unionfind.PartitionSig with type elt = universe_level
 
 val instantiate_univ_variables : 
   UF.t ->
@@ -69,12 +69,13 @@ val instantiate_univ_variables :
   Univ.UniverseLMap.t ->
   (Univ.constraint_type * Univ.universe_level) list
   Univ.UniverseLMap.t ->
-  UF.elt ->
+  universe_level ->
   (UF.elt * Univ.universe) list * Univ.constraints ->
   (UF.elt * Univ.universe) list * Univ.constraints
 
 
-val normalize_context_set : universe_context_set -> universe_set -> universe_subst in_universe_context_set
+val normalize_context_set : universe_context_set -> universe_set -> 
+  universe_full_subst in_universe_context_set
 
 
 (** Create a fresh global in the global environment, shouldn't be done while

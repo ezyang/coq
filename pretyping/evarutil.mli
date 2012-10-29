@@ -73,6 +73,8 @@ type conv_fun =
 val evar_define : conv_fun -> bool option -> ?choose:bool -> env -> evar_map -> 
   existential -> constr -> evar_map
 
+val refresh_universes : bool -> evar_map -> types -> evar_map * types
+
 (** {6 Evars/Metas switching...} *)
 
 (** [evars_to_metas] generates new metavariables for each non dependent
@@ -192,7 +194,10 @@ val nf_evar_info : evar_map -> evar_info -> evar_info
 val nf_evar_map : evar_map -> evar_map
 val nf_evar_map_undefined : evar_map -> evar_map
 
-val nf_evars_and_universes : evar_map ref -> constr -> constr
+val nf_evars_and_universes : evar_map -> evar_map * (constr -> constr)
+val e_nf_evars_and_universes : evar_map ref -> constr -> constr
+
+val subst_univs_full_constr : Univ.universe_full_subst -> constr -> constr
 
 (** Replacing all evars, possibly raising [Uninstantiated_evar] *)
 exception Uninstantiated_evar of existential_key

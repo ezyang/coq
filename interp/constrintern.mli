@@ -154,15 +154,15 @@ val interp_binder_evars : evar_map ref -> env -> Name.t -> constr_expr -> types
 
 (** Interpret contexts: returns extended env and context *)
 
-val interp_context_gen : (env -> glob_constr -> types Univ.in_universe_context_set) ->
-  (env -> glob_constr -> unsafe_judgment Univ.in_universe_context_set) ->
+val interp_context_gen : (env -> glob_constr -> unsafe_type_judgment Univ.in_universe_context_set) ->
+  (env -> Evarutil.type_constraint -> glob_constr -> unsafe_judgment Univ.in_universe_context_set) ->
   ?global_level:bool -> ?impl_env:internalization_env ->
-  evar_map -> env -> local_binder list -> internalization_env * ((env * Univ.universe_context_set * rel_context) * Impargs.manual_implicits)
+  evar_map -> env -> local_binder list -> internalization_env * ((env * Univ.universe_context_set * rel_context * sorts list) * Impargs.manual_implicits)
   
 val interp_context : ?global_level:bool -> ?impl_env:internalization_env ->
   evar_map -> env -> local_binder list -> 
   internalization_env * 
-  ((env * Univ.universe_context_set * rel_context) * Impargs.manual_implicits)
+  ((env * Univ.universe_context_set * rel_context * sorts list) * Impargs.manual_implicits)
 
 val interp_context_evars : ?global_level:bool -> ?impl_env:internalization_env ->
   evar_map ref -> env -> local_binder list -> 

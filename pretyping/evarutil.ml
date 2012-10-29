@@ -79,13 +79,46 @@ let nf_evars_and_universes_local sigma subst =
 	if pu' == pu then c else mkConstructU pu'
     | Sort (Type u) ->
       let u' = Univ.subst_univs_universe subst u in
-	if u' == u then c else mkSort (Type u')
+	if u' == u then c else mkSort (sort_of_univ u')
     | _ -> map_constr aux c
   in aux
+
+let subst_full_puniverses subst (c, u as cu) =
+  let u' = CList.smartmap (Univ.subst_univs_full_level_fail subst) u in
+    if u' == u then cu else (c, u')
+
+let nf_evars_and_full_universes_local sigma subst =
+  let rec aux c =
+    match kind_of_term c with
+    | Evar (evdk, _ as ev) ->
+      (match existential_opt_value sigma ev with
+      | None -> c
+      | Some c -> aux c)
+    | Const pu -> 
+      let pu' = subst_full_puniverses subst pu in
+	if pu' == pu then c else mkConstU pu'
+    | Ind pu ->
+      let pu' = subst_full_puniverses subst pu in
+	if pu' == pu then c else mkIndU pu'
+    | Construct pu ->
+      let pu' = subst_full_puniverses subst pu in
+	if pu' == pu then c else mkConstructU pu'
+    | Sort (Type u) ->
+      let u' = Univ.subst_univs_full_universe subst u in
+	if u' == u then c else mkSort (sort_of_univ u')
+    | _ -> map_constr aux c
+  in aux
+
+let subst_univs_full_constr subst c = 
+  nf_evars_and_full_universes_local Evd.empty subst c
   
-let nf_evars_and_universes evdref =
+let nf_evars_and_universes evm =
+  let evm, subst = Evd.nf_constraints evm in
+    evm, nf_evars_and_full_universes_local evm subst
+
+let e_nf_evars_and_universes evdref =
   let subst = evd_comb0 Evd.nf_constraints evdref in
-    nf_evars_and_universes_local !evdref subst
+    nf_evars_and_full_universes_local !evdref subst
 
 let nf_named_context_evar sigma ctx =
   Sign.map_named_context (Reductionops.nf_evar sigma) ctx
@@ -1569,14 +1602,16 @@ let solve_candidates conv_algo env evd (evk,argsv as ev) rhs =
 (* This refreshes universes in types; works only for inferred types (i.e. for
    types of the form (x1:A1)...(xn:An)B with B a sort or an atom in
    head normal form) *)
-let refresh_universes evd t =
+let refresh_universes dir evd t =
   let evdref = ref evd in
   let modified = ref false in
   let rec refresh t = match kind_of_term t with
     | Sort (Type u) ->
-      (modified := true; 
-       let s' = evd_comb0 (new_sort_variable false) evdref in
-	 evdref := set_leq_sort !evdref s' (Type u);
+      (modified := true;
+       let s' = evd_comb0 (new_sort_variable true) evdref in
+	 evdref :=
+	   (if dir then set_leq_sort !evdref s' (Type u) else
+	     set_leq_sort !evdref (Type u) s');
          mkSort s')
     | Prod (na,u,v) -> mkProd (na,u,refresh v)
     | _ -> t in
@@ -1775,7 +1810,7 @@ and evar_define conv_algo pbty ?(choose=false) env evd (evk,argsv as ev) rhs =
     (* so we recheck acyclicity *)
     if occur_evar evk body then raise (OccurCheckIn (evd',body));
     (* needed only if an inferred type *)
-    let evd', body = refresh_universes evd' body in
+    let evd', body = refresh_universes true evd' body in
 (* Cannot strictly type instantiations since the unification algorithm
  * does not unify applications from left to right.
  * e.g problem f x == g y yields x==y and f==g (in that order)

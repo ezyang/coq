@@ -1326,7 +1326,7 @@ let vernac_check_may_eval redexp glopt rc =
   let sigma', c = interp_open_constr sigma env rc in
   let sigma' = Evarconv.consider_remaining_unif_problems env sigma' in
   let sigma',subst = Evd.nf_constraints sigma' in
-  let c = subst_univs_constr subst c in
+  let c = Evarutil.subst_univs_full_constr subst c in
   let j =
     try
       Evarutil.check_evars env sigma sigma' c;

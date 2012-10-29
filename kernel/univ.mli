@@ -76,6 +76,9 @@ val universe_level : universe -> universe_level option
 val compare_levels : universe_level -> universe_level -> int
 val eq_levels : universe_level -> universe_level -> bool
 
+(** Equality of formal universe expressions. *)
+val equal_universes : universe -> universe -> bool
+
 (** The type of a universe *)
 val super : universe -> universe
 
@@ -124,6 +127,9 @@ type 'a in_universe_context_set = 'a * universe_context_set
     involved *)
 type universe_subst = (universe_level * universe_level) list
 
+(** A full substitution might involve algebraic universes *)
+type universe_full_subst = (universe_level * universe) list
+
 (** Constraints *)
 val empty_constraint : constraints
 val is_empty_constraint : constraints -> bool
@@ -169,6 +175,13 @@ val subst_univs_universe : universe_subst -> universe -> universe
 val subst_univs_constraints : universe_subst -> constraints -> constraints
 val subst_univs_context : universe_context_set -> universe_level -> universe_level -> 
   universe_context_set
+
+val subst_univs_full_level : universe_full_subst -> universe_level -> universe
+
+(** Fails with an anomaly if the substitution builds an algebraic universe. *)
+val subst_univs_full_level_fail : universe_full_subst -> universe_level -> universe_level
+
+val subst_univs_full_universe : universe_full_subst -> universe -> universe
 
 (** Raises universe inconsistency if not compatible. *)
 val check_consistent_constraints : universe_context_set -> constraints -> unit

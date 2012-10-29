@@ -67,7 +67,7 @@ let finished = function
 (* Returns the current value of the proofview partial proofs. *)
 let return { initial=init; solution=defs }  =
   let evdref = ref defs in
-  let nf = Evarutil.nf_evars_and_universes evdref in
+  let nf = Evarutil.e_nf_evars_and_universes evdref in
   (List.map (fun (c,t) -> (nf c, t)) init,
    Evd.universe_context !evdref)
 

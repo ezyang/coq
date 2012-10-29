@@ -684,18 +684,31 @@ let pretype_gen expand_evar fail_evar resolve_classes evdref env lvar kind c =
       if fail_evar then check_evars env Evd.empty !evdref c;
       c
 
-let understand_judgment sigma env c =
+let understand_judgment sigma env tycon c =
   let evdref = ref sigma in
-  let j = pretype empty_tycon env evdref ([],[]) c in
+  let j = pretype tycon env evdref ([],[]) c in
     resolve_evars env evdref true true;
     let j = j_nf_evar !evdref j in
       check_evars env sigma !evdref (mkCast(j.uj_val,DEFAULTcast, j.uj_type));
       j, Evd.universe_context_set !evdref
 
-let understand_judgment_tcc evdref env c =
-  let j = pretype empty_tycon env evdref ([],[]) c in
+let understand_type_judgment sigma env c =
+  let evdref = ref sigma in
+  let j = pretype_type None env evdref ([],[]) c in
+    resolve_evars env evdref true true;
+    let j = tj_nf_evar !evdref j in
+      check_evars env sigma !evdref j.utj_val;
+      j, Evd.universe_context_set !evdref
+
+let understand_judgment_tcc evdref env tycon c =
+  let j = pretype tycon env evdref ([],[]) c in
     resolve_evars env evdref false true;
     j_nf_evar !evdref j
+
+let understand_type_judgment_tcc evdref env c =
+  let j = pretype_type None env evdref ([],[]) c in
+    resolve_evars env evdref false true;
+    tj_nf_evar !evdref j
 
 (* Raw calls to the unsafe inference machine: boolean says if we must
    fail on unresolved evars; the unsafe_judgment list allows us to
@@ -709,7 +722,7 @@ let ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c 
 let ise_pretype_gen_ctx expand_evar fail_evar resolve_classes sigma env lvar kind c =
   let evd, c = ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c in
   let evd, subst = Evd.nf_constraints evd in
-    subst_univs_constr subst c, Evd.universe_context_set evd
+    Evarutil.subst_univs_full_constr subst c, Evd.universe_context_set evd
 
 (** Entry points of the high-level type synthesis algorithm *)
 

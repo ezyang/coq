@@ -140,6 +140,7 @@ module LevelUnionFind = Unionfind.Make (Univ.UniverseLSet) (Univ.UniverseLMap)
 let remove_trivial_constraints cst =
   Constraint.fold (fun (l,d,r as cstr) nontriv ->
     if d <> Lt && eq_levels l r then nontriv
+    else if d = Le && is_type0_univ (Univ.make_universe l) then nontriv
     else Constraint.add cstr nontriv)
     cst empty_constraint
 
@@ -148,18 +149,15 @@ let add_list_map u t map =
   let d' = match d with None -> [t] | Some l -> t :: l in
   let lr = 
     UniverseLMap.merge (fun k lm rm -> 
-      if d = None && eq_levels k u then Some d'
-      else
-	match lm with Some t -> lm | None ->
-	match rm with Some t -> rm | None -> None) l r
-  in 
-    if d = None then UniverseLMap.add u d' lr
-    else lr
+      match lm with Some t -> lm | None ->
+      match rm with Some t -> rm | None -> None) l r
+  in UniverseLMap.add u d' lr
 
 let find_list_map u map =
   try UniverseLMap.find u map with Not_found -> []
 
 module UF = LevelUnionFind
+type universe_full_subst = (universe_level * universe) list
 
 let instantiate_univ_variables uf ucstrsl ucstrsr u (subst, cstrs) =
   try 
@@ -252,14 +250,22 @@ let normalize_context_set (ctx, csts) us =
     UniverseLSet.fold (instantiate_univ_variables uf ucstrsl ucstrsr)
       us ([], noneqs)
   in
-  let ctx', subst = 
-    List.fold_left (fun (ctx', subst') (u, us) -> 
+  let ctx', subst, ussubst = 
+    List.fold_left (fun (ctx', subst, usubst) (u, us) -> 
       match universe_level us with
-      | Some u' -> (UniverseLSet.remove u ctx', (u, u') :: subst')
-      | None -> (** Couldn't find a level, keep the universe *) 
-        (ctx', subst'))
-      (ctx, subst) ussubst
+      | Some l -> (UniverseLSet.remove u ctx', (u, l) :: subst, usubst)
+      | None ->
+         (** Couldn't find a level, keep the universe? We substitute it anyway for now *)
+      (UniverseLSet.remove u ctx', subst, (u, us) :: usubst))
+      (ctx, subst, []) ussubst 
   in
+
   let constraints = remove_trivial_constraints 
     (subst_univs_constraints subst noneqs)
-  in (subst, (ctx', constraints))
+  in
+  let ussubst = ussubst @
+    CList.map_filter (fun (u, v) ->
+      if eq_levels u v then None
+      else Some (u, make_universe v))
+      subst
+  in (ussubst, (ctx', constraints))

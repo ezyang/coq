@@ -134,6 +134,17 @@ let universe_level = function
   | Atom l -> Some l
   | Max _ -> None
 
+let rec normalize_univ x = 
+  match x with
+  | Atom _ -> x
+  | Max ([],[]) -> Atom UniverseLevel.Prop
+  | Max ([u],[]) -> Atom u
+  | Max (gel, gtl) -> 
+    let gel' = CList.uniquize gel in
+    let gtl' = CList.uniquize gtl in
+      if gel' == gel && gtl' == gtl then x
+      else normalize_univ (Max (gel', gtl'))
+
 let pr_uni_level u = str (UniverseLevel.to_string u)
 
 let pr_uni = function
@@ -164,6 +175,7 @@ let super = function
   | Atom u ->
       Max ([],[u])
   | Max ([],[]) (* Prop *) -> type1_univ
+  | Max (gel,[]) -> Max ([], gel)
   | Max _ ->
       anomaly ("Cannot take the successor of a non variable universe:\n"^
                "(maybe a bugged tactic)")
@@ -181,8 +193,12 @@ let sup u v =
     | u, Atom UniverseLevel.Prop -> u
     | u, Max ([],[]) -> u
     | Max ([],[]), v -> v
-    | Atom u, Max (gel,gtl) -> Max (List.add_set u gel,gtl)
-    | Max (gel,gtl), Atom v -> Max (List.add_set v gel,gtl)
+    | Atom u, Max (gel,gtl) -> 
+       if List.mem u gtl then v
+       else Max (List.add_set u gel,gtl)
+    | Max (gel,gtl), Atom v -> 
+       if List.mem v gtl then u
+       else Max (List.add_set v gel,gtl)
     | Max (gel,gtl), Max (gel',gtl') ->
 	let gel'' = List.union gel gel' in
 	let gtl'' = List.union gtl gtl' in
@@ -641,6 +657,9 @@ type 'a in_universe_context_set = 'a * universe_context_set
     involved *)
 type universe_subst = (universe_level * universe_level) list
 
+(** A full substitution might involve algebraic universes *)
+type universe_full_subst = (universe_level * universe) list
+
 (** Constraints *)
 let empty_constraint = Constraint.empty
 let is_empty_constraint = Constraint.is_empty
@@ -717,17 +736,6 @@ let subst_univs_level subst l =
   try List.assoc l subst
   with Not_found -> l
 
-let rec normalize_univ x = 
-  match x with
-  | Atom _ -> x
-  | Max ([],[]) -> Atom UniverseLevel.Prop
-  | Max ([u],[]) -> Atom u
-  | Max (gel, gtl) -> 
-    let gel' = CList.uniquize gel in
-    let gtl' = CList.uniquize gtl in
-      if gel' == gel && gtl' == gtl then x
-      else normalize_univ (Max (gel', gtl'))
-
 let subst_univs_universe subst u =
   match u with
   | Atom a -> 
@@ -736,6 +744,33 @@ let subst_univs_universe subst u =
   | Max (gel, gtl) -> 
     let gel' = CList.smartmap (subst_univs_level subst) gel in
     let gtl' = CList.smartmap (subst_univs_level subst) gtl in
+      if gel == gel' && gtl == gtl' then u
+      else normalize_univ (Max (gel', gtl'))
+
+let subst_univs_full_level subst l = 
+  try List.assoc l subst
+  with Not_found -> Atom l
+
+let subst_univs_full_level_opt subst l = 
+  try Some (List.assoc l subst)
+  with Not_found -> None
+
+let subst_univs_full_level_fail subst l = 
+  try 
+    (match List.assoc l subst with
+    | Atom u -> u
+    | Max _ -> anomaly "Trying to substitute an algebraic universe where only levels are allowed")
+  with Not_found -> l
+
+let subst_univs_full_universe subst u =
+  match u with
+  | Atom a -> 
+    (match subst_univs_full_level_opt subst a with
+    | Some a' -> a'
+    | None -> u)
+  | Max (gel, gtl) -> 
+    let gel' = CList.smartmap (subst_univs_full_level_fail subst) gel in
+    let gtl' = CList.smartmap (subst_univs_full_level_fail subst) gtl in
       if gel == gel' && gtl == gtl' then u
       else normalize_univ (Max (gel', gtl'))
 
@@ -761,8 +796,8 @@ type constraint_function =
     universe -> universe -> constraints -> constraints
 
 let constraint_add_leq v u c =
-  (* We just discard trivial constraints like Set<=u or u<=u *)
-  if UniverseLevel.equal v UniverseLevel.Prop || UniverseLevel.equal v u then c
+  (* We just discard trivial constraints like u<=u *)
+  if UniverseLevel.equal v u then c
   else Constraint.add (v,Le,u) c
 
 let enforce_leq u v c =
@@ -1151,8 +1186,7 @@ module Hunivlevel =
       let hash = Hashtbl.hash
     end)
 
-module Huniv =
-  Hashcons.Make(
+module Hunivcons =
     struct
       type t = universe
       type u = universe_level -> universe_level
@@ -1168,10 +1202,27 @@ module Huniv =
               (List.for_all2eq (==) gtl gtl')
 	  | _ -> false
       let hash = Hashtbl.hash
-    end)
+    end
+
+module Huniv =
+  Hashcons.Make(Hunivcons)
 
 let hcons_univlevel = Hashcons.simple_hcons Hunivlevel.generate Names.Dir_path.hcons
 let hcons_univ = Hashcons.simple_hcons Huniv.generate hcons_univlevel
+
+let hcons_univ x = hcons_univ (normalize_univ x)
+
+let equal_universes x y = 
+  let x' = hcons_univ x and y' = hcons_univ y in
+    if Hunivcons.equal x' y' then true
+    else 
+      (match x', y' with
+      | Atom _, Atom _ -> false (* already handled *)
+      | Max (gel, gtl), Max (gel', gtl') -> 
+	(* Consider lists as sets, i.e. up to reordering,
+	   they are already without duplicates thanks to normalization. *)
+        CList.eq_set gel gel' && CList.eq_set gtl gtl'
+      | _, _ -> false)
 
 module Hconstraint =
   Hashcons.Make(
