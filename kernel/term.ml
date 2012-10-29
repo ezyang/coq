@@ -1156,6 +1156,16 @@ let strip_lam_assum t = snd (decompose_lam_assum t)
 let strip_lam t = snd (decompose_lam t)
 let strip_lam_n n t = snd (decompose_lam_n n t)
 
+let univ_of_sort = function
+  | Type u -> u
+  | Prop Pos -> Univ.type0_univ
+  | Prop Null -> Univ.type0m_univ
+
+let sort_of_univ u =
+  if is_type0m_univ u then Prop Null
+  else if is_type0_univ u then Prop Pos
+  else Type u
+
 let subst_univs_constr subst c =
   if subst = [] then c
   else 

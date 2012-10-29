@@ -30,10 +30,16 @@ let interp_evars evdref env impls k typ =
   let imps = Implicit_quantifiers.implicits_of_glob_constr typ' in
     imps, Pretyping.understand_tcc_evars evdref env k typ'
 
+let interp_type_evars evdref env impls typ =
+  let typ' = intern_gen true ~impls !evdref env typ in
+  let imps = Implicit_quantifiers.implicits_of_glob_constr typ' in
+    imps, Pretyping.understand_type_judgment_tcc evdref env typ'
+
 let interp_fields_evars evars env impls_env nots l =
   List.fold_left2
-    (fun (env, uimpls, params, impls) no ((loc, i), b, t) ->
-      let impl, t' = interp_evars evars env impls Pretyping.IsType t in
+    (fun (env, uimpls, params, univ, impls) no ((loc, i), b, t) ->
+      let impl, {utj_val = t'; utj_type = s} = interp_type_evars evars env impls t in
+      let univ = Univ.sup (univ_of_sort s) univ in
       let b' = Option.map (fun x -> snd (interp_evars evars env impls (Pretyping.OfType (Some t')) x)) b in
       let impls =
 	match i with
@@ -42,8 +48,8 @@ let interp_fields_evars evars env impls_env nots l =
       in
       let d = (i,b',t') in
       List.iter (Metasyntax.set_notation_for_interpretation impls) no;
-      (push_rel d env, impl :: uimpls, d::params, impls))
-    (env, [], [], impls_env) nots l
+      (push_rel d env, impl :: uimpls, d::params, univ, impls))
+    (env, [], [], Univ.type0m_univ, impls_env) nots l
 
 let binder_of_decl = function
   | Vernacexpr.AssumExpr(n,t) -> (n,None,t)
@@ -66,20 +72,36 @@ let typecheck_params_and_fields id t ps nots fs =
 	   | LocalRawAssum (ls, bk, ce) -> List.iter (error bk) ls) ps
   in 
   let impls_env, ((env1,newps), imps) = interp_context_evars evars env0 ps in
-  let t' = match t with Some t -> t | None -> mkSort (Evarutil.evd_comb0 (Evd.new_sort_variable false) evars) in
+  let t' = match t with 
+    | Some t -> 
+       let env = push_rel_context newps env0 in
+       let _, {utj_val = s; utj_type = s'} = interp_type_evars evars env 
+	 empty_internalization_env t in
+       let sred = Reductionops.whd_betadeltaiota env !evars s in
+	 (match kind_of_term sred with
+	 | Sort s' -> 
+	   (match Evd.is_sort_variable !evars s' with
+	   | Some (l, _) -> evars := Evd.make_flexible_variable !evars l; sred
+	   | None -> s)
+	 | _ -> user_err_loc (constr_loc t,"", str"Sort expected."))
+    | None -> mkSort (Evarutil.evd_comb0 (Evd.new_sort_variable false) evars) 
+  in
   let fullarity = it_mkProd_or_LetIn t' newps in
   let env_ar = push_rel_context newps (push_rel (Name id,None,fullarity) env0) in
-  let env2,impls,newfs,data =
+  let env2,impls,newfs,univ,data =
     interp_fields_evars evars env_ar impls_env nots (binders_of_decls fs)
   in
-  let evars = Evarconv.consider_remaining_unif_problems env_ar !evars in
+  let evars = Evarconv.the_conv_x_leq env_ar (mkSort (Type univ)) t' !evars in
+  let evars = Evarconv.consider_remaining_unif_problems env_ar evars in
   let evars = Typeclasses.resolve_typeclasses env_ar evars in
-  let newps = Evarutil.nf_rel_context_evar evars newps in
-  let newfs = Evarutil.nf_rel_context_evar evars newfs in
+  let evars, nf = Evarutil.nf_evars_and_universes evars in
+  let newps = Sign.map_rel_context nf newps in
+  let newfs = Sign.map_rel_context nf newfs in
+  let arity = nf t' in
   let ce t = Evarutil.check_evars env0 Evd.empty evars t in
     List.iter (fun (n, b, t) -> Option.iter ce b; ce t) (List.rev newps);
     List.iter (fun (n, b, t) -> Option.iter ce b; ce t) (List.rev newfs);
-    Evd.universe_context evars, imps, newps, impls, newfs
+    Evd.universe_context evars, arity, imps, newps, impls, newfs
 
 let degenerate_decl (na,b,t) =
   let id = match na with
@@ -266,7 +288,8 @@ let declare_structure finite infer poly ctx id idbuild paramimpls params arity f
   begin match  finite with
   | BiFinite ->
       if Termops.dependent (mkRel (nparams+1)) (it_mkProd_or_LetIn mkProp fields) then
-	error "Records declared with the keyword Record or Structure cannot be recursive. You can, however, define recursive records using the Inductive or CoInductive command."
+	error ("Records declared with the keyword Record or Structure cannot be recursive." ^
+               "You can, however, define recursive records using the Inductive or CoInductive command.")
   | _ -> ()
   end;
   let mie =
@@ -308,11 +331,11 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
     match fields with
     | [(Name proj_name, _, field)] when def ->
 	let class_body = it_mkLambda_or_LetIn field params in
-	let class_type = Option.map (fun ar -> it_mkProd_or_LetIn ar params) arity in
+	let class_type = it_mkProd_or_LetIn arity params in
 	let class_entry =
 	  { const_entry_body = class_body;
             const_entry_secctx = None;
-	    const_entry_type = class_type;
+	    const_entry_type = Some class_type;
 	    const_entry_polymorphic = poly;
 	    const_entry_universes = ctx;
 	    const_entry_opaque = false }
@@ -350,10 +373,6 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
 	  cref, [Name proj_name, sub, Some proj_cst]
     | _ ->
 	let idarg = Namegen.next_ident_away (snd id) (Termops.ids_of_context (Global.env())) in
-	let sign, arity = match arity with Some a -> sign, a 
-	  | None -> let evd, s = Evd.new_sort_variable false sign in
-		      evd, mkSort s
-	in
 	let ind = declare_structure BiFinite infer poly ctx (snd id) idbuild paramimpls
 	  params arity fieldimpls fields
 	  ~kind:Method ~name:idarg false (List.map (fun _ -> false) fields) sign
@@ -388,7 +407,7 @@ let interp_and_check_sort sort =
   Option.map (fun sort ->
     let env = Global.env() and sigma = Evd.empty in
     let s,ctx = interp_constr sigma env sort in
-    let sigma = Evd.merge_context_set true sigma ctx in
+    let sigma = Evd.merge_context_set false sigma ctx in
     if isSort (Reductionops.whd_betadeltaiota env sigma s) then s
     else user_err_loc (constr_loc sort,"", str"Sort expected.")) sort
 
@@ -413,22 +432,17 @@ let definition_structure (kind,finite,infer,(is_coe,(loc,idstruc)),ps,cfs,idbuil
   if isnot_class && List.exists (fun opt -> not (Option.is_empty opt)) priorities then
     error "Priorities only allowed for type class substructures";
   (* Now, younger decl in params and fields is on top *)
-  let sc = interp_and_check_sort s in
-  let ctx, implpars, params, implfs, fields =
+  let ctx, arity, implpars, params, implfs, fields =
     States.with_state_protection (fun () ->
-      typecheck_params_and_fields idstruc sc ps notations fs) () in
+      typecheck_params_and_fields idstruc s ps notations fs) () in
   let sign = structure_signature (fields@params) in
     match kind with
     | Class def ->
 	let gr = declare_class finite def infer poly ctx (loc,idstruc) idbuild
-	  implpars params sc implfs fields is_coe coers priorities sign in
+	  implpars params arity implfs fields is_coe coers priorities sign in
 	if infer then search_record declare_class_instance gr sign;
 	gr
     | _ ->
-        let sign, arity = match sc with 
-	  | None -> let evd, s = Evd.new_sort_variable false sign in evd, mkSort s
-	  | Some a -> sign, a
-	in
 	let implfs = List.map
 	  (fun impls -> implpars @ Impargs.lift_implicits
 	    (succ (List.length params)) impls) implfs in

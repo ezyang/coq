@@ -1696,7 +1696,7 @@ let interp_open_constr_patvar sigma env c =
     understand_tcc !sigma env raw
 
 let interp_constr_judgment sigma env c =
-  understand_judgment sigma env (intern_constr sigma env c)
+  understand_judgment sigma env None (intern_constr sigma env c)
 
 let interp_constr_evars_gen_impls ?evdref ?(fail_evar=true)
     env ?(impls=empty_internalization_env) kind c =
@@ -1782,13 +1782,13 @@ let intern_context global_level sigma env impl_env params =
     user_err_loc (loc,"internalize", explain_internalization_error e)
 
 let interp_rawcontext_gen understand_type understand_judgment env bl =
-  let (env, ctx, par, _, impls) =
+  let (env, ctx, sorts, par, _, impls) =
     List.fold_left
-      (fun (env,ctx,params,n,impls) (na, k, b, t) ->
+      (fun (env,ctx,sorts,params,n,impls) (na, k, b, t) ->
 	match b with
 	    None ->
 	      let t' = locate_if_isevar (loc_of_glob_constr t) na t in
-	      let t,ctx' = understand_type env t' in
+	      let {utj_val = t; utj_type = s},ctx' = understand_type env t' in
 	      let d = (na,None,t) in
 	      let impls =
 		if k == Implicit then
@@ -1797,30 +1797,29 @@ let interp_rawcontext_gen understand_type understand_judgment env bl =
 		else impls
 	      in
 	      let ctx'' = Univ.union_universe_context_set ctx ctx' in
-		(push_rel d env, ctx'', d::params, succ n, impls)
+		(push_rel d env, ctx'', s::sorts, d::params, succ n, impls)
 	  | Some b ->
-	      let c,ctx' = understand_judgment env b in
+	      let {utj_val = t; utj_type = s},ctx' = understand_type env t in
+	      let c,ctx' = understand_judgment env (Some t) b in
 	      let d = (na, Some c.uj_val, c.uj_type) in
 	      let ctx'' = Univ.union_universe_context_set ctx ctx' in
-		(push_rel d env, ctx'', d::params, succ n, impls))
-      (env,Univ.empty_universe_context_set,[],1,[]) (List.rev bl)
-  in (env, ctx, par), impls
+		(push_rel d env, ctx'', s::sorts, d::params, succ n, impls))
+      (env,Univ.empty_universe_context_set,[],[],1,[]) (List.rev bl)
+  in (env, ctx, par, sorts), impls
 
 let interp_context_gen understand_type understand_judgment ?(global_level=false) ?(impl_env=empty_internalization_env) sigma env params =
   let int_env,bl = intern_context global_level sigma env impl_env params in
     int_env, interp_rawcontext_gen understand_type understand_judgment env bl
 
 let interp_context ?(global_level=false) ?(impl_env=empty_internalization_env) sigma env params =
-  interp_context_gen (understand_type sigma)
+  interp_context_gen (understand_type_judgment sigma)
     (understand_judgment sigma) ~global_level ~impl_env sigma env params
 
 let interp_context_evars ?(global_level=false) ?(impl_env=empty_internalization_env) evdref env params =
-  let int_env, ((env, ctx, par), impls) =
-    interp_context_gen (fun env t -> let t' = understand_tcc_evars evdref env IsType t in
-				       t', Evd.universe_context_set !evdref)
-    (fun env gc -> 
-      let j = understand_judgment_tcc evdref env gc in
-	j, Evd.universe_context_set !evdref) ~global_level ~impl_env !evdref env params
-  in
-  let _ = evdref := Evd.merge_context_set true !evdref ctx in
-    int_env, ((env, par), impls)
+  let int_env, ((env, ctx, par, sorts), impls) =
+    interp_context_gen (fun env t -> let t' = understand_type_judgment_tcc evdref env t in
+				       t', Univ.empty_universe_context_set)
+    (fun env tycon gc -> 
+      let j = understand_judgment_tcc evdref env tycon gc in
+	j, Univ.empty_universe_context_set) ~global_level ~impl_env !evdref env params
+  in int_env, ((env, par), impls)

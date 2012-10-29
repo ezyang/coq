@@ -244,10 +244,12 @@ val subst_defined_metas : metabinding list -> constr -> constr option
 
 type rigid = bool (** Rigid or flexible universe variables *)
 
-val univ_of_sort : sorts -> Univ.universe
 val new_univ_variable : rigid -> evar_map -> evar_map * Univ.universe
 val new_sort_variable : rigid -> evar_map -> evar_map * sorts
-val is_sort_variable : evar_map -> sorts -> bool
+val make_flexible_variable : evar_map -> Univ.universe_level -> evar_map
+val is_sort_variable : evar_map -> sorts -> (Univ.universe_level * rigid) option 
+(** [is_sort_variable evm s] returns [Some (u, is_rigid)] or [None] if [s] is 
+    not a sort variable declared in [evm] *)
 val whd_sort_variable : evar_map -> constr -> constr
 val set_leq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
@@ -260,7 +262,7 @@ val merge_context_set : rigid -> evar_map -> Univ.universe_context_set -> evar_m
 
 val with_context_set : rigid -> evar_map -> 'a Univ.in_universe_context_set -> evar_map * 'a
 
-val nf_constraints : evar_map -> evar_map * Univ.universe_subst
+val nf_constraints : evar_map -> evar_map * Univ.universe_full_subst
 
 (** Polymorphic universes *)
 

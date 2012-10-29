@@ -73,9 +73,12 @@ let judge_of_prop_contents = function
 
 let judge_of_type u =
   let uu = super u in
+  let ctx = match universe_level u with
+    | None -> Univ.empty_universe_context_set
+    | Some l -> Univ.singleton_universe_context_set l
+  in
     ({ uj_val = mkType u;
-       uj_type = mkType uu }, 
-     (Univ.singleton_universe_context_set (Option.get (universe_level u))))
+       uj_type = mkType uu }, ctx)
 
 (*s Type of a de Bruijn index. *)
 

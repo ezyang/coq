@@ -175,7 +175,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	  evars := Evd.merge_context_set false !evars uctx;
 	let termtype =
 	  let t = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
-	    Evarutil.nf_evars_and_universes evars t
+	    Evarutil.e_nf_evars_and_universes evars t
 	in
 	Evarutil.check_evars env Evd.empty !evars termtype;
 	let cst = Declare.declare_constant ~internal:Declare.KernelSilent id
@@ -268,7 +268,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	  env !evars
       in
       let _ = evars := Evarutil.nf_evar_map_undefined !evars in
-      let nf = Evarutil.nf_evars_and_universes evars in
+      let nf = Evarutil.e_nf_evars_and_universes evars in
       let termtype = nf termtype in
       let _ = (* Check that the type is free of evars now. *)
 	Evarutil.check_evars env Evd.empty !evars termtype

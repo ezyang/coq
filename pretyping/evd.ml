@@ -569,6 +569,11 @@ let new_sort_variable rigid d =
   let (d', u) = new_univ_variable rigid d in
     (d', Type u)
 
+let make_flexible_variable ({evars=(evm,ctx)} as d) u =
+  let uvars' = Univ.UniverseLSet.add u ctx.uctx_univ_variables in
+    {d with evars = (evm, {ctx with uctx_univ_variables = uvars'})}
+
+
 
 (****************************************)
 (* Operations on constants              *)
@@ -593,16 +598,14 @@ let is_sort_variable {evars=(_,uctx)} s =
   match s with 
   | Type u -> 
     (match Univ.universe_level u with
-    | Some l -> Univ.UniverseLSet.mem l uctx.uctx_univ_variables
-    | None -> false)
-  | _ -> false 
+    | Some l -> 
+      if Univ.UniverseLSet.mem l (fst uctx.uctx_local) then 
+	Some (l, not (Univ.UniverseLSet.mem l uctx.uctx_univ_variables))
+      else None
+    | None -> None)
+  | _ -> None
 
 let whd_sort_variable {evars=(_,sm)} t = t
-
-let univ_of_sort = function
-  | Type u -> u
-  | Prop Pos -> Univ.type0_univ
-  | Prop Null -> Univ.type0m_univ
 
 let is_eq_sort s1 s2 =
   if Int.equal (sorts_ord s1 s2) 0 then None (* FIXME *)

@@ -17,6 +17,7 @@ open Environ
 open Reduction
 open Typeops
 open Entries
+open Pp
 
 (* Same as noccur_between but may perform reductions.
    Could be refined more...  *)
@@ -147,14 +148,14 @@ let small_unit constrsinfos =
 
 let extract_level (_,_,_,lc,lev) =
   (* Enforce that the level is not in Prop if more than one constructor *)
-  if Array.length lc >= 2 then sup type0_univ lev else lev
+  (* if Array.length lc >= 2 then sup type0_univ lev else lev *)
+  lev
 
 let inductive_levels arities inds =
-  let levels = Array.map pi3 arities in
   let cstrs_levels = Array.map extract_level inds in
   (* Take the transitive closure of the system of constructors *)
   (* level constraints and remove the recursive dependencies *)
-  solve_constraints_system levels cstrs_levels
+    cstrs_levels
 
 (* This (re)computes informations relevant to extraction and the sort of an
    arity or type constructor; we do not to recompute universes constraints *)
@@ -197,12 +198,29 @@ let typecheck_inductive env ctx mie =
     List.fold_left
       (fun (env_ar,ctx,l) ind ->
          (* Arities (without params) are typed-checked here *)
-	 let arity, ctx' = infer_type env_params ind.mind_entry_arity in
+         let arity, ctx' = 
+	   if isArity ind.mind_entry_arity then
+	     let (ctx,s) = destArity ind.mind_entry_arity in
+	       match s with
+	       | Type u when Univ.universe_level u = None ->
+	         (** We have an algebraic universe as the conclusion of the arity,
+		     typecheck the dummy Π ctx, Prop and do a special case for the conclusion.
+		 *)
+	         let proparity,ctx' = infer_type env_params (mkArity (ctx, prop_sort)) in
+		 let (cctx, _) = destArity proparity.utj_val in
+		   (* Any universe is well-formed, we don't need to check [s] here *)
+		   mkArity (cctx, s), ctx'
+	       | _ -> let arity, ctx' = infer_type env_params ind.mind_entry_arity in
+			arity.utj_val, ctx'
+	   else let arity, ctx' = infer_type env_params ind.mind_entry_arity in
+		  arity.utj_val, ctx'
+	 in
+	 (* let arity, ctx' = infer_type env_params ind.mind_entry_arity in *)
 	 (* We do not need to generate the universe of full_arity; if
 	    later, after the validation of the inductive definition,
 	    full_arity is used as argument or subject to cast, an
 	    upper universe will be generated *)
-	 let full_arity = it_mkProd_or_LetIn arity.utj_val params in
+	 let full_arity = it_mkProd_or_LetIn arity params in
 	 let id = ind.mind_entry_typename in
 	 let env_ar' =
            push_rel (Name id, None, full_arity) env_ar in
@@ -210,7 +228,7 @@ let typecheck_inductive env ctx mie =
 	 let lev =
 	   (* Decide that if the conclusion is not explicitly Type *)
 	   (* then the inductive type is not polymorphic *)
-	   match kind_of_term ((strip_prod_assum arity.utj_val)) with
+	   match kind_of_term ((strip_prod_assum arity)) with
 	   | Sort (Type u) -> Some u
 	   | _ -> None in
          (env_ar',union_universe_context_set ctx ctx',(id,full_arity,lev)::l))
@@ -244,26 +262,45 @@ let typecheck_inductive env ctx mie =
   let inds, cst =
     Array.fold_map2' (fun ((id,full_arity,ar_level),cn,info,lc,_) lev cst ->
       let sign, s = dest_arity env full_arity in
-      let status,cst = match s with
-      | Type u when ar_level != None (* Explicitly polymorphic *)
-            && no_upper_constraints u cst ->
-	  (* The polymorphic level is a function of the level of the *)
-	  (* conclusions of the parameters *)
-          (* We enforce [u >= lev] in case [lev] has a strict upper *)
-          (* constraints over [u] *)
-          let arity = mkArity (sign, Type lev) in
-          (info,arity,Type lev), enforce_leq lev u cst
-      | Type u (* Not an explicit occurrence of Type *) ->
-	  (info,full_arity,s), enforce_leq lev u cst
-      | Prop Pos when not (is_impredicative_set env) ->
-	  (* Predicative set: check that the content is indeed predicative *)
-	  if not (is_type0m_univ lev) & not (is_type0_univ lev) then
-	    raise (InductiveError LargeNonPropInductiveNotInType);
-	  (info,full_arity,s), cst
-      | Prop _ ->
-	  (info,full_arity,s), cst in
-      (id,cn,lc,(sign,status)),cst)
-      inds ind_min_levels (snd ctx) in
+      let u = Term.univ_of_sort s in
+      let _ = 
+	if is_type0m_univ u then () (* Impredicative prop + any universe is higher than prop *)
+	else if is_type0_univ u then 
+	  if engagement env <> Some ImpredicativeSet then 
+      	    (* Predicative set: check that the content is indeed predicative *)
+      	    (if not (is_type0m_univ lev) & not (is_type0_univ lev) then
+      	      raise (InductiveError LargeNonPropInductiveNotInType))
+	  else () (* Impredicative set, don't care if the constructors are in Prop *)
+	else
+	  if not (equal_universes lev u) then 
+	    anomalylabstrm "check_inductive" (Pp.str"Incorrect universe " ++
+					      pr_uni u ++ Pp.str " declared for inductive type, inferred level is " ++ pr_uni lev)
+      in
+	(id,cn,lc,(sign,(info,full_arity,s))), cst)
+    inds ind_min_levels (snd ctx)
+  in
+    
+
+      (* let status,cst = match s with *)
+      (* | Type u when ar_level <> None (\* Explicitly polymorphic *\) *)
+      (*       && no_upper_constraints u cst -> *)
+      (* 	  (\* The polymorphic level is a function of the level of the *\) *)
+      (* 	  (\* conclusions of the parameters *\) *)
+      (*     (\* We enforce [u >= lev] in case [lev] has a strict upper *\) *)
+      (*     (\* constraints over [u] *\) *)
+      (*     let arity = mkArity (sign, Type lev) in *)
+      (*     (info,arity,Type lev), enforce_leq lev u cst *)
+      (* | Type u (\* Not an explicit occurrence of Type *\) -> *)
+      (* 	  (info,full_arity,s), enforce_leq lev u cst *)
+      (* | Prop Pos when engagement env <> Some ImpredicativeSet -> *)
+      (* 	  (\* Predicative set: check that the content is indeed predicative *\) *)
+      (* 	  if not (is_type0m_univ lev) & not (is_type0_univ lev) then *)
+      (* 	    raise (InductiveError LargeNonPropInductiveNotInType); *)
+      (* 	  (info,full_arity,s), cst *)
+      (* | Prop _ -> *)
+      (* 	  (info,full_arity,s), cst in *)
+      (* (id,cn,lc,(sign,status)),cst) *)
+      (* inds ind_min_levels (snd ctx) in *)
   let univs = (fst univs, cst) in
   (env_arities, params, inds, univs)
 

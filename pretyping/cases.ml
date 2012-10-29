@@ -1653,12 +1653,14 @@ let build_inversion_problem loc env sigma tms t =
       return type of the original problem Xi *)
   (* let sigma, s = Evd.new_sort_variable sigma in *)
 (*FIXME TRY *)
-  let ty = Retyping.get_type_of env sigma t in
+  let sigma, s = Evd.new_sort_variable true sigma in
   let evdref = ref sigma in
+  (* let ty = Retyping.get_type_of env sigma t in *)
+  (* let ty = evd_comb1 (refresh_universes false) evdref ty in *)
   let pb =
     { env       = pb_env;
       evdref    = evdref;
-      pred      = ty;
+      pred      = (*ty *) mkSort s;
       tomatch   = sub_tms;
       history   = start_history n;
       mat       = [eqn1;eqn2];

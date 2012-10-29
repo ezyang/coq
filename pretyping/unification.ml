@@ -31,7 +31,7 @@ let occur_meta_or_undefined_evar evd c =
         | Evar_defined c ->
             occrec c; Array.iter occrec args
         | Evar_empty -> raise Occur)
-    | Sort s when is_sort_variable evd s -> raise Occur
+    | Sort (Type _) (* FIXME could be finer *) -> raise Occur
     | _ -> iter_constr occrec c
   in try occrec c; false with Occur | Not_found -> true
 

@@ -77,7 +77,7 @@ let interp_definition bl p red_option c ctypopt =
     match ctypopt with
       None ->
 	let c, imps2 = interp_constr_evars_impls ~impls ~evdref ~fail_evar:false env_bl c in
-	let nf = nf_evars_and_universes evdref in
+	let nf = e_nf_evars_and_universes evdref in
 	let body = nf (it_mkLambda_or_LetIn c ctx) in
 	imps1@(Impargs.lift_implicits nb_args imps2),
 	{ const_entry_body = body;
@@ -90,7 +90,7 @@ let interp_definition bl p red_option c ctypopt =
 	let ty, impsty = interp_type_evars_impls ~impls ~evdref ~fail_evar:false env_bl ctyp in
 	let c, imps2 = interp_casted_constr_evars_impls ~impls ~evdref
 	  ~fail_evar:false env_bl c ty in
-	let nf = nf_evars_and_universes evdref in 
+	let nf = e_nf_evars_and_universes evdref in 
 	let body = nf (it_mkLambda_or_LetIn c ctx) in
 	let typ = nf (it_mkProd_or_LetIn ty ctx) in
 	let beq x1 x2 = if x1 then x2 else not x2 in
@@ -258,8 +258,22 @@ let prepare_param = function
   | (na,None,t) -> out_name na, LocalAssum t
   | (na,Some b,_) -> out_name na, LocalDef b
 
+
+let make_conclusion_flexible evdref ty = 
+  if isArity ty then
+    let _, concl = destArity ty in
+      match concl with
+      | Type u -> 
+        (match Univ.universe_level u with
+        | Some u -> evdref := Evd.make_flexible_variable !evdref u
+	| None -> ())
+      | _ -> ()
+  else () 
+	
+(** Make the arity conclusion flexible to avoid generating an upper bound universe now. *)
 let interp_ind_arity evdref env ind =
-  interp_type_evars_impls ~evdref env ind.ind_arity
+  let (ty, impls) = interp_type_evars_impls ~evdref env ind.ind_arity in
+    make_conclusion_flexible evdref ty; (ty, impls)
 
 let interp_cstrs evdref env impls mldata arity ind =
   let cnames,ctyps = List.split ind.ind_lc in
@@ -276,7 +290,7 @@ let extract_level env evd tys =
 let inductive_levels env evdref arities inds =
   let destarities = List.map (Reduction.dest_arity env) arities in
   let levels = List.map (fun (_,a) -> 
-    if a = Prop Null then None else Some (Evd.univ_of_sort a)) destarities in
+    if a = Prop Null then None else Some (univ_of_sort a)) destarities in
   let cstrs_levels = List.map (fun (_,tys,_) -> extract_level env !evdref tys) inds in
   (* Take the transitive closure of the system of constructors *)
   (* level constraints and remove the recursive dependencies *)
@@ -330,7 +344,7 @@ let interp_mutual_inductive (paramsl,indl) notations poly finite =
   evdref := Typeclasses.resolve_typeclasses ~filter:Typeclasses.no_goals ~fail:true env_params evd;
   (* Compute renewed arities *)
   let arities = inductive_levels env_ar_params evdref arities constructors in
-  let nf = nf_evars_and_universes evdref in 
+  let nf = e_nf_evars_and_universes evdref in 
   let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf cl,impsl)) constructors in
   let ctx_params = Sign.map_rel_context nf ctx_params in
   let arities = List.map nf arities in
