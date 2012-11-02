@@ -234,7 +234,7 @@ let pf_with_evars glsev k gls =
     tclTHEN (Refiner.tclEVARS evd) (k a) gls
 
 let pf_constr_of_global gr k =
-  pf_with_evars (fun gls -> pf_apply Evd.fresh_global gls gr) k
+  pf_with_evars (fun gls -> pf_apply (Evd.fresh_global Evd.univ_flexible) gls gr) k
 
 let general_elim_then_using mk_elim
   isrec allnames tac predicate (indbindings,elimbindings)
@@ -294,7 +294,7 @@ let general_elim_then_using mk_elim
 
 let gl_make_elim ind gl =
   let gr = Indrec.lookup_eliminator (fst ind) (elimination_sort_of_goal gl) in
-    pf_apply Evd.fresh_global gl gr
+    pf_apply (Evd.fresh_global Evd.univ_rigid) gl gr
 
 let gl_make_case_dep ind gl =
   pf_apply Indrec.build_case_analysis_scheme gl ind true

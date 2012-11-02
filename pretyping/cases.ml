@@ -350,7 +350,7 @@ let coerce_to_indtype typing_fun evdref env matx tomatchl =
 (* Utils *)
 
 let mkExistential env ?(src=(Loc.ghost,Evar_kinds.InternalHole)) evdref =
-  let e, u = e_new_type_evar evdref false env ~src:src in e
+  let e, u = e_new_type_evar evdref univ_flexible_alg env ~src:src in e
 
 let evd_comb2 f evdref x y =
   let (evd',y) = f !evdref x y in
@@ -1540,7 +1540,7 @@ let build_tycon loc env tycon_env subst tycon extenv evdref t =
 	let n = rel_context_length (rel_context env) in
 	let n' = rel_context_length (rel_context tycon_env) in
 	let impossible_case_type, u =
-	  e_new_type_evar evdref false env ~src:(loc,Evar_kinds.ImpossibleCase) in
+	  e_new_type_evar evdref univ_flexible_alg env ~src:(loc,Evar_kinds.ImpossibleCase) in
 	(lift (n'-n) impossible_case_type, mkSort u)
     | Some t ->
         let t = abstract_tycon loc tycon_env evdref subst tycon extenv t in
@@ -1653,7 +1653,7 @@ let build_inversion_problem loc env sigma tms t =
       return type of the original problem Xi *)
   (* let sigma, s = Evd.new_sort_variable sigma in *)
 (*FIXME TRY *)
-  let sigma, s = Evd.new_sort_variable true sigma in
+  let sigma, s = Evd.new_sort_variable univ_rigid sigma in
   let evdref = ref sigma in
   (* let ty = Retyping.get_type_of env sigma t in *)
   (* let ty = evd_comb1 (refresh_universes false) evdref ty in *)
@@ -1798,7 +1798,8 @@ let prepare_predicate loc typing_fun sigma env tomatchs arsign tycon pred =
         let sigma,t = match tycon with
 	| Some t -> sigma,t
 	| None -> 
-	  let sigma, (t, _) = new_type_evar false sigma env ~src:(loc, Evar_kinds.CasesType) in
+	  let sigma, (t, _) = 
+	    new_type_evar univ_flexible sigma env ~src:(loc, Evar_kinds.CasesType) in
 	    sigma, t
 	in
         (* First strategy: we build an "inversion" predicate *)
@@ -1810,7 +1811,7 @@ let prepare_predicate loc typing_fun sigma env tomatchs arsign tycon pred =
     | Some rtntyp, _ ->
       (* We extract the signature of the arity *)
       let envar = List.fold_right push_rel_context arsign env in
-      let sigma, newt = new_sort_variable false sigma in
+      let sigma, newt = new_sort_variable univ_flexible sigma in
       let evdref = ref sigma in
       let predcclj = typing_fun (mk_tycon (mkSort newt)) envar evdref rtntyp in
       let sigma = !evdref in

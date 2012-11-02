@@ -91,7 +91,7 @@ let nf_evars_and_full_universes_local sigma subst =
   let rec aux c =
     match kind_of_term c with
     | Evar (evdk, _ as ev) ->
-      (match existential_opt_value sigma ev with
+      (match try existential_opt_value sigma ev with Not_found -> None with
       | None -> c
       | Some c -> aux c)
     | Const pu -> 
@@ -156,6 +156,7 @@ let has_undefined_evars_or_sorts evd t =
         | Evar_empty ->
 	    raise NotInstantiatedEvar)
     | Sort (Type _) (*FIXME could be finer, excluding Prop and Set universes *) -> raise Not_found
+    | Ind (_,l) | Const (_,l) | Construct (_,l) when l <> [] -> raise Not_found
     | _ -> iter_constr has_ev t in
   try let _ = has_ev t in false
   with (Not_found | NotInstantiatedEvar) -> true
@@ -1606,9 +1607,10 @@ let refresh_universes dir evd t =
   let evdref = ref evd in
   let modified = ref false in
   let rec refresh t = match kind_of_term t with
-    | Sort (Type u) ->
+    | Sort (Type u) when Univ.universe_level u = None ->
       (modified := true;
-       let s' = evd_comb0 (new_sort_variable true) evdref in
+       (* s' will appear in the term, it can't be algebraic *)
+       let s' = evd_comb0 (new_sort_variable univ_flexible ) evdref in
 	 evdref :=
 	   (if dir then set_leq_sort !evdref s' (Type u) else
 	     set_leq_sort !evdref (Type u) s');
@@ -1810,7 +1812,7 @@ and evar_define conv_algo pbty ?(choose=false) env evd (evk,argsv as ev) rhs =
     (* so we recheck acyclicity *)
     if occur_evar evk body then raise (OccurCheckIn (evd',body));
     (* needed only if an inferred type *)
-    let evd', body = refresh_universes true evd' body in
+    let evd', body = refresh_universes false evd' body in
 (* Cannot strictly type instantiations since the unification algorithm
  * does not unify applications from left to right.
  * e.g problem f x == g y yields x==y and f==g (in that order)
@@ -2072,12 +2074,12 @@ let define_pure_evar_as_product evd evk =
   let evi = Evd.find_undefined evd evk in
   let evenv = evar_unfiltered_env evi in
   let id = next_ident_away idx (ids_of_named_context (evar_context evi)) in
-  let evd1,(dom,u1) = new_type_evar false evd evenv ~filter:(evar_filter evi) in
+  let evd1,(dom,u1) = new_type_evar univ_flexible evd evenv ~filter:(evar_filter evi) in
   let evd2,(rng,u2) =
     let newenv = push_named (id, None, dom) evenv in
     let src = evar_source evk evd1 in
     let filter = true::evar_filter evi in
-    new_type_evar false evd1 newenv ~src ~filter in
+    new_type_evar univ_flexible evd1 newenv ~src ~filter in
   let prod = mkProd (Name id, dom, subst_var id rng) in
   let evd3 = Evd.define evk prod evd2 in
   evd3,prod
@@ -2140,14 +2142,14 @@ let rec evar_absorb_arguments env evd (evk,args as ev) = function
 (* Refining an evar to a sort *)
 
 let define_evar_as_sort evd (ev,args) =
-  let evd, s = new_sort_variable true evd in
+  let evd, s = new_sort_variable univ_rigid evd in
     Evd.define ev (mkSort s) evd, s
 
 (* We don't try to guess in which sort the type should be defined, since
    any type has type Type. May cause some trouble, but not so far... *)
 
 let judge_of_new_Type evd =
-  let evd', s = new_univ_variable true evd in
+  let evd', s = new_univ_variable univ_rigid evd in
   (* let evd', s' = new_univ_variable evd in *)
   (* let ss = mkSort (Type s) and ss' = mkSort (Type s') in *)
   (* let evd' = set_leq_sort evd' (Type (Univ.super s)) (Type s') in *)

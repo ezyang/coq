@@ -254,7 +254,7 @@ let pf_interp_ident id gl = interp_ident_gen false id (pf_env gl)
 let pf_interp_fresh_ident id gl = interp_ident_gen true id (pf_env gl)
 
 let interp_global ist gl gr = 
-  Evd.fresh_global (pf_env gl) (project gl) gr
+  Evd.fresh_global Evd.univ_flexible (pf_env gl) (project gl) gr
 
 (* Interprets an optional identifier which must be fresh *)
 let interp_fresh_name ist env = function

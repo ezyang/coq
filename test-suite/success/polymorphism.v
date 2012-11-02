@@ -21,9 +21,9 @@ Record hypo : Type := mkhypo {
    hypo_proof : hypo_type
  }.
 
-Definition id {A : Type} (a : A) : A := a.
+Polymorphic Definition id {A : Type} (a : A) : A := a.
 
-Check (id hypo).
+Check (@id Type).
 
 
 (* Some tests of sort-polymorphisme *)

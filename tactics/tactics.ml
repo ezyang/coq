@@ -811,7 +811,7 @@ let is_record mind = (Global.lookup_mind (fst mind)).mind_record
 
 let find_ind_eliminator ind s gl =
   let gr = lookup_eliminator ind s in
-  let evd, c = pf_apply Evd.fresh_global gl gr in
+  let evd, c = pf_apply (Evd.fresh_global Evd.univ_rigid) gl gr in
     evd, c
 
 let find_eliminator c gl =

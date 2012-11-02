@@ -418,12 +418,24 @@ let add_section_variable id impl =
     | (vars,repl,abs)::sl ->
 	sectab := ((id,impl)::vars,repl,abs)::sl
 
-let extract_hyps (secs,ohyps) =
+
+let univ_variables_of c acc = 
+  let rec aux univs c = 
+    match Term.kind_of_term c with
+    | Term.Sort (Term.Type u) ->
+      (match Univ.universe_level u with
+      | Some l -> CList.add_set l univs
+      | None -> univs)
+    | _ -> Term.fold_constr aux univs c
+  in aux acc c
+
+let extract_hyps poly (secs,ohyps) =
   let rec aux = function
     | ((id,impl)::idl,(id',b,t)::hyps) when Names.Id.equal id id' ->
-      (id',impl,b,t) :: aux (idl,hyps)
+      let l, r = aux (idl,hyps) in 
+	(id',impl,b,t) :: l, if poly then univ_variables_of t r else r
     | (id::idl,hyps) -> aux (idl,hyps)
-    | [], _ -> []
+    | [], _ -> [],[]
   in aux (secs,ohyps)
 
 let instance_from_variable_context sign =
@@ -435,21 +447,21 @@ let instance_from_variable_context sign =
 
 let named_of_variable_context = List.map (fun (id,_,b,t) -> (id,b,t))
 
-let add_section_replacement f g hyps =
+let add_section_replacement f g poly hyps =
   match !sectab with
   | [] -> ()
   | (vars,exps,abs)::sl ->
-    let sechyps = extract_hyps (vars,hyps) in
+    let sechyps,u = extract_hyps poly (vars,hyps) in
     let args = instance_from_variable_context (List.rev sechyps) in
-    sectab := (vars,f args exps,g sechyps abs)::sl
+    sectab := (vars,f (u,args) exps,g sechyps abs)::sl
 
-let add_section_kn kn =
+let add_section_kn poly kn =
   let f x (l1,l2) = (l1,Names.Mindmap.add kn x l2) in
-  add_section_replacement f f
+  add_section_replacement f f poly
 
-let add_section_constant kn =
+let add_section_constant poly kn =
   let f x (l1,l2) = (Names.Cmap.add kn x l1,l2) in
-  add_section_replacement f f
+  add_section_replacement f f poly
 
 let replacement_context () = pi2 (List.hd !sectab)
 
@@ -465,7 +477,7 @@ let rec list_mem_assoc x = function
 
 let section_instance = function
   | VarRef id ->
-      if list_mem_assoc id (pi1 (List.hd !sectab)) then [||]
+      if list_mem_assoc id (pi1 (List.hd !sectab)) then [], [||]
       else raise Not_found
   | ConstRef con ->
       Names.Cmap.find con (fst (pi2 (List.hd !sectab)))

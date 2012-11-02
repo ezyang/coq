@@ -1685,7 +1685,7 @@ let interp_open_constr_patvar sigma env c =
     | GPatVar (loc,(_,id)) ->
 	( try Gmap.find id !evars
 	  with Not_found ->
-	    let ev,_ = Evarutil.e_new_type_evar sigma false env in
+	    let ev,_ = Evarutil.e_new_type_evar sigma Evd.univ_flexible_alg env in
 	    let ev = Evarutil.e_new_evar sigma env ev in
 	    let rev = GEvar (loc,(fst (Term.destEvar ev)),None) (*TODO*) in
 	    evars := Gmap.add id rev !evars;

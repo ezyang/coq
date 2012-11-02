@@ -118,7 +118,7 @@ let make_inv_predicate env evd indf realargs id status concl =
   (* Now, we can recurse down this list, for each ai,(mkRel k) whether to
      push <Ai>(mkRel k)=ai (when   Ai is closed).
    In any case, we carry along the rest of pairs *)
-  let eqdata = Evarutil.evd_comb1 (Evd.with_context_set false)
+  let eqdata = Evarutil.evd_comb1 (Evd.with_context_set Evd.univ_flexible)
     evd (Coqlib.build_coq_eq_data_in env) in
   let rec build_concl eqns n = function
     | [] -> (it_mkProd concl eqns,n)

@@ -47,7 +47,7 @@ let init =
 			   Evarutil.new_evar sol env typ
 			 in
 			 let (e,_) = Term.destEvar econstr in
-			 let new_defs = Evd.merge_context_set true new_defs ctx in
+			 let new_defs = Evd.merge_context_set Evd.univ_rigid new_defs ctx in
 			 let gl = Goal.build e in
 			 { initial = (econstr,typ)::ret;
 			   solution = new_defs ;

@@ -681,9 +681,11 @@ let is_empty_universe_context_set (univs, cst) =
 let union_universe_context_set (univs, cst) (univs', cst') =
   UniverseLSet.union univs univs', union_constraints cst cst'
 
+let universe_set_of_list l =
+  List.fold_left (fun acc x -> UniverseLSet.add x acc) UniverseLSet.empty l
+
 let universe_context_set_of_list l =
-  (List.fold_left (fun acc x -> UniverseLSet.add x acc) UniverseLSet.empty l, 
-   empty_constraint)
+  (universe_set_of_list l, empty_constraint)
 
 let constraint_depend (l,d,r) u =
   eq_levels l u || eq_levels l r
@@ -800,6 +802,16 @@ let constraint_add_leq v u c =
   if UniverseLevel.equal v u then c
   else Constraint.add (v,Le,u) c
 
+let check_univ_eq u v =
+  match u, v with
+  | (Atom u, Atom v)
+  | Atom u, Max ([v],[])
+  | Max ([u],[]), Atom v -> UniverseLevel.equal u v
+  | Max (gel,gtl), Max (gel',gtl') ->
+    compare_list UniverseLevel.equal gel gel' &&
+    compare_list UniverseLevel.equal gtl gtl'
+  | _, _ -> false
+
 let enforce_leq u v c =
   match u, v with
   | Atom u, Atom v -> constraint_add_leq u v c
@@ -808,6 +820,10 @@ let enforce_leq u v c =
       List.fold_right (fun u -> Constraint.add (u,Lt,v)) gtl d
   | _ -> anomaly "A universe bound can only be a variable"
 
+let enforce_leq u v c =
+  if check_univ_eq u v then c
+  else enforce_leq u v c
+
 let enforce_eq u v c =
   match (u,v) with
     | Atom u, Atom v ->
@@ -815,8 +831,15 @@ let enforce_eq u v c =
       if UniverseLevel.equal u v then c else Constraint.add (u,Eq,v) c
     | _ -> anomaly "A universe comparison can only happen between variables"
 
+let enforce_eq u v c =
+  if check_univ_eq u v then c
+  else enforce_eq u v c
+
 let enforce_eq_level u v c =
   if UniverseLevel.equal u v then c else Constraint.add (u,Eq,v) c
+
+let enforce_leq_level u v c =
+  if UniverseLevel.equal u v then c else Constraint.add (u,Le,v) c
   
 let merge_constraints c g =
   Constraint.fold enforce_constraint c g

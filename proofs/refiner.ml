@@ -389,7 +389,7 @@ let tclEVARS sigma gls = tclIDTAC {gls with sigma=sigma}
 
 (* Push universe context *)
 let tclPUSHCONTEXT ctx tac gl = 
-  tclTHEN (tclEVARS (Evd.merge_context_set true (project gl) ctx)) tac gl
+  tclTHEN (tclEVARS (Evd.merge_context_set Evd.univ_rigid (project gl) ctx)) tac gl
 
 (* Pretty-printers. *)
 

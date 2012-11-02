@@ -172,7 +172,7 @@ Variables a1 a2 : A.
 
 (** We build the subset [A'] of [A] made of [a1] and [a2] *)
 
-Definition A' := sigT (fun x => x=a1 \/ x=a2).
+Definition A' := @sigT A (fun x => x=a1 \/ x=a2).
 
 Definition a1':A'.
 exists a1 ; auto.

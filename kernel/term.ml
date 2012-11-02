@@ -1188,7 +1188,7 @@ let subst_univs_constr subst c =
       | Sort (Type u) -> 
          let u' = subst_univs_universe subst u in
 	   if u' == u then t else 
-	     (changed := true; mkSort (Type u'))
+	     (changed := true; mkSort (sort_of_univ u'))
       | _ -> map_constr aux t
     in 
     let c' = aux c in

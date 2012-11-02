@@ -74,7 +74,9 @@ val instantiate_univ_variables :
   (UF.elt * Univ.universe) list * Univ.constraints
 
 
-val normalize_context_set : universe_context_set -> universe_set -> 
+val normalize_context_set : universe_context_set -> 
+  universe_set (* univ variables *) ->
+  universe_set (* univ variables that can be substituted by algebraics *) -> 
   universe_full_subst in_universe_context_set
 
 

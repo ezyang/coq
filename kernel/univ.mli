@@ -138,6 +138,8 @@ val union_constraints : constraints -> constraints -> constraints
 (** Constrained *)
 val constraints_of : 'a constrained -> constraints
 
+val universe_set_of_list : universe_list -> universe_set
+
 (** Universe contexts (as lists) *)
 val empty_universe_context : universe_context
 val is_empty_universe_context : universe_context -> bool
@@ -191,6 +193,7 @@ type constraint_function = universe -> universe -> constraints -> constraints
 val enforce_leq : constraint_function
 val enforce_eq : constraint_function
 val enforce_eq_level : universe_level -> universe_level -> constraints -> constraints
+val enforce_leq_level : universe_level -> universe_level -> constraints -> constraints
 
 (** {6 ... } *)
 (** Merge of constraints in a universes graph.
