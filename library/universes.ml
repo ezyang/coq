@@ -140,7 +140,7 @@ module LevelUnionFind = Unionfind.Make (Univ.UniverseLSet) (Univ.UniverseLMap)
 let remove_trivial_constraints cst =
   Constraint.fold (fun (l,d,r as cstr) nontriv ->
     if d <> Lt && eq_levels l r then nontriv
-    else if d = Le && is_type0_univ (Univ.make_universe l) then nontriv
+    else if d = Le && is_type0_univ (Univ.Universe.make l) then nontriv
     else Constraint.add cstr nontriv)
     cst empty_constraint
 
@@ -214,7 +214,24 @@ let instantiate_univ_variables uf ucstrsl ucstrsr u (subst, cstrs) =
       | Some uinst -> ((u, uinst) :: subst)
     in (subst', cstrs)
   
-let normalize_context_set (ctx, csts) us = 
+(** Precondition: flexible <= ctx *)
+let choose_canonical ctx flexible s =
+  let global = UniverseLSet.diff s ctx in
+  let flexible, rigid = UniverseLSet.partition (fun x -> UniverseLSet.mem x flexible) s in
+    (** If there is a global universe in the set, choose it *)
+    if not (UniverseLSet.is_empty global) then
+      let canon = UniverseLSet.choose global in
+	canon, (UniverseLSet.remove canon global, rigid, flexible)
+    else (** No global in the equivalence class, choose a rigid one *)
+	if not (UniverseLSet.is_empty rigid) then
+	  let canon = UniverseLSet.choose rigid in
+	    canon, (global, UniverseLSet.remove canon rigid, flexible)
+	else (** There are only flexible universes in the equivalence
+		 class, choose an arbitrary one. *)
+	  let canon = UniverseLSet.choose s in
+	    canon, (global, rigid, UniverseLSet.remove canon flexible)
+
+let normalize_context_set (ctx, csts) us algs = 
   let uf = UF.create () in
   let noneqs, ucstrsl, ucstrsr = 
     Constraint.fold (fun (l,d,r as cstr) (noneq, ucstrsl, ucstrsr) -> 
@@ -236,36 +253,66 @@ let normalize_context_set (ctx, csts) us =
     csts (empty_constraint, UniverseLMap.empty, UniverseLMap.empty)
   in
   let partition = UF.partition uf in
-  let ctx', pcanons = List.fold_left (fun (ctx, canons) s -> 
-    let canon = UniverseLSet.max_elt s in
-    let rest = UniverseLSet.remove canon s in
-    let ctx' = UniverseLSet.diff ctx rest in
-    let canons' = (canon, UniverseLSet.elements rest) :: canons in
-      (ctx', canons')) 
-    (ctx, []) partition
+  let subst, eqs = List.fold_left (fun (subst, cstrs) s -> 
+    let canon, (global, rigid, flexible) = choose_canonical ctx us s in
+    let cstrs = UniverseLSet.fold (fun g cst -> 
+      Constraint.add (canon, Univ.Eq, g) cst) global cstrs 
+    in
+    (** Should this really happen? *)
+    (* let cstrs = UniverseLMap.fold (fun g cst ->  *)
+    (*   Constraint.add (canon, Univ.Eq, g) cst) rigid cstrs  *)
+    (* in *)
+    let subst = List.map (fun f -> (f, canon)) (UniverseLSet.elements (UniverseLSet.union rigid flexible)) @ subst in
+      (subst, cstrs))
+    ([], Constraint.empty) partition
   in
-  let subst = List.concat (List.rev_map (fun (c, rs) -> 
-    List.rev_map (fun r -> (r, c)) rs) pcanons) in
+  (* let subst = List.concat (List.rev_map (fun (c, (global, rigid, flex)) ->  *)
+  (*   List.rev_map (fun r -> (r, c)) rs) pcanons) in *)
   let ussubst, noneqs = 
     UniverseLSet.fold (instantiate_univ_variables uf ucstrsl ucstrsr)
       us ([], noneqs)
   in
-  let ctx', subst, ussubst = 
-    List.fold_left (fun (ctx', subst, usubst) (u, us) -> 
-      match universe_level us with
-      | Some l -> (UniverseLSet.remove u ctx', (u, l) :: subst, usubst)
-      | None ->
-         (** Couldn't find a level, keep the universe? We substitute it anyway for now *)
-      (UniverseLSet.remove u ctx', subst, (u, us) :: usubst))
-      (ctx, subst, []) ussubst 
+  let subst, ussubst = 
+    let rec aux subst ussubst =
+      List.fold_left (fun (subst', usubst') (u, us) -> 
+        match universe_level us with
+	| Some l -> ((u, l) :: subst', usubst')
+	| None ->
+          let us' = subst_univs_universe subst' us in
+	    match universe_level us' with
+	    | Some l -> ((u, l) :: subst', usubst')
+	    | None -> (** Couldn't find a level, keep the universe? *)
+	      (subst', (u, us') :: usubst'))
+      (subst, []) ussubst
+    in 
+    (** Normalize the substitution w.r.t. itself so we get only
+	fully-substituted, normalized universes as the range of the substitution *)
+    let rec fixpoint subst ussubst = 
+      let (subst', ussubst') = aux subst ussubst in
+	if ussubst' = [] then subst', ussubst'
+	else 
+	  let ussubst' = List.rev ussubst' in
+	    if ussubst' = ussubst then subst', ussubst'
+	    else fixpoint subst' ussubst'
+    in fixpoint subst ussubst
   in
-
   let constraints = remove_trivial_constraints 
-    (subst_univs_constraints subst noneqs)
+    (Constraint.union eqs (subst_univs_constraints subst noneqs))
   in
-  let ussubst = ussubst @
+  let usalg, usnonalg = 
+    List.partition (fun (u, _) -> UniverseLSet.mem u algs) ussubst
+  in
+  let subst = 
+    usalg @
     CList.map_filter (fun (u, v) ->
       if eq_levels u v then None
-      else Some (u, make_universe v))
+      else Some (u, Universe.make v))
       subst
-  in (ussubst, (ctx', constraints))
+  in
+  let ctx' = List.fold_left (fun ctx' (u, _) -> UniverseLSet.remove u ctx') ctx subst in
+  let constraints' =
+    (** Residual constraints that can't be normalized further. *)
+    List.fold_left (fun csts (u, v) -> enforce_leq v (Universe.make u) csts)
+      constraints usnonalg
+  in
+    (subst, (ctx', constraints'))

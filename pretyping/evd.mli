@@ -242,18 +242,27 @@ val subst_defined_metas : metabinding list -> constr -> constr option
 (*********************************************************
    Sort/universe variables *)
 
-type rigid = bool (** Rigid or flexible universe variables *)
+(** Rigid or flexible universe variables *)
+
+type rigid = 
+  | UnivRigid
+  | UnivFlexible of bool (** Is substitution by an algebraic ok? *)
+
+val univ_rigid : rigid
+val univ_flexible : rigid
+val univ_flexible_alg : rigid
 
 val new_univ_variable : rigid -> evar_map -> evar_map * Univ.universe
 val new_sort_variable : rigid -> evar_map -> evar_map * sorts
-val make_flexible_variable : evar_map -> Univ.universe_level -> evar_map
-val is_sort_variable : evar_map -> sorts -> (Univ.universe_level * rigid) option 
+val make_flexible_variable : evar_map -> bool -> Univ.universe_level -> evar_map
+val is_sort_variable : evar_map -> sorts -> (Univ.universe_level * bool) option 
 (** [is_sort_variable evm s] returns [Some (u, is_rigid)] or [None] if [s] is 
     not a sort variable declared in [evm] *)
 val whd_sort_variable : evar_map -> constr -> constr
 val set_leq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
+val set_leq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
 
 val universe_context_set : evar_map -> Univ.universe_context_set
 val universe_context : evar_map -> Univ.universe_context
@@ -271,7 +280,7 @@ val fresh_constant_instance : env -> evar_map -> constant -> evar_map * pconstan
 val fresh_inductive_instance : env -> evar_map -> inductive -> evar_map * pinductive
 val fresh_constructor_instance : env -> evar_map -> constructor -> evar_map * pconstructor
 
-val fresh_global : env -> evar_map -> Globnames.global_reference -> evar_map * constr
+val fresh_global : rigid -> env -> evar_map -> Globnames.global_reference -> evar_map * constr
 
 (********************************************************************
    constr with holes *)

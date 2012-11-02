@@ -758,7 +758,7 @@ let discrimination_pf env sigma e (t,t1,t2) discriminator lbeq =
   let i           = build_coq_I () in
   let absurd_term = build_coq_False () in
   let eq_elim     = ind_scheme_of_eq lbeq in
-  let sigma, eq_elim = Evd.fresh_global env sigma eq_elim in
+  let sigma, eq_elim = Evd.fresh_global Evd.univ_rigid env sigma eq_elim in
     sigma, ((applist (eq_elim, [t;t1;mkNamedLambda e t discriminator;i;t2]), absurd_term))
 
 let eq_baseid = Id.of_string "e"
@@ -802,7 +802,7 @@ let onEquality with_evars tac (c,lbindc) gls =
   let eq_clause' = clenv_pose_dependent_evars with_evars eq_clause in
   let eqn = clenv_type eq_clause' in
   let (eq,ctx),eq_args = find_this_eq_data_decompose gls eqn in
-  let sigma = Evd.merge_context_set false eq_clause'.evd ctx in
+  let sigma = Evd.merge_context_set Evd.univ_flexible eq_clause'.evd ctx in
   tclTHEN
     (Refiner.tclEVARS sigma)
     (tac (eq,eqn,eq_args) eq_clause') gls

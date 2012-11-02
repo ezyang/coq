@@ -205,12 +205,15 @@ end
 type evar_universe_context = 
   { uctx_local : Univ.universe_context_set; (** The local context of variables *)
     uctx_univ_variables : Univ.universe_set; (** The local universes that are unification variables *)
+    uctx_univ_algebraic : Univ.universe_set; (** The subset of unification variables that can be instantiated with 
+						 algebraic universes as they appear in types only. *)
     uctx_universes :  Univ.universes; (** The current graph extended with the local constraints *)
   }
   
 let empty_evar_universe_context = 
   { uctx_local = Univ.empty_universe_context_set;
     uctx_univ_variables = Univ.empty_universe_set;
+    uctx_univ_algebraic = Univ.empty_universe_set;
     uctx_universes = Univ.initial_universes }
 
 let is_empty_evar_universe_context ctx =
@@ -533,20 +536,31 @@ let collect_evars c =
 (**********************************************************)
 (* Sort variables *)
 
-type rigid = bool (** Rigid or flexible universe variables *)
+type rigid = 
+  | UnivRigid
+  | UnivFlexible of bool (** Is substitution by an algebraic ok? *)
+
+let univ_rigid = UnivRigid
+let univ_flexible = UnivFlexible false
+let univ_flexible_alg = UnivFlexible true
 
 let universe_context_set ({evars = (sigma, uctx) }) = uctx.uctx_local
 let universe_context ({evars = (sigma, uctx) }) =
   Univ.context_of_universe_context_set uctx.uctx_local
 
 let merge_uctx rigid uctx ctx' =
-  let uvars = 
-    if rigid then uctx.uctx_univ_variables 
-    else Univ.UniverseLSet.union uctx.uctx_univ_variables (fst ctx')
+  let uctx = 
+    match rigid with
+    | UnivRigid -> uctx
+    | UnivFlexible b ->
+    let uvars' = Univ.UniverseLSet.union uctx.uctx_univ_variables (fst ctx') in
+      if b then
+	{ uctx with uctx_univ_variables = uvars';
+	uctx_univ_algebraic = Univ.UniverseLSet.union uctx.uctx_univ_algebraic (fst ctx') }
+      else { uctx with uctx_univ_variables = uvars' }
   in
-    { uctx_local = Univ.union_universe_context_set uctx.uctx_local ctx';
-      uctx_universes = Univ.merge_constraints (snd ctx') uctx.uctx_universes;
-      uctx_univ_variables = uvars }
+    { uctx with uctx_local = Univ.union_universe_context_set uctx.uctx_local ctx';
+      uctx_universes = Univ.merge_constraints (snd ctx') uctx.uctx_universes }
 
 let merge_context_set rigid ({evars = (sigma, uctx)} as d) ctx' = 
   {d with evars = (sigma, merge_uctx rigid uctx ctx')}
@@ -555,11 +569,18 @@ let with_context_set rigid d (a, ctx) =
   (merge_context_set rigid d ctx, a)
 
 let uctx_new_univ_variable rigid 
-  ({ uctx_local = (vars, cst); uctx_univ_variables = uvars} as uctx) =
+  ({ uctx_local = (vars, cst); uctx_univ_variables = uvars; uctx_univ_algebraic = avars} as uctx) =
   let u = Universes.new_univ_level (Global.current_dirpath ()) in
   let vars' = Univ.UniverseLSet.add u vars in
-  let uvars' = if rigid then uvars else Univ.UniverseLSet.add u uvars in
-    {uctx with uctx_local = (vars', cst); uctx_univ_variables = uvars'}, u
+  let uctx' = 
+    match rigid with
+    | UnivRigid -> uctx
+    | UnivFlexible b -> 
+      let uvars' = Univ.UniverseLSet.add u uvars in
+	if b then {uctx with uctx_univ_variables = uvars';
+	  uctx_univ_algebraic = Univ.UniverseLSet.add u avars}
+	else {uctx with uctx_univ_variables = Univ.UniverseLSet.add u uvars} in
+    {uctx' with uctx_local = (vars', cst)}, u
 
 let new_univ_variable rigid ({ evars = (sigma, uctx) } as d) =
   let uctx', u = uctx_new_univ_variable rigid uctx in
@@ -569,9 +590,12 @@ let new_sort_variable rigid d =
   let (d', u) = new_univ_variable rigid d in
     (d', Type u)
 
-let make_flexible_variable ({evars=(evm,ctx)} as d) u =
-  let uvars' = Univ.UniverseLSet.add u ctx.uctx_univ_variables in
-    {d with evars = (evm, {ctx with uctx_univ_variables = uvars'})}
+let make_flexible_variable 
+  ({evars=(evm,({uctx_univ_variables = uvars; uctx_univ_algebraic = avars} as ctx))} as d) b u =
+  let uvars' = Univ.UniverseLSet.add u uvars in
+  let avars' = if b then Univ.UniverseLSet.add u avars else avars in
+    {d with evars = (evm, {ctx with uctx_univ_variables = uvars'; 
+			    uctx_univ_algebraic = avars'})}
 
 
 
@@ -580,19 +604,19 @@ let make_flexible_variable ({evars=(evm,ctx)} as d) u =
 (****************************************)
 
 let fresh_sort_in_family env evd s = 
-  with_context_set false evd (Universes.fresh_sort_in_family env s)
+  with_context_set univ_flexible evd (Universes.fresh_sort_in_family env s)
 
 let fresh_constant_instance env evd c = 
-  with_context_set false evd (Universes.fresh_constant_instance env c)
+  with_context_set univ_flexible evd (Universes.fresh_constant_instance env c)
 
 let fresh_inductive_instance env evd i =
-  with_context_set false evd (Universes.fresh_inductive_instance env i)
+  with_context_set univ_flexible evd (Universes.fresh_inductive_instance env i)
 
 let fresh_constructor_instance env evd c =
-  with_context_set false evd (Universes.fresh_constructor_instance env c)
+  with_context_set univ_flexible evd (Universes.fresh_constructor_instance env c)
 
-let fresh_global env evd gr =
-  with_context_set false evd (Universes.fresh_global_instance env gr)
+let fresh_global rigid env evd gr =
+  with_context_set rigid evd (Universes.fresh_global_instance env gr)
 
 let is_sort_variable {evars=(_,uctx)} s = 
   match s with 
@@ -671,6 +695,9 @@ let set_eq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
 let set_eq_level d u1 u2 =
   add_constraints d (Univ.enforce_eq_level u1 u2 Univ.empty_constraint)
 
+let set_leq_level d u1 u2 =
+  add_constraints d (Univ.enforce_leq_level u1 u2 Univ.empty_constraint)
+
 let set_leq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
   match is_eq_sort s1 s2 with
   | None -> d
@@ -691,7 +718,9 @@ let set_leq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
 	   add_constraints d (Univ.enforce_leq u1 u2 Univ.empty_constraint))
 
 let nf_constraints ({evars = (sigma, uctx)} as d) = 
-  let (subst, us') = Universes.normalize_context_set uctx.uctx_local uctx.uctx_univ_variables in
+  let (subst, us') = Universes.normalize_context_set uctx.uctx_local uctx.uctx_univ_variables
+    uctx.uctx_univ_algebraic
+  in
   let uctx' = {uctx with uctx_local = us'; uctx_univ_variables = Univ.UniverseLSet.empty} in
     {d with evars = (sigma, uctx')}, subst
         	    

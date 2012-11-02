@@ -159,7 +159,7 @@ Definition option_map (A B:Type) (f:A->B) o :=
 
 (** [sum A B], written [A + B], is the disjoint sum of [A] and [B] *)
 
-Inductive sum (A B:Type) : Type :=
+Polymorphic Inductive sum (A B:Type) : Type :=
   | inl : A -> sum A B
   | inr : B -> sum A B.
 
@@ -171,7 +171,7 @@ Arguments inr {A B} _ , A [B] _.
 (** [prod A B], written [A * B], is the product of [A] and [B];
     the pair [pair A B a b] of [a] and [b] is abbreviated [(a,b)] *)
 
-Inductive prod (A B:Type) : Type :=
+Polymorphic Inductive prod (A B:Type) : Type :=
   pair : A -> B -> prod A B.
 
 Add Printing Let prod.
@@ -217,7 +217,7 @@ Definition prod_curry (A B C:Type) (f:A -> B -> C)
 
 (** Polymorphic lists and some operations *)
 
-Inductive list (A : Type) : Type :=
+Polymorphic Inductive list (A : Type) : Type :=
  | nil : list A
  | cons : A -> list A -> list A.
 
@@ -310,6 +310,7 @@ Defined.
 
 Definition CompSpec {A} (eq lt : A->A->Prop)(x y:A) : comparison -> Prop :=
  CompareSpec (eq x y) (lt x y) (lt y x).
+
 Definition CompSpecT {A} (eq lt : A->A->Prop)(x y:A) : comparison -> Type :=
  CompareSpecT (eq x y) (lt x y) (lt y x).
 Hint Unfold CompSpec CompSpecT.

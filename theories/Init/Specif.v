@@ -21,19 +21,19 @@ Require Import Logic.
     Similarly [(sig2 A P Q)], or [{x:A | P x & Q x}], denotes the subset
     of elements of the type [A] which satisfy both [P] and [Q]. *)
 
-Inductive sig (A:Type) (P:A -> Prop) : Type :=
+Polymorphic Inductive sig (A:Type) (P:A -> Prop) : Type :=
     exist : forall x:A, P x -> sig P.
 
-Inductive sig2 (A:Type) (P Q:A -> Prop) : Type :=
+Polymorphic Inductive sig2 (A:Type) (P Q:A -> Prop) : Type :=
     exist2 : forall x:A, P x -> Q x -> sig2 P Q.
 
 (** [(sigT A P)], or more suggestively [{x:A & (P x)}] is a Sigma-type.
     Similarly for [(sigT2 A P Q)], also written [{x:A & (P x) & (Q x)}]. *)
 
-Inductive sigT (A:Type) (P:A -> Type) : Type :=
+Polymorphic Inductive sigT (A:Type) (P:A -> Type) : Type :=
     existT : forall x:A, P x -> sigT P.
 
-Inductive sigT2 (A:Type) (P Q:A -> Type) : Type :=
+Polymorphic Inductive sigT2 (A:Type) (P Q:A -> Type) : Type :=
     existT2 : forall x:A, P x -> Q x -> sigT2 P Q.
 
 (* Notations *)
@@ -182,15 +182,15 @@ Section Dependent_choice_lemmas.
 
   Variables X : Set.
   Variable R : X -> X -> Prop.
-
+Unset Printing Notations. 
   Lemma dependent_choice :
     (forall x:X, {y | R x y}) ->
     forall x0, {f : nat -> X | f O = x0 /\ forall n, R (f n) (f (S n))}.
   Proof.
-    intros H x0.
+    intros H x0. 
     set (f:=fix f n := match n with O => x0 | S n' => proj1_sig (H (f n')) end).
     exists f.
-    split. reflexivity.
+    split. reflexivity. 
     induction n; simpl; apply proj2_sig.
   Defined.
 

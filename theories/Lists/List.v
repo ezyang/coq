@@ -27,7 +27,7 @@ Section Lists.
 
   (** Head and tail *)
 
-  Definition hd (default:A) (l:list A) :=
+  Polymorphic Definition hd (default:A) (l:list A) :=
     match l with
       | nil => default
       | x :: _ => x
@@ -343,7 +343,7 @@ Section Elts.
   (** ** Nth element of a list *)
   (*****************************)
 
-  Fixpoint nth (n:nat) (l:list A) (default:A) {struct l} : A :=
+  Polymorphic Fixpoint nth (n:nat) (l:list A) (default:A) {struct l} : A :=
     match n, l with
       | O, x :: l' => x
       | O, other => default
@@ -351,7 +351,7 @@ Section Elts.
       | S m, x :: t => nth m t default
     end.
 
-  Fixpoint nth_ok (n:nat) (l:list A) (default:A) {struct l} : bool :=
+  Polymorphic Fixpoint nth_ok (n:nat) (l:list A) (default:A) {struct l} : bool :=
     match n, l with
       | O, x :: l' => true
       | O, other => false

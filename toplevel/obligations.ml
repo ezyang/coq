@@ -21,7 +21,7 @@ open Errors
 open Util
 open Proof_type
 
-let declare_fix_ref = ref (fun _ _ _ _ _ -> assert false)
+let declare_fix_ref = ref (fun _ _ _ _ _ _ _ -> assert false)
 let declare_definition_ref = ref (fun _ _ _ _ _ -> assert false)
 
 let trace s =
@@ -590,7 +590,8 @@ let declare_mutual_definition l =
 	  None, List.map_i (fun i _ -> mkCoFix (i,fixdecls)) 0 l
   in
   (* Declare the recursive definitions *)
-  let kns = List.map4 (!declare_fix_ref kind) fixnames fixdecls fixtypes fiximps in
+  let ctx = Univ.context_of_universe_context_set first.prg_ctx in
+  let kns = List.map4 (!declare_fix_ref kind poly ctx) fixnames fixdecls fixtypes fiximps in
     (* Declare notations *)
     List.iter Metasyntax.add_notation_interpretation first.prg_notations;
     Declare.recursive_message (fixkind != IsCoFixpoint) indexes fixnames;

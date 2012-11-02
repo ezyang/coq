@@ -94,7 +94,7 @@ let ((constr_in : constr -> Dyn.t),
 let interp_sort evd = function
   | GProp -> evd, Prop Null
   | GSet -> evd, Prop Pos
-  | GType _ -> new_sort_variable true evd
+  | GType _ -> new_sort_variable univ_rigid evd
 
 let interp_elimination_sort = function
   | GProp -> InProp
@@ -217,7 +217,7 @@ let evar_kind_of_term sigma c =
 (* Main pretyping function                                               *)
 
 (* Check with universe list? *)
-let pretype_global env evd gr us = Evd.fresh_global env evd gr
+let pretype_global rigid env evd gr us = Evd.fresh_global rigid env evd gr
 
 let pretype_ref loc evdref env ref us =
   match ref with
@@ -230,7 +230,7 @@ let pretype_ref loc evdref env ref us =
             variables *)
          Pretype_errors.error_var_not_found_loc loc id)
   | ref ->
-      let evd, c = pretype_global env !evdref ref us in
+      let evd, c = pretype_global univ_flexible env !evdref ref us in
 	evdref := evd;
 	make_judge c (Retyping.get_type_of env evd c)
 
@@ -241,7 +241,7 @@ let pretype_sort evdref = function
 
 let new_type_evar evdref env loc =
   let e, s = 
-    evd_comb0 (fun evd -> Evarutil.new_type_evar false evd env ~src:(loc,Evar_kinds.InternalHole)) evdref
+    evd_comb0 (fun evd -> Evarutil.new_type_evar univ_flexible_alg evd env ~src:(loc,Evar_kinds.InternalHole)) evdref
   in e
 
 (* [pretype tycon env evdref lvar lmeta cstr] attempts to type [cstr] *)
@@ -656,7 +656,7 @@ and pretype_type valcon env evdref lvar = function
 	     { utj_val = v;
 	       utj_type = s }
        | None ->
-	   let s = evd_comb0 (new_sort_variable false) evdref in
+	   let s = evd_comb0 (new_sort_variable univ_flexible_alg) evdref in
 	     { utj_val = e_new_evar evdref env ~src:loc (mkSort s);
 	       utj_type = s})
   | c ->
@@ -735,8 +735,11 @@ let understand sigma env ?expected_type:exptyp c =
 let understand_type sigma env c =
   ise_pretype_gen_ctx true true true sigma env ([],[]) IsType c
 
+(** FIXME: should somehow ensure that no undefined univ variables are lying around before this otherwise this could fix them too early *) 
 let understand_ltac ?(resolve_classes=false) expand_evar sigma env lvar kind c =
-  ise_pretype_gen expand_evar false resolve_classes sigma env lvar kind c
+  let evd, c = ise_pretype_gen expand_evar false resolve_classes sigma env lvar kind c in
+  let evd, subst = Evd.nf_constraints evd in
+    evd, Evarutil.subst_univs_full_constr subst c
 
 let understand_tcc ?(resolve_classes=true) sigma env ?expected_type:exptyp c =
   ise_pretype_gen true false resolve_classes sigma env ([],[]) (OfType exptyp) c

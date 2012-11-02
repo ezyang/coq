@@ -405,7 +405,7 @@ let discharge_coercion (_,(coe,stre,isid,cls,clt,ps)) =
   match stre with
   | Local -> None
   | Global ->
-    let n = try Array.length (Lib.section_instance coe) with Not_found -> 0 in
+    let n = try Array.length (snd (Lib.section_instance coe)) with Not_found -> 0 in
     Some (Lib.discharge_global coe,
           stre,
 	  isid,

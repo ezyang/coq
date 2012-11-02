@@ -149,7 +149,7 @@ let matches_core convert allow_partial_app allow_bound_rels pat c =
     | _, _ -> (match convert with 
                | None -> false
 	       | Some (env,sigma) -> 
-	         let sigma,c' = Evd.fresh_global env sigma ref in
+	         let sigma,c' = Evd.fresh_global Evd.univ_flexible env sigma ref in
 		   is_conv env sigma c' c)
   in
   let rec sorec stk subst p t =

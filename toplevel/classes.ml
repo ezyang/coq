@@ -172,7 +172,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	if not (Lib.is_modtype ()) then
 	  error "Declare Instance while not in Module Type.";
 	let (_, ty_constr),uctx = instance_constructor k (List.rev subst) in
-	  evars := Evd.merge_context_set false !evars uctx;
+	  evars := Evd.merge_context_set Evd.univ_flexible !evars uctx;
 	let termtype =
 	  let t = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
 	    Evarutil.e_nf_evars_and_universes evars t
@@ -252,7 +252,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	  let (app, ty_constr),uctx = instance_constructor k subst in
 	  let termtype = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
 	  let term = Termops.it_mkLambda_or_LetIn (Option.get app) (ctx' @ ctx) in
-	    evars := Evd.merge_context_set false !evars uctx;
+	    evars := Evd.merge_context_set Evd.univ_flexible !evars uctx;
 	    Some term, termtype
 	| Some (Inr (def, subst)) ->
 	  let termtype = it_mkProd_or_LetIn cty ctx in

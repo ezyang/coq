@@ -81,10 +81,10 @@ let typecheck_params_and_fields id t ps nots fs =
 	 (match kind_of_term sred with
 	 | Sort s' -> 
 	   (match Evd.is_sort_variable !evars s' with
-	   | Some (l, _) -> evars := Evd.make_flexible_variable !evars l; sred
+	   | Some (l, _) -> evars := Evd.make_flexible_variable !evars true l; sred
 	   | None -> s)
 	 | _ -> user_err_loc (constr_loc t,"", str"Sort expected."))
-    | None -> mkSort (Evarutil.evd_comb0 (Evd.new_sort_variable false) evars) 
+    | None -> mkSort (Evarutil.evd_comb0 (Evd.new_sort_variable Evd.univ_flexible_alg) evars) 
   in
   let fullarity = it_mkProd_or_LetIn t' newps in
   let env_ar = push_rel_context newps (push_rel (Name id,None,fullarity) env0) in
@@ -402,14 +402,6 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
 (*       if sub then match p with (_, _, Some p) -> declare_instance_cst true p pri | _ -> ()) *)
 (*       k.cl_projs coers priorities; *)
   add_class k; impl
-
-let interp_and_check_sort sort =
-  Option.map (fun sort ->
-    let env = Global.env() and sigma = Evd.empty in
-    let s,ctx = interp_constr sigma env sort in
-    let sigma = Evd.merge_context_set false sigma ctx in
-    if isSort (Reductionops.whd_betadeltaiota env sigma s) then s
-    else user_err_loc (constr_loc sort,"", str"Sort expected.")) sort
 
 open Vernacexpr
 open Autoinstance

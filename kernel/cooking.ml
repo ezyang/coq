@@ -20,10 +20,12 @@ open Term
 open Sign
 open Declarations
 open Environ
+open Univ
 
 (*s Cooking the constants. *)
 
-type work_list = Id.t array Cmap.t * Id.t array Mindmap.t
+type work_list = (universe_list * Id.t array) Cmap.t * 
+  (universe_list * Id.t array) Mindmap.t
 
 let pop_dirpath p = match Dir_path.repr p with
   | [] -> anomaly "dirpath_prefix: empty dirpath"
@@ -49,14 +51,14 @@ let instantiate_my_gr gr u =
   | ConstructRef c -> mkConstructU (c, u)
 
 let cache = (Hashtbl.create 13 : 
-	     (my_global_reference, my_global_reference * constr array) Hashtbl.t)
+	     (my_global_reference, my_global_reference * (universe_list * constr array)) Hashtbl.t)
 
 let clear_cooking_sharing () = Hashtbl.clear cache
 
 let share r (cstl,knl) =
   try Hashtbl.find cache r
   with Not_found ->
-  let f,l =
+  let f,(u,l) =
     match r with
     | IndRef (kn,i) ->
 	IndRef (pop_mind kn,i), Mindmap.find kn knl
@@ -64,20 +66,20 @@ let share r (cstl,knl) =
 	ConstructRef ((pop_mind kn,i),j), Mindmap.find kn knl
     | ConstRef cst ->
 	ConstRef (pop_con cst), Cmap.find cst cstl in
-  let c = (f, Array.map mkVar l) in
+  let c = (f, (u, Array.map mkVar l)) in
   Hashtbl.add cache r c;
   (* has raised Not_found if not in work_list *)
   c
 
 let share_univs r u cache =
-  let r', args = share r cache in
-    mkApp (instantiate_my_gr r' u, args)
+  let r', (u', args) = share r cache in
+    mkApp (instantiate_my_gr r' (List.append u' u), args)
 
 let update_case_info ci modlist =
   try
     let ind, n =
       match share (IndRef ci.ci_ind) modlist with
-      | (IndRef f,l) -> (f, Array.length l)
+      | (IndRef f,(u,l)) -> (f, Array.length l)
       | _ -> assert false in
     { ci with ci_ind = ind; ci_npar = ci.ci_npar + n }
   with Not_found ->
@@ -140,6 +142,16 @@ let constr_of_def = function
   | Def cs -> Declarations.force cs
   | OpaqueDef lc -> Declarations.force_opaque lc
 
+let univ_variables_of c = 
+  let rec aux univs c = 
+    match kind_of_term c with
+    | Sort (Type u) ->
+      (match Univ.universe_level u with
+      | Some l -> Univ.UniverseLSet.add l univs
+      | None -> univs)
+    | _ -> fold_constr aux univs c
+  in aux Univ.UniverseLSet.empty c
+
 let cook_constant env r =
   let cb = r.d_from in
   let hyps = Sign.map_named_context (expmod_constr r.d_modlist) r.d_abstract in
@@ -154,10 +166,17 @@ let cook_constant env r =
   let typ = 
     abstract_constant_type (expmod_constr r.d_modlist cb.const_type) hyps 
   in
-  (*   | PolymorphicArity (ctx,s) -> *)
-  (* 	let t = mkArity (ctx,Type s.poly_level) in *)
-  (* 	let typ = abstract_constant_type (expmod_constr r.d_modlist t) hyps in *)
-  (* 	let j = make_judge (constr_of_def body) typ in *)
-  (* 	Typeops.make_polymorphic env j *)
-  (* in *)
-  (body, typ, cb.const_polymorphic, cb.const_universes, const_hyps)
+  let univs = 
+    if cb.const_polymorphic then
+      let (ctx, cst) = cb.const_universes in
+      let univs = Sign.fold_named_context (fun (n,b,t) univs -> 
+        let vars = univ_variables_of t in
+	  Univ.UniverseLSet.union vars univs)
+	  r.d_abstract ~init:UniverseLSet.empty
+      in
+      let existing = Univ.universe_set_of_list ctx in
+      let newvars = Univ.UniverseLSet.diff univs existing in
+	(List.append (Univ.UniverseLSet.elements newvars) ctx, cst)
+    else cb.const_universes
+  in
+  (body, typ, cb.const_polymorphic, univs, const_hyps)

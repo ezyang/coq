@@ -130,7 +130,8 @@ let cache_constant ((sp,kn),(cdt,dhyps,kind)) =
   let kn' = Global.add_constant dir id cdt in
   assert (eq_constant kn' (constant_of_kn kn));
   Nametab.push (Nametab.Until 1) sp (ConstRef (constant_of_kn kn));
-  add_section_constant kn' (Global.lookup_constant kn').const_hyps;
+  let cst = Global.lookup_constant kn' in
+  add_section_constant cst.const_polymorphic kn' cst.const_hyps;
   Dischargedhypsmap.set_discharged_hyps sp dhyps;
   add_constant_kind (constant_of_kn kn) kind;
   !cache_hook sp
@@ -238,7 +239,8 @@ let cache_inductive ((sp,kn),(dhyps,mie)) =
   let _,dir,_ = repr_kn kn in
   let kn' = Global.add_mind dir id mie in
   assert (eq_mind kn' (mind_of_kn kn));
-  add_section_kn kn' (Global.lookup_mind kn').mind_hyps;
+  let mind = Global.lookup_mind kn' in
+  add_section_kn mind.mind_polymorphic kn' mind.mind_hyps;
   Dischargedhypsmap.set_discharged_hyps sp dhyps;
   List.iter (fun (sp, ref) -> Nametab.push (Nametab.Until 1) sp ref) names;
   List.iter (fun (sp,_) -> !cache_hook sp) (inductive_names sp kn mie)
