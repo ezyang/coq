@@ -337,6 +337,7 @@ val eq_table_key : ('a -> 'a -> bool) -> 'a tableKey -> 'a tableKey -> bool
 
 type id_key = constant tableKey
 
+val eq_constant_key : constant -> constant -> bool
 val eq_id_key : id_key -> id_key -> bool
 
 (*equalities on constant and inductive 

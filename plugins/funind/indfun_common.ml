@@ -191,7 +191,8 @@ let get_proof_clean do_reduce =
 let with_full_print f a =
   let old_implicit_args = Impargs.is_implicit_args ()
   and old_strict_implicit_args =  Impargs.is_strict_implicit_args ()
-  and old_contextual_implicit_args = Impargs.is_contextual_implicit_args () in
+  and old_contextual_implicit_args = Impargs.is_contextual_implicit_args () 
+  in
   let old_rawprint = !Flags.raw_print in
   Flags.raw_print := true;
   Impargs.make_implicit_args false;

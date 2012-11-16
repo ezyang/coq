@@ -699,7 +699,7 @@ let intern_qualid loc qid intern env lvar args =
 (* Rule out section vars since these should have been found by intern_var *)
 let intern_non_secvar_qualid loc qid intern env lvar args =
   match intern_qualid loc qid intern env lvar args with
-    | GRef (loc, VarRef id, None),_ -> error_global_not_found_loc loc qid
+    | GRef (loc, VarRef id, _),_ -> error_global_not_found_loc loc qid
     | r -> r
 
 let intern_applied_reference intern env namedctx lvar args = function

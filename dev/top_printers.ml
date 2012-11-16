@@ -50,6 +50,7 @@ let ppscheme k = pp (Ind_tables.pr_scheme_kind k)
 (* term printers *)
 let rawdebug = ref false
 let ppconstr x = pp (Termops.print_constr x)
+let ppconstr_expr x = pp (Ppconstr.pr_constr_expr x)
 let ppconstrdb x = pp(Flags.with_option rawdebug Termops.print_constr x)
 let ppterm = ppconstr
 let ppsconstr x = ppconstr (Declarations.force x)

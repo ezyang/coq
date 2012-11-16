@@ -208,14 +208,13 @@ let unfold_red kn =
 
 type table_key = constant puniverses tableKey
 
-
-let eq_pconstant (c,_) (c',_) =
-  eq_constant c c'
+let eq_pconstant_key (c,_) (c',_) =
+  eq_constant_key c c'
   
 module IdKeyHash =
 struct
   type t = table_key
-  let equal = Names.eq_table_key eq_pconstant
+  let equal = Names.eq_table_key eq_pconstant_key
   let hash = Hashtbl.hash
 end
 

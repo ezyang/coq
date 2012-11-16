@@ -771,8 +771,7 @@ let make_graph (f_ref:global_reference) =
 	 let env = Global.env () in
 	 let body = (force b) in
 	 let extern_body,extern_type =
-	   with_full_print
-	     (fun () ->
+	   with_full_print (fun () ->
 		(Constrextern.extern_constr false env body,
 		 Constrextern.extern_type false env
                    ((*FIXNE*) c_body.const_type)
