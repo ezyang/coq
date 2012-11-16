@@ -275,18 +275,19 @@ let normalize_context_set (ctx, csts) us algs =
   let subst, ussubst = 
     let rec aux subst ussubst =
       List.fold_left (fun (subst', usubst') (u, us) -> 
-        match universe_level us with
-	| Some l -> ((u, l) :: subst', usubst')
-	| None ->
-          let us' = subst_univs_universe subst' us in
-	    match universe_level us' with
-	    | Some l -> ((u, l) :: subst', usubst')
-	    | None -> (** Couldn't find a level, keep the universe? *)
-	      (subst', (u, us') :: usubst'))
+        let us' = subst_univs_universe subst' us in
+	  match universe_level us' with
+	  | Some l -> ((u, l) :: subst', usubst')
+	  | None -> (** Couldn't find a level, keep the universe? *)
+	    (subst', (u, us') :: usubst'))
       (subst, []) ussubst
     in 
     (** Normalize the substitution w.r.t. itself so we get only
-	fully-substituted, normalized universes as the range of the substitution *)
+	fully-substituted, normalized universes as the range of the substitution.
+	We don't need to do it for the initial substitution which is canonical
+	already. If a canonical universe is equated to a new one by ussubst,
+	the 
+    *)
     let rec fixpoint subst ussubst = 
       let (subst', ussubst') = aux subst ussubst in
 	if ussubst' = [] then subst', ussubst'
