@@ -414,7 +414,7 @@ Proof.
   simpl ; intros.
   destruct (nth_in_or_default n l (Pc cO, Equal)).
   (* index is in bounds *)
-  apply H ; congruence.
+  apply H. congruence.
   (* index is out-of-bounds *)
   inversion H0.
   rewrite e. simpl.

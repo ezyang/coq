@@ -73,6 +73,9 @@ val instantiate_univ_variables :
   (UF.elt * Univ.universe) list * Univ.constraints ->
   (UF.elt * Univ.universe) list * Univ.constraints
 
+val choose_canonical : universe_set -> universe_set -> universe_set -> 
+  universe_level * (universe_set * universe_set * universe_set)
+
 
 val normalize_context_set : universe_context_set -> 
   universe_set (* univ variables *) ->

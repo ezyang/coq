@@ -27,7 +27,7 @@ Section MakeRingPol.
  Variable ARth : almost_ring_theory rO rI radd rmul rsub ropp req.
 
  (* Coefficients *)
- Variable C: Type.
+ Variable C: Set.
  Variable (cO cI: C) (cadd cmul csub : C->C->C) (copp : C->C).
  Variable ceqb : C->C->bool.
  Variable phi : C -> R.
@@ -35,7 +35,7 @@ Section MakeRingPol.
                                 cO cI cadd cmul csub copp ceqb phi.
 
  (* Power coefficients *)
- Variable Cpow : Type.
+ Variable Cpow : Set.
  Variable Cp_phi : N -> Cpow.
  Variable rpow : R -> Cpow -> R.
  Variable pow_th : power_theory rI rmul req Cp_phi rpow.
@@ -110,7 +110,7 @@ Section MakeRingPol.
     - (Pinj i (Pc c)) is (Pc c)
  *)
 
- Inductive Pol : Type :=
+ Inductive Pol : Set :=
   | Pc : C -> Pol
   | Pinj : positive -> Pol -> Pol
   | PX : Pol -> positive -> Pol -> Pol.
@@ -908,7 +908,7 @@ Section MakeRingPol.
 
  (** Definition of polynomial expressions *)
 
- Inductive PExpr : Type :=
+ Inductive PExpr : Set :=
   | PEc : C -> PExpr
   | PEX : positive -> PExpr
   | PEadd : PExpr -> PExpr -> PExpr

@@ -48,7 +48,7 @@ Section AlmostField.
  Let rinv_l := AFth.(AFinv_l).
 
  (* Coefficients *)
- Variable C: Type.
+ Variable C: Set.
  Variable (cO cI: C) (cadd cmul csub : C->C->C) (copp : C->C).
  Variable ceqb : C->C->bool.
  Variable phi : C -> R.
@@ -109,7 +109,7 @@ Hint Resolve lem1 lem2 lem3 lem4 lem5 lem6 lem7 lem8 lem9 lem10
      lem11 lem12 lem13 lem14 lem15 lem16 SRinv_ext.
 
  (* Power coefficients *)
- Variable Cpow : Type.
+ Variable Cpow : Set.
  Variable Cp_phi : N -> Cpow.
  Variable rpow : R -> Cpow -> R.
  Variable pow_th : power_theory rI rmul req Cp_phi rpow.
@@ -605,7 +605,7 @@ Qed.
 
 (* The input: syntax of a field expression *)
 
-Inductive FExpr : Type :=
+Inductive FExpr : Set :=
    FEc: C ->  FExpr
  | FEX: positive ->  FExpr
  | FEadd: FExpr -> FExpr ->  FExpr
@@ -633,7 +633,7 @@ Strategy expand [FEeval].
 
 (* The result of the normalisation *)
 
-Record linear : Type := mk_linear {
+Record linear : Set := mk_linear {
    num : PExpr C;
    denum : PExpr C;
    condition : list (PExpr C) }.
@@ -856,7 +856,7 @@ destruct n.
  trivial.
 Qed.
 
-Record rsplit : Type := mk_rsplit {
+Record rsplit : Set := mk_rsplit {
    rsplit_left : PExpr C;
    rsplit_common : PExpr C;
    rsplit_right : PExpr C}.
