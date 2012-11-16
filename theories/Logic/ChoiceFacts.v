@@ -755,7 +755,6 @@ Proof.
   intro x.
   apply (proj2_sig (DefDescr B (R x) (H x))).
 Qed.
-Print Universes.
 
 (** Remark, the following corollaries morally hold:
 

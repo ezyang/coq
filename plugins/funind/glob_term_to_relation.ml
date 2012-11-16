@@ -1264,12 +1264,12 @@ let do_build_inductive
 	(fun (n,t,is_defined) acc ->
 	   if is_defined
 	   then
-	     Constrexpr.CLetIn(Loc.ghost,(Loc.ghost, n),Constrextern.extern_glob_constr Id.Set.empty t,
+	     Constrexpr.CLetIn(Loc.ghost,(Loc.ghost, n),with_full_print (Constrextern.extern_glob_constr Id.Set.empty) t,
 			      acc)
 	   else
 	     Constrexpr.CProdN
 	       (Loc.ghost,
-		[[(Loc.ghost,n)],Constrexpr_ops.default_binder_kind,Constrextern.extern_glob_constr Id.Set.empty t],
+		[[(Loc.ghost,n)],Constrexpr_ops.default_binder_kind,with_full_print (Constrextern.extern_glob_constr Id.Set.empty) t],
 		acc
 	       )
 	)
@@ -1283,7 +1283,7 @@ let do_build_inductive
     let rel_arities = Array.mapi rel_arity funsargs in
     Util.Array.fold_left2 (fun env rel_name rel_ar ->
 			     Environ.push_named (rel_name,None, 
-						 fst (Constrintern.interp_constr Evd.empty env rel_ar)) env) env relnames rel_arities
+						 fst (with_full_print (Constrintern.interp_constr Evd.empty env) rel_ar)) env) env relnames rel_arities
   in
   (* and of the real constructors*)
   let constr i res =
@@ -1331,12 +1331,12 @@ let do_build_inductive
       (fun (n,t,is_defined) acc ->
 	 if is_defined
 	 then
-	   Constrexpr.CLetIn(Loc.ghost,(Loc.ghost, n),Constrextern.extern_glob_constr Id.Set.empty t,
+	   Constrexpr.CLetIn(Loc.ghost,(Loc.ghost, n),with_full_print (Constrextern.extern_glob_constr Id.Set.empty) t,
 			    acc)
 	 else
 	   Constrexpr.CProdN
 	   (Loc.ghost,
-	   [[(Loc.ghost,n)],Constrexpr_ops.default_binder_kind,Constrextern.extern_glob_constr Id.Set.empty t],
+	   [[(Loc.ghost,n)],Constrexpr_ops.default_binder_kind,with_full_print (Constrextern.extern_glob_constr Id.Set.empty) t],
 	    acc
 	   )
       )
@@ -1364,8 +1364,7 @@ let do_build_inductive
     Array.map (List.map
       (fun (id,t) ->
 	 false,((Loc.ghost,id),
-		Flags.with_option
-		  Flags.raw_print
+		with_full_print
 		  (Constrextern.extern_glob_type Id.Set.empty) ((* zeta_normalize *) t)
 	       )
       ))
@@ -1401,7 +1400,7 @@ let do_build_inductive
 (*   in *)
   let _time2 = System.get_time () in
   try
-    with_full_print (Flags.silently (Command.do_mutual_inductive rel_inds)) false true
+    with_full_print (Flags.silently (Command.do_mutual_inductive rel_inds false)) true
   with
     | UserError(s,msg) as e ->
 	let _time3 = System.get_time () in

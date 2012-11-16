@@ -210,15 +210,14 @@ let rec mk_nat = function
 
 (* Lists *)
 
-let coq_cons =  lazy (constant "cons")
-let coq_nil =  lazy (constant "nil")
+let coq_cons typ = Term.mkApp (constant "cons", [|typ|])
+let coq_nil typ =  Term.mkApp (constant "nil", [|typ|])
 
 let mk_list typ l =
   let rec loop = function
-    | [] ->
-	Term.mkApp (Lazy.force coq_nil, [|typ|])
+    | [] -> coq_nil typ
     | (step :: l) ->
-	Term.mkApp (Lazy.force coq_cons, [|typ; step; loop l |]) in
+	Term.mkApp (coq_cons typ, [| step; loop l |]) in
   loop l
 
 let mk_plist l = mk_list Term.mkProp l
