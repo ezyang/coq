@@ -182,7 +182,8 @@ Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z) : core_scope.
 Arguments pair {A B} _ _.
 
 Section projections.
-  Variables A B : Type.
+  Context {A : Type} {B : Type}.
+
   Definition fst (p:A * B) := match p with
 				| (x, y) => x
                               end.
