@@ -44,14 +44,12 @@ type constant_def =
   | OpaqueDef of lazy_constr
 
 (** Local variables and graph *)
-type universe_context = Univ.UniverseLSet.t * Univ.constraints 
 
 type constant_body = {
     const_hyps : section_context; (* New: younger hyp at top *)
     const_body : constant_def;
     const_type : types;
-    const_body_code : to_patch_substituted;
-    const_constraints : universe_context }
+    const_body_code : to_patch_substituted }
 
 val body_of_constant : constant_body -> constr_substituted option
 val constant_has_body : constant_body -> bool

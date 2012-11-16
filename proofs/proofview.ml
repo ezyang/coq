@@ -68,7 +68,7 @@ let finished = function
 let return { initial=init; solution=defs }  =
   let evdref = ref defs in
   let nf = Evarutil.e_nf_evars_and_universes evdref in
-  (List.map (fun (c,t) -> (nf c, t)) init,
+  (List.map (fun (c,t) -> (nf c, nf t)) init,
    Evd.universe_context !evdref)
 
 (* spiwack: this function should probably go in the Util section,
