@@ -146,7 +146,7 @@ let nf_evar_map_undefined evm = Evd.map_undefined (nf_evar_info evm) evm
 (* Auxiliary functions for the conversion algorithms modulo evars
  *)
 
-let has_undefined_evars_or_sorts evd t =
+let has_undefined_evars or_sorts evd t =
   let rec has_ev t =
     match kind_of_term t with
     | Evar (ev,args) ->
@@ -155,14 +155,15 @@ let has_undefined_evars_or_sorts evd t =
             has_ev c; Array.iter has_ev args
         | Evar_empty ->
 	    raise NotInstantiatedEvar)
-    | Sort (Type _) (*FIXME could be finer, excluding Prop and Set universes *) -> raise Not_found
-    | Ind (_,l) | Const (_,l) | Construct (_,l) when l <> [] -> raise Not_found
+    | Sort (Type _) (*FIXME could be finer, excluding Prop and Set universes *) when or_sorts ->
+      raise Not_found
+    | Ind (_,l) | Const (_,l) | Construct (_,l) when l <> [] && or_sorts -> raise Not_found
     | _ -> iter_constr has_ev t in
   try let _ = has_ev t in false
   with (Not_found | NotInstantiatedEvar) -> true
 
 let is_ground_term evd t =
-  not (has_undefined_evars_or_sorts evd t)
+  not (has_undefined_evars true evd t)
 
 let is_ground_env evd env =
   let is_ground_decl = function
