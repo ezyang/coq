@@ -338,7 +338,7 @@ Hint Resolve in_eq in_cons in_inv in_nil in_app_or in_or_app: datatypes v62.
 Section Elts.
 
   Variable A : Type.
-
+  Set Universe Polymorphism.
   (*****************************)
   (** ** Nth element of a list *)
   (*****************************)
@@ -359,7 +359,7 @@ Section Elts.
       | S m, x :: t => nth_ok m t default
     end.
 
-  Lemma nth_in_or_default :
+  Polymorphic Lemma nth_in_or_default :
     forall (n:nat) (l:list A) (d:A), {In (nth n l d) l} + {nth n l d = d}.
   Proof.
     intros n l d; revert n; induction l.
@@ -655,7 +655,7 @@ Section Elts.
 
 End Elts.
 
-
+Unset Universe Polymorphism.
 
 (*******************************)
 (** * Manipulating whole lists *)
