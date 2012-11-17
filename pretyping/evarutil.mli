@@ -93,6 +93,9 @@ val head_evar : constr -> existential_key (** may raise NoHeadEvar *)
 (* Expand head evar if any *)
 val whd_head_evar :  evar_map -> constr -> constr
 
+(* [has_undefined_evars or_sorts evd c] checks if [c] has undefined evars
+   and optionally if it contains undefined sorts. *)
+val has_undefined_evars : bool -> evar_map -> constr -> bool
 val is_ground_term :  evar_map -> constr -> bool
 val is_ground_env  :  evar_map -> env -> bool
 val solve_refl : ?can_drop:bool -> conv_fun -> env ->  evar_map ->
