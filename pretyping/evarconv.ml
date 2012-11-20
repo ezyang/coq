@@ -376,7 +376,8 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
             | Lambda _ -> assert (match args with [] -> true | _ -> false); true
             | LetIn (_,b,_,c) ->
                 is_unnamed (whd_betaiota_deltazeta_for_iota_state ts env i (subst1 b c, args))
-            | Case _| Fix _| App _| Cast _ -> assert false in
+	    | Fix _ -> true
+            | Case _| App _| Cast _ -> assert false in
           let rhs_is_stuck_and_unnamed () =
             match eval_flexible_term ts env term2 with
             | None -> false
