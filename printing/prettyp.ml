@@ -417,11 +417,12 @@ let print_constant with_values sep sp =
 	str"*** [ " ++
 	print_basename sp ++ str " : " ++ cut () ++ pr_ltype typ ++
 	str" ]" ++
-	Printer.pr_univ_cstr (snd cb.const_universes)
+	Univ.pr_universe_context cb.const_universes
     | _ ->
+        pr_polymorphic cb.const_polymorphic ++
 	print_basename sp ++ str sep ++ cut () ++
 	(if with_values then print_typed_body (val_0,typ) else pr_ltype typ)++
-        Printer.pr_univ_cstr (snd cb.const_universes))
+        Univ.pr_universe_context cb.const_universes)
 
 let gallina_print_constant_with_infos sp =
   print_constant true " = " sp ++

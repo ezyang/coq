@@ -649,6 +649,15 @@ let pr_instance_gmap insts =
     prlist_with_sep fnl pr_instance (cmap_to_list insts))
     (Gmap.to_list insts)
 
+let xor a b = 
+  (a && not b) || (not a && b)
+
+let pr_polymorphic b = 
+  let print = xor (Flags.is_universe_polymorphism ()) b in
+  if print then
+    if b then str"Polymorphic " else str"Monomorphic "
+  else mt ()
+
 (** Inductive declarations *)
 
 open Declarations
@@ -686,11 +695,11 @@ let print_one_inductive env mib ((_,i) as ind) =
 let print_mutual_inductive env mind mib =
   let inds = List.tabulate (fun x -> (mind,x)) (Array.length mib.mind_packets)
   in
-  hov 0 (
+  hov 0 (pr_polymorphic mib.mind_polymorphic ++
     str (if mib.mind_finite then "Inductive " else "CoInductive ") ++
     prlist_with_sep (fun () -> fnl () ++ str"  with ")
       (print_one_inductive env mib) inds ++
-      pr_univ_cstr (snd mib.mind_universes))
+      Univ.pr_universe_context mib.mind_universes)
 
 let get_fields =
   let rec prodec_rec l subst c =
@@ -716,6 +725,7 @@ let print_record env mind mib =
   let envpar = push_rel_context params env in
   hov 0 (
     hov 0 (
+      pr_polymorphic mib.mind_polymorphic ++
       str "Record " ++ pr_id mip.mind_typename ++ brk(1,4) ++
       print_params env params ++
       str ": " ++ pr_lconstr_env envpar arity ++ brk(1,2) ++
@@ -726,7 +736,7 @@ let print_record env mind mib =
         (fun (id,b,c) ->
 	  pr_id id ++ str (if b then " : " else " := ") ++
 	  pr_lconstr_env envpar c) fields) ++ str" }" ++
-      pr_univ_cstr (snd mib.mind_universes))
+      Univ.pr_universe_context mib.mind_universes)
 
 let pr_mutual_inductive_body env mind mib =
   if mib.mind_record & not !Flags.raw_print then
