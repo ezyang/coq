@@ -23,15 +23,16 @@ open Entries
 open Indtypes
 open Typeops
 
-let constrain_type env j poly = function
-  | None -> j.uj_type
+let constrain_type env j ctx poly = function
+  | None -> j.uj_type, ctx
   | Some t ->
-      let tj, ctx = infer_type env t in
+      let tj, ctx' = infer_type env t in
+      let ctx = union_universe_context_set ctx ctx' in
       let j, cst = judge_of_cast env j DEFAULTcast tj in
 	(* TODO*)
 	check_consistent_constraints ctx cst;
 	assert (eq_constr t tj.utj_val);
-	t
+	t, ctx
 
 let local_constrain_type env j = function
   | None ->
@@ -94,7 +95,7 @@ let infer_declaration env dcl =
     let j =
       {uj_val = hcons_constr j.uj_val;
        uj_type = hcons_constr j.uj_type} in
-    let typ = constrain_type env' j 
+    let (typ,cst) = constrain_type env' j cst
       c.const_entry_polymorphic c.const_entry_type in
     let def =
       if c.const_entry_opaque

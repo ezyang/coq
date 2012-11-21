@@ -506,9 +506,9 @@ type universe_context = Univ.UniverseLSet.t * Univ.constraints
 type constant_body = {
     const_hyps : section_context; (* New: younger hyp at top *)
     const_body : constant_def;
-    const_type : types;
+    const_type : constr;
     const_body_code : to_patch_substituted;
-    const_constraints : universe_context }
+    const_constraints : Univ.constraints }
 
 let body_of_constant cb = match cb.const_body with
   | Undef _ -> None
@@ -579,18 +579,12 @@ let subst_wf_paths sub p = Rtree.smartmap (subst_recarg sub) p
    with      In (params) : Un := cn1 : Tn1 | ... | cnpn : Tnpn
 *)
 
-type monomorphic_inductive_arity = {
+type inductive_arity = {
   mind_user_arity : constr;
   mind_sort : sorts;
 }
-let val_mono_ind_arity =
-  val_tuple ~name:"monomorphic_inductive_arity"[|val_constr;val_sort|]
-
-type inductive_arity =
-| Monomorphic of monomorphic_inductive_arity
-| Polymorphic of polymorphic_arity
-let val_ind_arity = val_sum "inductive_arity" 0
-  [|[|val_mono_ind_arity|];[|val_pol_arity|]|]
+let val_ind_arity =
+  val_tuple ~name:"inductive_arity"[|val_constr;val_sort|]
 
 type one_inductive_body = {
 
@@ -685,9 +679,7 @@ let val_ind_pack = val_tuple ~name:"mutual_inductive_body"
     val_int; val_int; val_rctxt;val_cstrs|]
 
 
-let subst_arity sub = function
-| NonPolymorphicType s -> NonPolymorphicType (subst_mps sub s)
-| PolymorphicArity (ctx,s) -> PolymorphicArity (subst_rel_context sub ctx,s)
+let subst_arity sub s = (subst_mps sub s)
 
 (* TODO: should be changed to non-coping after Term.subst_mps *)
 let subst_const_body sub cb = {
@@ -697,13 +689,10 @@ let subst_const_body sub cb = {
     const_body_code = (*Cemitcodes.subst_to_patch_subst sub*) cb.const_body_code;
     const_constraints = cb.const_constraints}
 
-let subst_arity sub = function
-| Monomorphic s ->
-    Monomorphic {
-      mind_user_arity = subst_mps sub s.mind_user_arity;
-      mind_sort = s.mind_sort;
-    }
-| Polymorphic s as x -> x
+let subst_arity sub s =
+  { mind_user_arity = subst_mps sub s.mind_user_arity;
+    mind_sort = s.mind_sort;
+  }
 
 let subst_mind_packet sub mbp =
   { mind_consnames = mbp.mind_consnames;

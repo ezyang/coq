@@ -316,8 +316,8 @@ let start_proof_with_initialization kind recguard thms snl hook =
       start_proof id kind t ?init_tac hook ~compute_guard:guard
 
 let start_proof_com kind thms hook =
-  let evdref = ref Evd.empty in
   let env0 = Global.env () in
+  let evdref = ref (Evd.from_env env0) in
   let thms = List.map (fun (sopt,(bl,t,guard)) ->
     let impls, ((env, ctx), imps) = interp_context_evars evdref env0 bl in
     let t', imps' = interp_type_evars_impls ~impls ~evdref env t in
@@ -329,7 +329,9 @@ let start_proof_com kind thms hook =
        guard)))
     thms in
   let recguard,thms,snl = look_for_possibly_mutual_statements thms in
-  let thms = List.map (fun (n, (t, info)) -> (n, ((t, Evd.universe_context_set !evdref), info)))
+  let evd, nf = Evarutil.nf_evars_and_universes !evdref in
+  let ctxset = Evd.universe_context_set evd in
+  let thms = List.map (fun (n, (t, info)) -> (n, ((nf t, ctxset), info)))
     thms
   in
   start_proof_with_initialization kind recguard thms snl hook

@@ -57,7 +57,7 @@ let binder_of_decl = function
 
 let binders_of_decls = List.map binder_of_decl
 
-let typecheck_params_and_fields id t ps nots fs =
+let typecheck_params_and_fields def id t ps nots fs =
   let env0 = Global.env () in
   let evars = ref (Evd.from_env ~ctx:(Univ.empty_universe_context_set) env0) in
   let _ = 
@@ -81,10 +81,12 @@ let typecheck_params_and_fields id t ps nots fs =
 	 (match kind_of_term sred with
 	 | Sort s' -> 
 	   (match Evd.is_sort_variable !evars s' with
-	   | Some (l, _) -> evars := Evd.make_flexible_variable !evars true l; sred
+	   | Some (l, _) -> evars := Evd.make_flexible_variable !evars (not def) l; sred
 	   | None -> s)
 	 | _ -> user_err_loc (constr_loc t,"", str"Sort expected."))
-    | None -> mkSort (Evarutil.evd_comb0 (Evd.new_sort_variable Evd.univ_flexible_alg) evars) 
+    | None -> 
+      let uvarkind = if not def then Evd.univ_flexible_alg else Evd.univ_flexible in
+	mkSort (Evarutil.evd_comb0 (Evd.new_sort_variable uvarkind) evars)
   in
   let fullarity = it_mkProd_or_LetIn t' newps in
   let env_ar = push_rel_context newps (push_rel (Name id,None,fullarity) env0) in
@@ -426,7 +428,7 @@ let definition_structure (kind,finite,infer,(is_coe,(loc,idstruc)),ps,cfs,idbuil
   (* Now, younger decl in params and fields is on top *)
   let ctx, arity, implpars, params, implfs, fields =
     States.with_state_protection (fun () ->
-      typecheck_params_and_fields idstruc s ps notations fs) () in
+      typecheck_params_and_fields (kind = Class true) idstruc s ps notations fs) () in
   let sign = structure_signature (fields@params) in
     match kind with
     | Class def ->
