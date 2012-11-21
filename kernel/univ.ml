@@ -1170,9 +1170,11 @@ let pr_universe_list l =
 let pr_universe_set s = 
   str"{" ++ pr_universe_list (UniverseLSet.elements s) ++ str"}"
 let pr_universe_context (ctx, cst) =
-  pr_universe_list ctx ++ str " |= " ++ v 1 (pr_constraints cst)
+  if ctx = [] && Constraint.is_empty cst then mt() else
+    pr_universe_list ctx ++ str " |= " ++ v 1 (pr_constraints cst)
 let pr_universe_context_set (ctx, cst) = 
-  pr_universe_set ctx ++ str " |= " ++ v 1 (pr_constraints cst)
+  if UniverseLSet.is_empty ctx && Constraint.is_empty cst then mt() else
+    pr_universe_set ctx ++ str " |= " ++ v 1 (pr_constraints cst)
 
 (* Dumping constraints to a file *)
 
