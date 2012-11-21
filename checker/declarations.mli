@@ -48,8 +48,9 @@ type constant_def =
 type constant_body = {
     const_hyps : section_context; (* New: younger hyp at top *)
     const_body : constant_def;
-    const_type : types;
-    const_body_code : to_patch_substituted }
+    const_type : constr;
+    const_body_code : to_patch_substituted;
+    const_constraints : Univ.constraints }
 
 val body_of_constant : constant_body -> constr_substituted option
 val constant_has_body : constant_body -> bool
@@ -69,14 +70,10 @@ val mk_paths : recarg -> wf_paths list array -> wf_paths
 val dest_recarg : wf_paths -> recarg
 val dest_subterms : wf_paths -> wf_paths list array
 
-type monomorphic_inductive_arity = {
+type inductive_arity = {
   mind_user_arity : constr;
   mind_sort : sorts;
 }
-
-type inductive_arity =
-| Monomorphic of monomorphic_inductive_arity
-| Polymorphic of polymorphic_arity
 
 type one_inductive_body = {
 

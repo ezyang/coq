@@ -52,7 +52,7 @@ val lookup_constant : constant -> env -> Declarations.constant_body
 val add_constant : constant -> Declarations.constant_body -> env -> env
 type const_evaluation_result = NoBody | Opaque
 exception NotEvaluableConst of const_evaluation_result
-val constant_value : env -> constant puniverses -> constr
+val constant_value : env -> constant -> constr
 val evaluable_constant : constant -> env -> bool
 
 (* Inductives *)

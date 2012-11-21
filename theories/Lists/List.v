@@ -10,7 +10,7 @@ Require Import Le Gt Minus Bool.
 Require Setoid.
 
 Set Implicit Arguments.
-
+Set Universe Polymorphism.
 
 (******************************************************************)
 (** * Basics: definition of polymorphic lists and some operations *)
@@ -27,7 +27,7 @@ Section Lists.
 
   (** Head and tail *)
 
-  Polymorphic Definition hd (default:A) (l:list A) :=
+  Definition hd (default:A) (l:list A) :=
     match l with
       | nil => default
       | x :: _ => x
@@ -338,12 +338,12 @@ Hint Resolve in_eq in_cons in_inv in_nil in_app_or in_or_app: datatypes v62.
 Section Elts.
 
   Variable A : Type.
-  Set Universe Polymorphism.
+
   (*****************************)
   (** ** Nth element of a list *)
   (*****************************)
 
-  Polymorphic Fixpoint nth (n:nat) (l:list A) (default:A) {struct l} : A :=
+  Fixpoint nth (n:nat) (l:list A) (default:A) {struct l} : A :=
     match n, l with
       | O, x :: l' => x
       | O, other => default
@@ -351,7 +351,7 @@ Section Elts.
       | S m, x :: t => nth m t default
     end.
 
-  Polymorphic Fixpoint nth_ok (n:nat) (l:list A) (default:A) {struct l} : bool :=
+  Fixpoint nth_ok (n:nat) (l:list A) (default:A) {struct l} : bool :=
     match n, l with
       | O, x :: l' => true
       | O, other => false
@@ -359,7 +359,7 @@ Section Elts.
       | S m, x :: t => nth_ok m t default
     end.
 
-  Polymorphic Lemma nth_in_or_default :
+  Lemma nth_in_or_default :
     forall (n:nat) (l:list A) (d:A), {In (nth n l d) l} + {nth n l d = d}.
   Proof.
     intros n l d; revert n; induction l.
