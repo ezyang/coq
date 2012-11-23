@@ -451,7 +451,7 @@ let check_smaller g strict u v =
   if strict then
     is_lt g arcu arcv
   else
-    arcu == snd (safe_repr g UniverseLevel.Set) || is_leq g arcu arcv
+    arcu == snd (safe_repr g UniverseLevel.Prop) || is_leq g arcu arcv
 
 (** Then, checks on universes *)
 
@@ -473,6 +473,9 @@ let check_eq g u v =
         compare_list (check_equal g) ult vlt
     | _ -> anomaly "check_eq" (* not complete! (Atom(u) = Max([u],[]) *)
 
+let exists_bigger g strict ul l =
+  List.exists (fun ul' -> check_smaller g strict ul ul') l
+
 let check_leq g u v =
   match u,v with
   | Atom UniverseLevel.Prop, v -> true
@@ -480,7 +483,16 @@ let check_leq g u v =
   | Max(le,lt), Atom vl ->
     List.for_all (fun ul -> check_smaller g false ul vl) le &&
     List.for_all (fun ul -> check_smaller g true ul vl) lt
-  | _ -> anomaly "check_leq"
+  | Max(le,lt), Max(le',lt') ->
+    (* Every u in le is smaller or equal to one in le' or lt'.
+       Every u in lt is smaller or equal to one in lt or 
+       strictly smaller than one in le'. *)
+  List.for_all (fun ul -> 
+    exists_bigger g false ul le' || exists_bigger g false ul lt') le &&
+  List.for_all (fun ul -> 
+    exists_bigger g true ul le' || exists_bigger g false ul lt') lt
+  | Atom ul, Max (le, lt) ->
+    exists_bigger g false ul le || exists_bigger g false ul lt
 
 (** Enforcing new constraints : [setlt], [setleq], [merge], [merge_disc] *)
 

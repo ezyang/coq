@@ -191,6 +191,11 @@ let typecheck_inductive env ctx mie =
   (* Params are typed-checked here *)
   let env' = push_constraints_to_env ctx env in
   let (env_params, params), univs = infer_local_decls env' mie.mind_entry_params in
+  let paramlev = 
+    (* The level of the inductive includes levels of parameters if 
+       in relevant_equality mode *)
+    type0m_univ 
+  in
   (* We first type arity of each inductive definition *)
   (* This allows to build the environment of arities and to share *)
   (* the set of constraints *)
@@ -263,6 +268,7 @@ let typecheck_inductive env ctx mie =
     Array.fold_map2' (fun ((id,full_arity,ar_level),cn,info,lc,_) lev cst ->
       let sign, s = dest_arity env full_arity in
       let u = Term.univ_of_sort s in
+      let lev = sup lev paramlev in
       let _ = 
 	if is_type0m_univ u then () (* Impredicative prop + any universe is higher than prop *)
 	else if is_type0_univ u then 
@@ -272,7 +278,7 @@ let typecheck_inductive env ctx mie =
       	      raise (InductiveError LargeNonPropInductiveNotInType))
 	  else () (* Impredicative set, don't care if the constructors are in Prop *)
 	else
-	  if not (equal_universes lev u) then 
+	  if not (check_leq (universes env') lev u) then
 	    anomalylabstrm "check_inductive" (Pp.str"Incorrect universe " ++
 					      pr_uni u ++ Pp.str " declared for inductive type, inferred level is " ++ pr_uni lev)
       in

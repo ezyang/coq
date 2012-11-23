@@ -64,7 +64,6 @@ val extend_context : 'a in_universe_context_set -> universe_context_set ->
 module UF : Unionfind.PartitionSig with type elt = universe_level
 
 val instantiate_univ_variables : 
-  UF.t ->
   (Univ.constraint_type * Univ.universe_level) list
   Univ.UniverseLMap.t ->
   (Univ.constraint_type * Univ.universe_level) list
