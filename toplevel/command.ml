@@ -287,7 +287,7 @@ let extract_level env evd tys =
   let sorts = List.map (fun ty -> destSort (Retyping.get_type_of env evd ty)) tys in
     Inductive.max_inductive_sort (Array.of_list sorts)
 
-let inductive_levels env evdref arities inds =
+let inductive_levels env evdref paramlev arities inds =
   let destarities = List.map (Reduction.dest_arity env) arities in
   let levels = List.map (fun (_,a) -> 
     if a = Prop Null then None else Some (univ_of_sort a)) destarities in
@@ -298,12 +298,25 @@ let inductive_levels env evdref arities inds =
     (Array.of_list cstrs_levels) in
     List.iter2 (fun cu (_,iu) -> 
       if iu = Prop Null then (assert (Univ.is_type0m_univ cu))
-      else if iu = Prop Pos then
-	(if not (Univ.is_type0m_univ cu) then
-	  (evdref := Evd.set_leq_sort !evdref (Type cu) iu))
-      else (evdref := Evd.set_leq_sort !evdref (Type cu) iu))
+      else ( 
+        if not (Univ.is_type0m_univ paramlev) then 
+	  evdref := Evd.set_leq_sort !evdref (Type paramlev) iu;
+        if iu = Prop Pos then
+	  (if not (Univ.is_type0m_univ cu) then
+	    (evdref := Evd.set_leq_sort !evdref (Type cu) iu))
+	else (evdref := Evd.set_leq_sort !evdref (Type cu) iu)))
       (Array.to_list levels') destarities;
     arities
+
+let params_level env sign =
+  fst (List.fold_right
+    (fun (_,_,t as d) (lev,env) ->
+      let u, s = Reduction.dest_prod_assum env t in
+	match kind_of_term s with
+	| Sort s -> let u = univ_of_sort s in
+		      (Univ.sup u lev, push_rel d env)
+	| _ -> lev, push_rel d env)
+    sign (Univ.type0m_univ,env))
 
 let interp_mutual_inductive (paramsl,indl) notations poly finite =
   check_all_names_different indl;
@@ -323,6 +336,7 @@ let interp_mutual_inductive (paramsl,indl) notations poly finite =
   let fullarities = List.map (fun (c, _) -> it_mkProd_or_LetIn c ctx_params) arities in
   let env_ar = push_types env0 indnames fullarities in
   let env_ar_params = push_rel_context ctx_params env_ar in
+  let paramlev = Univ.type0m_univ in
 
   (* Compute interpretation metadatas *)
   let indimpls = List.map (fun (_, impls) -> userimpls @ 
@@ -343,7 +357,7 @@ let interp_mutual_inductive (paramsl,indl) notations poly finite =
   let evd = consider_remaining_unif_problems env_params !evdref in
   evdref := Typeclasses.resolve_typeclasses ~filter:Typeclasses.no_goals ~fail:true env_params evd;
   (* Compute renewed arities *)
-  let arities = inductive_levels env_ar_params evdref arities constructors in
+  let arities = inductive_levels env_ar_params evdref paramlev arities constructors in
   let nf = e_nf_evars_and_universes evdref in 
   let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf cl,impsl)) constructors in
   let ctx_params = Sign.map_rel_context nf ctx_params in

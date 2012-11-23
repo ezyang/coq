@@ -74,6 +74,7 @@ val pr_sort                : sorts -> std_ppcmds
 
 val pr_polymorphic         : bool -> std_ppcmds
 val pr_univ_cstr           : Univ.constraints -> std_ppcmds
+val pr_universe_ctx        : Univ.universe_context -> std_ppcmds
 
 (** Printing global references using names as short as possible *)
 

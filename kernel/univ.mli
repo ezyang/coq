@@ -29,9 +29,13 @@ end
 type universe_level = UniverseLevel.t
 (** Alias name. *)
 
+type universe_list = universe_level list
+
 module Universe :
 sig
-  type t
+  type t = 
+    | Atom of universe_level
+    | Max of universe_list * universe_list
   (** Type of universes. A universe is defined as a set of constraints w.r.t.
       other universes. *)
 
@@ -52,11 +56,10 @@ type universe = Universe.t
 module UniverseLSet : Set.S with type elt = universe_level
 module UniverseLMap : Map.S with type key = universe_level
 
+val empty_universe_list : universe_list
+
 type universe_set = UniverseLSet.t
 val empty_universe_set : universe_set
-
-type universe_list = universe_level list
-val empty_universe_list : universe_list
 
 type 'a puniverses = 'a * universe_list
 val out_punivs : 'a puniverses -> 'a

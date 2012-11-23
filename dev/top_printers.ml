@@ -141,6 +141,7 @@ let ppuni u = pp(pr_uni u)
 let ppuni_level u = pp (pr_uni_level u)
 let ppuniverses u = pp (str"[" ++ pr_universes u ++ str"]")
 
+let ppuniverse_set l = pp (pr_universe_set l)
 let ppuniverse_list l = pp (pr_universe_list l)
 let ppuniverse_context l = pp (pr_universe_context l)
 let ppuniverse_context_set l = pp (pr_universe_context_set l)
