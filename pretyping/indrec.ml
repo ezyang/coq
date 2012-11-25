@@ -47,7 +47,7 @@ let mkLambda_string s t c = mkLambda (Name (Id.of_string s), t, c)
 (* Christine Paulin, 1996 *)
 
 let mis_make_case_com dep env sigma (ind, u as pind) (mib,mip as specif) kind =
-  let usubst = Univ.make_universe_subst u mib.mind_universes in
+  let usubst = Inductive.make_inductive_subst mib u in
   let lnamespar = Sign.subst_univs_context usubst
     mib.mind_params_ctxt
   in
@@ -269,7 +269,7 @@ let mis_make_indrec env sigma listdepkind mib u =
   let nparams = mib.mind_nparams in
   let nparrec = mib.mind_nparams_rec in
   let evdref = ref sigma in
-  let usubst = Univ.make_universe_subst u mib.mind_universes in
+  let usubst = Inductive.make_inductive_subst mib u in
   let lnonparrec,lnamesparrec =
     context_chop (nparams-nparrec) (Sign.subst_univs_context usubst mib.mind_params_ctxt) in
   let nrec = List.length listdepkind in

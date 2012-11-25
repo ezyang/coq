@@ -161,20 +161,14 @@ let globalize_constant_universes cb =
     (Univ.empty_constraint, cb)
   else
     let ctx, cstrs = cb.const_universes in
-      (cstrs, 
-       { cb with const_body = cb.const_body;
-       const_type = cb.const_type;
-       const_polymorphic = false;
-       const_universes = Univ.empty_universe_context })
+      (cstrs, cb)
       
 let globalize_mind_universes mb =
   if mb.mind_polymorphic then
     (Univ.empty_constraint, mb)
   else
     let ctx, cstrs = mb.mind_universes in
-    let mb' = 
-      {mb with mind_polymorphic = false; mind_universes = Univ.empty_universe_context}
-    in (cstrs, mb')
+      (cstrs, mb)
 
 let constraints_of_sfb sfb = 
   match sfb with

@@ -527,7 +527,7 @@ Fixpoint mapi (f: key -> elt -> elt') (m:t elt) : t elt' :=
    | nil => nil
    | (k,e)::m' => (k,f k e) :: mapi f m'
   end.
-
+ 
 End Elt.
 Section Elt2.
 (* A new section is necessary for previous definitions to work

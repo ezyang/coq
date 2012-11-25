@@ -100,7 +100,7 @@ let get_sym_eq_data env (ind,u) =
   if not (Int.equal (Array.length mib.mind_packets) 1) ||
     not (Int.equal (Array.length mip.mind_nf_lc) 1) then
     error "Not an inductive type with a single constructor.";
-  let subst = Univ.make_universe_subst u mib.mind_universes in
+  let subst = Inductive.make_inductive_subst mib u in
   let arityctxt = Sign.subst_univs_context subst mip.mind_arity_ctxt in
   let realsign,_ = List.chop mip.mind_nrealargs_ctxt arityctxt in
   if List.exists (fun (_,b,_) -> not (Option.is_empty b)) realsign then
