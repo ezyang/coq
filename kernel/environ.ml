@@ -189,9 +189,11 @@ let add_constant kn cs env =
 (* constant_type gives the type of a constant *)
 let constant_type env (kn,u) =
   let cb = lookup_constant kn env in
-  let subst = make_universe_subst u cb.const_universes in
-    (subst_univs_constr subst cb.const_type, 
-     instantiate_univ_context subst cb.const_universes)
+    if cb.const_polymorphic then
+      let subst = make_universe_subst u cb.const_universes in
+	(subst_univs_constr subst cb.const_type, 
+	 instantiate_univ_context subst cb.const_universes)
+    else cb.const_type, Univ.empty_constraint
 
 type const_evaluation_result = NoBody | Opaque
 
@@ -201,9 +203,11 @@ let constant_value env (kn,u) =
   let cb = lookup_constant kn env in
   match cb.const_body with
     | Def l_body -> 
-      let subst = make_universe_subst u cb.const_universes in
-	(subst_univs_constr subst (Declarations.force l_body),
-	 instantiate_univ_context subst cb.const_universes)
+      if cb.const_polymorphic then
+	let subst = make_universe_subst u cb.const_universes in
+	  (subst_univs_constr subst (Declarations.force l_body),
+	   instantiate_univ_context subst cb.const_universes)
+      else Declarations.force l_body, Univ.empty_constraint
     | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
     | Undef _ -> raise (NotEvaluableConst NoBody)
 
@@ -213,13 +217,20 @@ let constant_opt_value env cst =
 
 let constant_value_and_type env (kn, u) =
   let cb = lookup_constant kn env in
-  let subst = make_universe_subst u cb.const_universes in
-  let cst = instantiate_univ_context subst cb.const_universes in
-  let b' = match cb.const_body with
-    | Def l_body -> Some (subst_univs_constr subst (Declarations.force l_body))
-    | OpaqueDef _ -> None
-    | Undef _ -> None
-  in b', subst_univs_constr subst cb.const_type, cst
+    if cb.const_polymorphic then
+      let subst = make_universe_subst u cb.const_universes in
+      let cst = instantiate_univ_context subst cb.const_universes in
+      let b' = match cb.const_body with
+	| Def l_body -> Some (subst_univs_constr subst (Declarations.force l_body))
+	| OpaqueDef _ -> None
+	| Undef _ -> None
+      in b', subst_univs_constr subst cb.const_type, cst
+    else 
+      let b' = match cb.const_body with
+	| Def l_body -> Some (Declarations.force l_body)
+	| OpaqueDef _ -> None
+	| Undef _ -> None
+      in b', cb.const_type, Univ.empty_constraint
 
 (* These functions should be called under the invariant that [env] 
    already contains the constraints corresponding to the constant 
@@ -228,15 +239,19 @@ let constant_value_and_type env (kn, u) =
 (* constant_type gives the type of a constant *)
 let constant_type_in env (kn,u) =
   let cb = lookup_constant kn env in
-  let subst = make_universe_subst u cb.const_universes in
-    subst_univs_constr subst cb.const_type
+    if cb.const_polymorphic then
+      let subst = make_universe_subst u cb.const_universes in
+	subst_univs_constr subst cb.const_type
+    else cb.const_type
 
 let constant_value_in env (kn,u) =
   let cb = lookup_constant kn env in
   match cb.const_body with
     | Def l_body -> 
-      let subst = make_universe_subst u cb.const_universes in
-	subst_univs_constr subst (Declarations.force l_body)
+      if cb.const_polymorphic then
+	let subst = make_universe_subst u cb.const_universes in
+	  subst_univs_constr subst (Declarations.force l_body)
+      else Declarations.force l_body
     | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
     | Undef _ -> raise (NotEvaluableConst NoBody)
 

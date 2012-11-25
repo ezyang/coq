@@ -359,8 +359,8 @@ let normalize_context_set (ctx, csts) us algs =
     in 
     (** Normalize the substitution w.r.t. itself so we get only
 	fully-substituted, normalized universes as the range of the substitution.
-	We don't need to do it for the initial substitution which is canonical
-	already. *)
+	We need to do it for the initial substitution which is canonical
+	already only at the end. *)
     let rec fixpoint noneqs subst ussubst = 
       let (subst', ussubst') = aux subst ussubst in
       let ussubst', noneqs = 
@@ -380,6 +380,14 @@ let normalize_context_set (ctx, csts) us algs =
   let constraints = remove_trivial_constraints 
     (Constraint.union eqs (subst_univs_constraints subst noneqs))
   in
+  (* We remove constraints that are redundant because of the algebraic
+     substitution. *)
+  let constraints = 
+    Constraint.fold (fun (l,d,r as cstr) csts -> 
+      if List.mem_assoc l ussubst || List.mem_assoc r ussubst then csts
+      else Constraint.add cstr csts)
+    constraints Constraint.empty
+  in
   let usalg, usnonalg = 
     List.partition (fun (u, _) -> UniverseLSet.mem u algs) ussubst
   in
@@ -387,13 +395,14 @@ let normalize_context_set (ctx, csts) us algs =
     usalg @
     CList.map_filter (fun (u, v) ->
       if eq_levels u v then None
-      else Some (u, Universe.make v))
+      else Some (u, Universe.make (subst_univs_level subst v)))
       subst
   in
   let ctx' = List.fold_left (fun ctx' (u, _) -> UniverseLSet.remove u ctx') ctx subst in
   let constraints' =
     (** Residual constraints that can't be normalized further. *)
-    List.fold_left (fun csts (u, v) -> enforce_leq v (Universe.make u) csts)
+    List.fold_left (fun csts (u, v) -> 
+      enforce_leq v (Universe.make u) csts)
       constraints usnonalg
   in
     (subst, (ctx', constraints'))

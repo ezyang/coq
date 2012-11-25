@@ -50,6 +50,16 @@ let find_coinductive env c =
 
 let inductive_params (mib,_) = mib.mind_nparams
 
+let make_inductive_subst mib u =
+  if mib.mind_polymorphic then 
+    make_universe_subst u mib.mind_universes
+  else []
+
+let instantiate_inductive_constraints mib subst =
+  if mib.mind_polymorphic then
+    instantiate_univ_context subst mib.mind_universes
+  else Univ.empty_constraint
+
 (************************************************************************)
 
 (* Build the substitution that replaces Rels by the appropriate *)
@@ -87,7 +97,7 @@ let full_inductive_instantiate mib params sign =
   fst (destArity (instantiate_params true t params mib.mind_params_ctxt))
 
 let full_constructor_instantiate ((mind,_),u,(mib,_),params) =
-  let subst = make_universe_subst u mib.mind_universes in
+  let subst = make_inductive_subst mib u in
   let inst_ind = constructor_instantiate mind u subst mib in
   (fun t ->
     instantiate_params true (inst_ind t) params mib.mind_params_ctxt)
@@ -187,15 +197,17 @@ exception SingletonInductiveBecomesProp of Id.t
 (* Type of an inductive type *)
 
 let type_of_inductive_gen env ((mib,mip),u) =
-  let subst = make_universe_subst u mib.mind_universes in
+  let subst = make_inductive_subst mib u in
     (subst_univs_constr subst mip.mind_arity.mind_user_arity, subst)
 
 let type_of_inductive env pind = 
   fst (type_of_inductive_gen env pind)
 
+
+
 let constrained_type_of_inductive env ((mib,mip),u as pind) =
   let ty, subst = type_of_inductive_gen env pind in
-  let cst = instantiate_univ_context subst mib.mind_universes in
+  let cst = instantiate_inductive_constraints mib subst in
     (ty, cst)
 
 let type_of_inductive_knowing_parameters env ?(polyprop=false) mip args = 
@@ -224,7 +236,7 @@ let type_of_constructor_subst cstr u subst (mib,mip) =
     c
 
 let type_of_constructor_gen (cstr,u) (mib,mip as mspec) =
-  let subst = make_universe_subst u mib.mind_universes in
+  let subst = make_inductive_subst mib u in
     type_of_constructor_subst cstr u subst mspec, subst
 
 let type_of_constructor cstru mspec = 
@@ -232,17 +244,12 @@ let type_of_constructor cstru mspec =
 
 let constrained_type_of_constructor (cstr,u as cstru) (mib,mip as ind) =
   let ty, subst = type_of_constructor_gen cstru ind in
-  let cst = instantiate_univ_context subst mib.mind_universes in
+  let cst = instantiate_inductive_constraints mib subst in
     (ty, cst)
-
-(* let fresh_type_of_constructor cstr (mib, mip) = *)
-(*   let (inst, subst), cst = fresh_instance_from_context mib.mind_universes in *)
-(*   let c = type_of_constructor_subst cstr inst subst (mib,mip) in *)
-(*     (c, cst) *)
 
 let arities_of_specif (kn,u) (mib,mip) =
   let specif = mip.mind_nf_lc in
-  let subst = make_universe_subst u mib.mind_universes in
+  let subst = make_inductive_subst mib u in
     Array.map (constructor_instantiate kn u subst mib) specif
 
 let arities_of_constructors ind specif =
@@ -250,7 +257,7 @@ let arities_of_constructors ind specif =
 
 let type_of_constructors (ind,u) (mib,mip) =
   let specif = mip.mind_user_lc in
-  let subst = make_universe_subst u mib.mind_universes in
+  let subst = make_inductive_subst mib u in
   Array.map (constructor_instantiate (fst ind) u subst mib) specif
 
 (************************************************************************)

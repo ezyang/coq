@@ -139,7 +139,7 @@ let constructor_nrealhyps (ind,j) =
 
 let get_full_arity_sign env (ind,u) =
   let (mib,mip) = Inductive.lookup_mind_specif env ind in
-  let subst = make_universe_subst u mib.mind_universes in
+  let subst = Inductive.make_inductive_subst mib u in
     Sign.subst_univs_context subst mip.mind_arity_ctxt
 
 let nconstructors ind =
@@ -434,7 +434,7 @@ let arity_of_case_predicate env (ind,params) dep k =
    knowing the sort of the conclusion *)
 
 let type_of_inductive_knowing_conclusion env ((mib,mip),u) conclty =
-  let subst = make_universe_subst u mib.mind_universes in
+  let subst = Inductive.make_inductive_subst mib u in
     subst_univs_constr subst mip.mind_arity.mind_user_arity
 
 (***********************************************)
