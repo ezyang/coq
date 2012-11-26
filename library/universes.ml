@@ -139,8 +139,8 @@ module LevelUnionFind = Unionfind.Make (Univ.UniverseLSet) (Univ.UniverseLMap)
 
 let remove_trivial_constraints cst =
   Constraint.fold (fun (l,d,r as cstr) nontriv ->
-    if d <> Lt && eq_levels l r then nontriv
-    else if d = Le && is_type0_univ (Univ.Universe.make l) then nontriv
+    if d != Lt && eq_levels l r then nontriv
+    else if d == Le && is_type0m_univ (Univ.Universe.make l) then nontriv
     else Constraint.add cstr nontriv)
     cst empty_constraint
 

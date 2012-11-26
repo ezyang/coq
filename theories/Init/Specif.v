@@ -71,11 +71,11 @@ Section Subset_projections.
   Variable A : Type.
   Variable P : A -> Prop.
 
-  Definition proj1_sig (e:sig P) := match e with
+  Polymorphic Definition proj1_sig (e:sig P) := match e with
                                     | exist _ a b => a
                                     end.
 
-  Definition proj2_sig (e:sig P) :=
+  Polymorphic Definition proj2_sig (e:sig P) :=
     match e return P (proj1_sig e) with
     | exist _ a b => b
     end.
@@ -95,10 +95,11 @@ Section Projections.
   Variable A : Type.
   Variable P : A -> Type.
 
-  Definition projT1 (x:sigT P) : A := match x with
+  Polymorphic Definition projT1 (x:sigT P) : A := match x with
                                       | existT _ a _ => a
                                       end.
-  Definition projT2 (x:sigT P) : P (projT1 x) :=
+
+  Polymorphic Definition projT2 (x:sigT P) : P (projT1 x) :=
     match x return P (projT1 x) with
     | existT _ _ h => h
     end.
