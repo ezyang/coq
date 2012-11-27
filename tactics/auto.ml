@@ -79,6 +79,7 @@ type 'a gen_auto_tactic = {
   code : 'a auto_tactic     (* the tactic to apply when the concl matches pat *)
 }
 
+type pre_pri_auto_tactic = (unit -> clausenv) gen_auto_tactic
 type pri_auto_tactic = clausenv gen_auto_tactic
 
 type hint_entry = global_reference option * types gen_auto_tactic
@@ -112,7 +113,7 @@ let insert v l =
      - un discrimination net borné (Btermdn.t) constitué de tous les
        patterns de la seconde liste de tactiques *)
 
-type stored_data = int * pri_auto_tactic
+type stored_data = int * pre_pri_auto_tactic
     (* First component is the index of insertion in the table, to keep most recent first semantics. *)
 
 module Bounded_net = Btermdn.Make(struct
@@ -178,10 +179,10 @@ let translate_hint (go,p) =
     let cl = mk_clenv_from dummy_goal (c,t) in {cl with env = empty_env }
   in
   let code = match p.code with
-    | Res_pf (c,t) -> Res_pf (c, mk_clenv (c,t))
-    | ERes_pf (c,t) -> ERes_pf (c, mk_clenv (c,t))
+    | Res_pf (c,t) -> Res_pf (c, fun () -> mk_clenv (c,t))
+    | ERes_pf (c,t) -> ERes_pf (c, fun () -> mk_clenv (c,t))
     | Res_pf_THEN_trivial_fail (c,t) ->
-      Res_pf_THEN_trivial_fail (c, mk_clenv (c,t))
+      Res_pf_THEN_trivial_fail (c, fun () -> mk_clenv (c,t))
     | Give_exact c -> Give_exact c
     | Unfold_nth e -> Unfold_nth e
     | Extern t -> Extern t
@@ -347,17 +348,29 @@ module Hint_db = struct
     try Constr_map.find key db.hintdb_map
     with Not_found -> empty_se
  
+  let realize_tac (id,tac) =
+    let code' = 
+      match tac.code with
+      | Res_pf (c,t) -> Res_pf (c, t ())
+      | ERes_pf (c,t) -> ERes_pf (c, t ())
+      | Res_pf_THEN_trivial_fail (c,t) ->
+        Res_pf_THEN_trivial_fail (c, t ())
+      | Give_exact c -> Give_exact c
+      | Unfold_nth e -> Unfold_nth e
+      | Extern t -> Extern t
+    in {pri = tac.pri; pat = tac.pat; name = tac.name; code = code'}
+
   let map_none db =
-    List.map snd (Sort.merge pri_order (List.map snd db.hintdb_nopat) [])
+    List.map realize_tac (Sort.merge pri_order (List.map snd db.hintdb_nopat) [])
     
   let map_all k db =
     let (l,l',_) = find k db in
-      List.map snd (Sort.merge pri_order (List.map snd db.hintdb_nopat @ l) l')
+      List.map realize_tac (Sort.merge pri_order (List.map snd db.hintdb_nopat @ l) l')
 
   let map_auto (k,c) db =
     let st = if db.use_dn then Some db.hintdb_state else None in
     let l' = lookup_tacs (k,c) st (find k db) in
-      List.map snd (Sort.merge pri_order (List.map snd db.hintdb_nopat) l')
+      List.map realize_tac (Sort.merge pri_order (List.map snd db.hintdb_nopat) l')
 
   let is_exact = function
     | Give_exact _ -> true
@@ -378,7 +391,8 @@ module Hint_db = struct
     let pat = if not db.use_dn && is_exact v.code then None else v.pat in
       match k with
       | None ->
-	  if not (List.exists (fun (_, (_, v')) -> Pervasives.(=) v v') db.hintdb_nopat) then (** FIXME *)
+	  if not (List.exists (fun (_, (_, v')) -> Pervasives.(=) v v') db.hintdb_nopat) then
+	    (** FIXME *)
 	    { db with hintdb_nopat = (gr,idv) :: db.hintdb_nopat }
 	  else db
       | Some gr ->
@@ -426,8 +440,8 @@ module Hint_db = struct
   let remove_one gr db = remove_list [gr] db
 
   let iter f db =
-    f None (List.map (fun x -> snd (snd x)) db.hintdb_nopat);
-    Constr_map.iter (fun k (l,l',_) -> f (Some k) (List.map snd (l@l'))) db.hintdb_map
+    f None (List.map (fun x -> realize_tac (snd x)) db.hintdb_nopat);
+    Constr_map.iter (fun k (l,l',_) -> f (Some k) (List.map realize_tac (l@l'))) db.hintdb_map
 
   let fold f db accu =
     let accu = f None (List.map (fun x -> snd (snd x)) db.hintdb_nopat) accu in
