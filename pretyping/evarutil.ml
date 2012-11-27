@@ -2143,8 +2143,11 @@ let rec evar_absorb_arguments env evd (evk,args as ev) = function
 (* Refining an evar to a sort *)
 
 let define_evar_as_sort evd (ev,args) =
-  let evd, s = new_sort_variable univ_rigid evd in
-    Evd.define ev (mkSort s) evd, s
+  let evd, u = new_univ_variable univ_rigid evd in
+  let evi = Evd.find_undefined evd ev in 
+  let s = Type u in
+  let evd' = Evd.define ev (mkSort s) evd in
+    Evd.set_leq_sort evd' (Type (Univ.super u)) (destSort evi.evar_concl), s
 
 (* We don't try to guess in which sort the type should be defined, since
    any type has type Type. May cause some trouble, but not so far... *)
