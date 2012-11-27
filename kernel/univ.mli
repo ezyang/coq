@@ -60,6 +60,7 @@ val empty_universe_list : universe_list
 
 type universe_set = UniverseLSet.t
 val empty_universe_set : universe_set
+val union_universe_set : universe_set -> universe_set -> universe_set
 
 type 'a puniverses = 'a * universe_list
 val out_punivs : 'a puniverses -> 'a
