@@ -27,13 +27,14 @@ type constr_or_reference =
   | IsConstr of constr
   | IsReference of global_reference
 
-val constr_of_constr_or_ref : constr_or_reference -> constr
+val constr_of_constr_or_ref : env -> constr_or_reference -> 
+  constr * Univ.universe_context_set
 
 type 'a auto_tactic =
-  | Res_pf     of constr_or_reference * 'a (* Hint Apply *)
-  | ERes_pf    of constr_or_reference * 'a (* Hint EApply *)
-  | Give_exact of constr_or_reference
-  | Res_pf_THEN_trivial_fail of constr_or_reference * 'a (* Hint Immediate *)
+  | Res_pf     of 'a (* Hint Apply *)
+  | ERes_pf    of 'a (* Hint EApply *)
+  | Give_exact of 'a
+  | Res_pf_THEN_trivial_fail of 'a (* Hint Immediate *)
   | Unfold_nth of evaluable_global_reference       (* Hint Unfold *)
   | Extern     of Tacexpr.glob_tactic_expr       (* Hint Extern *)
 
@@ -50,13 +51,14 @@ type 'a gen_auto_tactic = {
   code  : 'a auto_tactic; (** the tactic to apply when the concl matches pat *)
 }
 
-type pri_auto_tactic = clausenv gen_auto_tactic
+type pri_auto_tactic = (constr * clausenv) gen_auto_tactic
 
 type search_entry
 
 (** The head may not be bound. *)
 
-type hint_entry = global_reference option * types gen_auto_tactic
+type hint_entry = global_reference option * 
+  (constr * types * Univ.universe_context_set) gen_auto_tactic
 
 type hints_path =
   | PathAtom of hints_path_atom
@@ -140,7 +142,7 @@ val pr_hint_db : Hint_db.t -> std_ppcmds
    [ctyp] is the type of [c]. *)
 
 val make_exact_entry : evar_map -> int option -> ?name:hints_path_atom -> 
-  constr_or_reference * constr -> hint_entry
+  (constr * types * Univ.universe_context_set) -> hint_entry
 
 (** [make_apply_entry (eapply,hnf,verbose) pri (c,cty)].
    [eapply] is true if this hint will be used only with EApply;
@@ -151,7 +153,7 @@ val make_exact_entry : evar_map -> int option -> ?name:hints_path_atom ->
 
 val make_apply_entry :
   env -> evar_map -> bool * bool * bool -> int option -> ?name:hints_path_atom -> 
-  constr_or_reference * constr -> hint_entry
+  (constr * types * Univ.universe_context_set) -> hint_entry
 
 (** A constr which is Hint'ed will be:
    - (1) used as an Exact, if it does not start with a product
@@ -263,7 +265,7 @@ val full_trivial : ?debug:Tacexpr.debug ->
 val h_trivial : ?debug:Tacexpr.debug ->
   open_constr list -> hint_db_name list option -> tactic
 
-val pr_autotactic : 'a auto_tactic -> Pp.std_ppcmds
+val pr_autotactic : (constr * 'a) auto_tactic -> Pp.std_ppcmds
 
 (** Hook for changing the initialization of auto *)
 

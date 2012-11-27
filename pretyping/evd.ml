@@ -219,6 +219,14 @@ let empty_evar_universe_context =
 let is_empty_evar_universe_context ctx =
   Univ.is_empty_universe_context_set ctx.uctx_local
 
+let merge_universe_contexts ctx ctx' =
+  { uctx_local = Univ.union_universe_context_set ctx.uctx_local ctx'.uctx_local;
+    uctx_univ_variables = 
+     Univ.union_universe_set ctx.uctx_univ_variables ctx'.uctx_univ_variables;
+    uctx_univ_algebraic = 
+     Univ.union_universe_set ctx.uctx_univ_algebraic ctx'.uctx_univ_algebraic;
+    uctx_universes = (*FIXME *) ctx.uctx_universes }
+
 module EvarMap = struct
 
   type t = EvarInfoMap.t * evar_universe_context
@@ -452,8 +460,11 @@ let from_env ?(ctx=Univ.empty_universe_context_set) e =
 let has_undefined evd =
   EvarMap.has_undefined evd.evars
 
+let merge_evars (evd, uctx) (evd', uctx') =
+  (evd, merge_universe_contexts uctx uctx')
+
 let evars_reset_evd ?(with_conv_pbs=false) evd d = 
-  {d with evars = evd.evars; 
+  {d with evars = merge_evars evd.evars d.evars; 
      conv_pbs = if with_conv_pbs then evd.conv_pbs else d.conv_pbs }
 let add_conv_pb pb d = {d with conv_pbs = pb::d.conv_pbs}
 let evar_source evk d = (EvarMap.find d.evars evk).evar_source

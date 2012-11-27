@@ -151,9 +151,9 @@ type global_reference_or_constr =
   | IsGlobal of global_reference
   | IsConstr of constr
 
-let constr_of_global_or_constr = function
-  | IsConstr c -> c
-  | IsGlobal gr -> constr_of_global gr
+let constr_of_global_or_constr env = function
+  | IsConstr c -> c, Univ.empty_universe_context_set
+  | IsGlobal gr -> Universes.fresh_global_instance env r
 
 (** {6 Temporary function to brutally form kernel names from section paths } *)
 

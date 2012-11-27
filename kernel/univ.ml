@@ -86,6 +86,7 @@ let out_punivs (a, _) = a
 
 let empty_universe_list = []
 let empty_universe_set = UniverseLSet.empty
+let union_universe_set = UniverseLSet.union
 
 let compare_levels = UniverseLevel.compare
 let eq_levels = UniverseLevel.equal

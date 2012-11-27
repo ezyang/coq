@@ -442,13 +442,8 @@ let rec whd_state_gen ?(refold=false) flags env sigma =
 	  |None -> s
 	  |Some (bef,arg,s') -> whrec (arg, Zfix(f,bef)::s'))
 
-<<<<<<< HEAD
-      | Construct (ind,c) ->
-	if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
-=======
       | Construct ((ind,c),u) ->
-	if red_iota flags then
->>>>>>> Adapt kernel, library, pretyping, tactics and toplevel to universe polymorphism.
+	if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
 	  match strip_app stack with
 	  | args, (Zcase(ci, _, lf)::s') ->
 	    whrec (lf.(c-1), append_stack_app_list (List.skipn ci.ci_npar args) s')
@@ -544,13 +539,8 @@ let local_whd_state_gen flags sigma =
               Some c -> whrec (c,stack)
             | None -> s)
 
-<<<<<<< HEAD
-      | Construct (ind,c) ->
-	if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
-=======
       | Construct ((ind,c),u) ->
-	if red_iota flags then
->>>>>>> Adapt kernel, library, pretyping, tactics and toplevel to universe polymorphism.
+	if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
 	  match strip_app stack with
 	  |args, (Zcase(ci, _, lf)::s') ->
 	    whrec (lf.(c-1), append_stack_app_list (List.skipn ci.ci_npar args) s')
