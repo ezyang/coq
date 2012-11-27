@@ -22,8 +22,8 @@ type mutual
 type individual
 type 'a scheme_kind
 
-type mutual_scheme_object_function = mutual_inductive -> constr array Univ.in_universe_context_set
-type individual_scheme_object_function = inductive -> constr Univ.in_universe_context_set
+type mutual_scheme_object_function = mutual_inductive -> constr array Evd.in_evar_universe_context
+type individual_scheme_object_function = inductive -> constr Evd.in_evar_universe_context
 
 (** Main functions to register a scheme builder *)
 

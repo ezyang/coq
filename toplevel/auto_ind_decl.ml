@@ -288,7 +288,7 @@ let build_beq_scheme kn =
 	if not (List.mem InSet kelim) then
 	  raise (NonSingletonProp (kn,i));
         let fix = mkFix (((Array.make nb_ind 0),i),(names,types,cores)) in
-        create_input fix), Univ.empty_universe_context_set (* FIXME *)
+        create_input fix), Evd.empty_evar_universe_context (* FIXME *)
 
 let beq_scheme_kind = declare_mutual_scheme_object "_beq" build_beq_scheme
 
@@ -590,7 +590,7 @@ let make_bl_scheme mind =
   [|Pfedit.build_by_tactic (Global.env())
     (compute_bl_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
     (compute_bl_tact (!bl_scheme_kind_aux()) (ind,[])(*FIXME*) lnamesparrec nparrec)|],
-    Univ.empty_universe_context_set
+    Evd.empty_evar_universe_context
 
 let bl_scheme_kind = declare_mutual_scheme_object "_dec_bl" make_bl_scheme
 
@@ -704,7 +704,7 @@ let make_lb_scheme mind =
   [|Pfedit.build_by_tactic (Global.env())
     (compute_lb_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
     (compute_lb_tact (!lb_scheme_kind_aux()) ind lnamesparrec nparrec)|],
-    Univ.empty_universe_context_set (* FIXME *)
+    Evd.empty_evar_universe_context (* FIXME *)
 
 let lb_scheme_kind = declare_mutual_scheme_object "_dec_lb" make_lb_scheme
 
@@ -862,7 +862,7 @@ let make_eq_decidability mind =
   [|Pfedit.build_by_tactic (Global.env())
     (compute_dec_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
     (compute_dec_tact ind lnamesparrec nparrec)|],
-    Univ.empty_universe_context_set (* FIXME *)
+    Evd.empty_evar_universe_context (* FIXME *)
 
 let eq_dec_scheme_kind =
   declare_mutual_scheme_object "_eq_dec" make_eq_decidability

@@ -690,7 +690,7 @@ let understand_judgment sigma env tycon c =
     resolve_evars env evdref true true;
     let j = j_nf_evar !evdref j in
       check_evars env sigma !evdref (mkCast(j.uj_val,DEFAULTcast, j.uj_type));
-      j, Evd.universe_context_set !evdref
+      j, Evd.evar_universe_context !evdref
 
 let understand_type_judgment sigma env c =
   let evdref = ref sigma in
@@ -698,7 +698,7 @@ let understand_type_judgment sigma env c =
     resolve_evars env evdref true true;
     let j = tj_nf_evar !evdref j in
       check_evars env sigma !evdref j.utj_val;
-      j, Evd.universe_context_set !evdref
+      j, Evd.evar_universe_context !evdref
 
 let understand_judgment_tcc evdref env tycon c =
   let j = pretype tycon env evdref ([],[]) c in
@@ -722,7 +722,7 @@ let ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c 
 let ise_pretype_gen_ctx expand_evar fail_evar resolve_classes sigma env lvar kind c =
   let evd, c = ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c in
   let evd, subst = Evd.nf_constraints evd in
-    Evarutil.subst_univs_full_constr subst c, Evd.universe_context_set evd
+    Evarutil.subst_univs_full_constr subst c, Evd.get_universe_context_set evd
 
 (** Entry points of the high-level type synthesis algorithm *)
 

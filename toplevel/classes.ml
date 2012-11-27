@@ -295,7 +295,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 		  in obls, Some constr, typ
 		| None -> [||], None, termtype
 	      in
-	      let ctx = Evd.universe_context_set !evars in
+	      let ctx = Evd.get_universe_context_set !evars in
 		ignore (Obligations.add_definition id ?term:constr
 			typ ctx ~kind:(Global,poly,Instance) ~hook obls);
 		id

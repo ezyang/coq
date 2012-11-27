@@ -176,7 +176,7 @@ let solve_by_implicit_tactic env sigma (evk,args) =
       when
 	Sign.named_context_equal (Environ.named_context_of_val evi.evar_hyps)
 	(Environ.named_context env) ->
-      (try build_by_tactic env (evi.evar_concl, Evd.universe_context_set sigma)
+      (try build_by_tactic env (evi.evar_concl, Evd.get_universe_context_set sigma)
 	   (tclCOMPLETE tac)
        with e when Logic.catchable_exception e -> raise Exit)
   | _ -> raise Exit
