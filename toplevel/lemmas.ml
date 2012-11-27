@@ -330,7 +330,7 @@ let start_proof_com kind thms hook =
     thms in
   let recguard,thms,snl = look_for_possibly_mutual_statements thms in
   let evd, nf = Evarutil.nf_evars_and_universes !evdref in
-  let ctxset = Evd.universe_context_set evd in
+  let ctxset = Evd.universe_context_set ~with_algebraic:false evd in
   let thms = List.map (fun (n, (t, info)) -> (n, ((nf t, ctxset), info)))
     thms
   in
