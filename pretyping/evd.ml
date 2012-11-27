@@ -544,7 +544,15 @@ let univ_rigid = UnivRigid
 let univ_flexible = UnivFlexible false
 let univ_flexible_alg = UnivFlexible true
 
-let universe_context_set ({evars = (sigma, uctx) }) = uctx.uctx_local
+let universe_context_set ?(with_algebraic=true) ({evars = (sigma, uctx) }) = 
+  if with_algebraic then uctx.uctx_local
+  else 
+    let (ctx, csts) = uctx.uctx_local in
+    let ctx' = Univ.UniverseLSet.diff ctx uctx.uctx_univ_algebraic in
+      (*FIXME check no constraint depend on algebraic universes
+	we're about to remove *)
+      (ctx', csts)
+
 let universe_context ({evars = (sigma, uctx) }) =
   Univ.context_of_universe_context_set uctx.uctx_local
 

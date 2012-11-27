@@ -264,7 +264,7 @@ val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
 val set_leq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
 
-val universe_context_set : evar_map -> Univ.universe_context_set
+val universe_context_set : ?with_algebraic:bool -> evar_map -> Univ.universe_context_set
 val universe_context : evar_map -> Univ.universe_context
 
 val merge_context_set : rigid -> evar_map -> Univ.universe_context_set -> evar_map
