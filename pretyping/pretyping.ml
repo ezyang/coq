@@ -738,8 +738,7 @@ let understand_type sigma env c =
 (** FIXME: should somehow ensure that no undefined univ variables are lying around before this otherwise this could fix them too early *) 
 let understand_ltac ?(resolve_classes=false) expand_evar sigma env lvar kind c =
   let evd, c = ise_pretype_gen expand_evar false resolve_classes sigma env lvar kind c in
-  let evd, subst = Evd.nf_constraints evd in
-    evd, Evarutil.subst_univs_full_constr subst c
+    evd, c
 
 let understand_tcc ?(resolve_classes=true) sigma env ?expected_type:exptyp c =
   ise_pretype_gen true false resolve_classes sigma env ([],[]) (OfType exptyp) c
