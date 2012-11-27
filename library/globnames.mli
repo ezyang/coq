@@ -35,6 +35,7 @@ val is_global : global_reference -> constr -> bool
 
 val subst_constructor : substitution -> constructor -> constructor * constr
 val subst_global : substitution -> global_reference -> global_reference * constr
+val subst_global_reference : substitution -> global_reference -> global_reference
 
 (** This constr is not safe to be typechecked, universe polymorphism is not 
     handled here: just use for printing *)
