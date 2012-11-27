@@ -52,8 +52,6 @@ type 'a gen_auto_tactic = {
 
 type pri_auto_tactic = clausenv gen_auto_tactic
 
-type stored_data = int * clausenv gen_auto_tactic
-
 type search_entry
 
 (** The head may not be bound. *)
