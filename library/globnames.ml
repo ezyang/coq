@@ -42,6 +42,18 @@ let subst_constructor subst (ind,j as ref) =
     if ind==ind' then ref, mkConstruct ref
     else (ind',j), mkConstruct (ind',j)
 
+let subst_global_reference subst ref = match ref with
+  | VarRef var -> ref
+  | ConstRef kn ->
+    let kn' = subst_constant subst kn in
+      if kn==kn' then ref else ConstRef kn'
+  | IndRef ind ->
+    let ind' = subst_ind subst ind in
+      if ind==ind' then ref else IndRef ind'
+  | ConstructRef ((kn,i),j as c) ->
+    let c',t = subst_constructor subst c in
+      if c'==c then ref else ConstructRef c'
+
 let subst_global subst ref = match ref with
   | VarRef var -> ref, mkVar var
   | ConstRef kn ->

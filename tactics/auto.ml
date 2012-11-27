@@ -44,11 +44,19 @@ open Locus
 (*            The Type of Constructions Autotactic Hints                    *)
 (****************************************************************************)
 
+type constr_or_reference = 
+  | IsConstr of constr
+  | IsReference of global_reference
+
+let constr_of_constr_or_ref = function
+  | IsConstr c -> c
+  | IsReference r -> Universes.constr_of_global r
+
 type 'a auto_tactic =
-  | Res_pf     of constr * 'a (* Hint Apply *)
-  | ERes_pf    of constr * 'a (* Hint EApply *)
-  | Give_exact of constr
-  | Res_pf_THEN_trivial_fail of constr * 'a (* Hint Immediate *)
+  | Res_pf     of constr_or_reference * 'a (* Hint Apply *)
+  | ERes_pf    of constr_or_reference * 'a (* Hint EApply *)
+  | Give_exact of constr_or_reference
+  | Res_pf_THEN_trivial_fail of constr_or_reference * 'a (* Hint Immediate *)
   | Unfold_nth of evaluable_global_reference       (* Hint Unfold *)
   | Extern     of glob_tactic_expr       (* Hint Extern *)
 
@@ -116,18 +124,24 @@ type search_entry = stored_data list * stored_data list * Bounded_net.t
 
 let empty_se = ([],[],Bounded_net.create ())
 
+let eq_constr_or_reference x y = 
+  match x, y with
+  | IsConstr x, IsConstr y -> eq_constr x y
+  | IsReference x, IsReference y -> eq_gr x y
+  | _, _ -> false
+
 let eq_pri_auto_tactic (_, x) (_, y) =
   if Int.equal x.pri y.pri && Option.equal constr_pattern_eq x.pat y.pat then
     match x.code,y.code with
       | Res_pf(cstr,_),Res_pf(cstr1,_) -> 
-	   eq_constr cstr cstr1
+	   eq_constr_or_reference cstr cstr1
       | ERes_pf(cstr,_),ERes_pf(cstr1,_) -> 
-	  eq_constr cstr cstr1
+	  eq_constr_or_reference cstr cstr1
       | Give_exact cstr,Give_exact cstr1  -> 
-	  eq_constr cstr cstr1
+	  eq_constr_or_reference cstr cstr1
       | Res_pf_THEN_trivial_fail(cstr,_)
 	  ,Res_pf_THEN_trivial_fail(cstr1,_) -> 
-	  eq_constr cstr cstr1
+	  eq_constr_or_reference cstr cstr1
       | _,_ -> false
   else
     false
@@ -160,6 +174,7 @@ let dummy_goal = Goal.V82.dummy_goal
 
 let translate_hint (go,p) =
   let mk_clenv (c,t) =
+    let c = constr_of_constr_or_ref c in
     let cl = mk_clenv_from dummy_goal (c,t) in {cl with env = empty_env }
   in
   let code = match p.code with
@@ -485,7 +500,7 @@ let try_head_pattern c =
   try head_pattern_bound c
   with BoundPattern -> error "Bound head variable."
 
-let make_exact_entry sigma pri ?(name=PathAny) (c,cty) =
+let make_exact_entry sigma pri ?(name=PathAny) (cr,cty) =
   let cty = strip_outer_cast cty in
     match kind_of_term cty with
     | Prod _ -> failwith "make_exact_entry"
@@ -499,9 +514,10 @@ let make_exact_entry sigma pri ?(name=PathAny) (c,cty) =
 	  { pri = (match pri with None -> 0 | Some p -> p);
 	    pat = Some pat;
 	    name = name;
-	    code = Give_exact c })
+	    code = Give_exact cr })
 
-let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c,cty) =
+let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (cr,cty) =
+  let c = constr_of_constr_or_ref cr in
   let cty = if hnf then hnf_constr env sigma cty else cty in
     match kind_of_term cty with
     | Prod _ ->
@@ -517,7 +533,7 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c,cty) 
           { pri = (match pri with None -> nb_hyp cty | Some p -> p);
             pat = Some pat;
 	    name = name;
-            code = Res_pf(c,cty) })
+            code = Res_pf(cr,cty) })
 	else begin
 	  if not eapply then failwith "make_apply_entry";
           if verbose then
@@ -527,7 +543,7 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c,cty) 
            { pri = (match pri with None -> nb_hyp cty + nmiss | Some p -> p);
              pat = Some pat;
 	     name = name;
-             code = ERes_pf(c,cty) })
+             code = ERes_pf(cr,cty) })
         end
     | _ -> failwith "make_apply_entry"
 
@@ -535,10 +551,11 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c,cty) 
    c is a constr
    cty is the type of constr *)
 
-let make_resolves env sigma flags pri ?name c =
+let make_resolves env sigma flags pri ?name cr =
+  let c = constr_of_constr_or_ref cr in
   let cty = Retyping.get_type_of env sigma c in
   let try_apply f =
-    try Some (f (c, cty)) with Failure _ -> None in
+    try Some (f (cr, cty)) with Failure _ -> None in
   let ents = List.map_filter try_apply
       [make_exact_entry sigma pri ?name; make_apply_entry env sigma flags pri ?name]
   in
@@ -554,7 +571,7 @@ let make_resolve_hyp env sigma (hname,_,htyp) =
   try
     [make_apply_entry env sigma (true, true, false) None 
        ~name:(PathHints [VarRef hname])
-       (mkVar hname, htyp)]
+       (IsReference (VarRef hname), htyp)]
   with
     | Failure _ -> []
     | e when Logic.catchable_exception e -> anomaly "make_resolve_hyp"
@@ -584,7 +601,7 @@ let make_trivial env sigma ?(name=PathAny) r =
   (Some hd, { pri=1;
               pat = Some (snd (Patternops.pattern_of_constr sigma (clenv_type ce)));
 	      name = name;
-              code=Res_pf_THEN_trivial_fail(c,t) })
+              code=Res_pf_THEN_trivial_fail(IsReference r,t) })
   
 open Vernacexpr
 
@@ -655,23 +672,32 @@ let subst_autohint (subst,(local,name,hintlist as obj)) =
        with Tactics.Bound -> lab'')
     in if gr' == gr then gr else gr'
   in
+  let subst_mps_or_ref subst cr = 
+    match cr with
+    | IsConstr c -> let c' = subst_mps subst c in 
+		      if c' == c then cr
+		      else IsConstr c'
+    | IsReference r -> let r' = subst_global_reference subst r in
+			 if r' == r then cr
+			 else IsReference r'
+  in
   let subst_hint (k,data as hint) =
     let k' = Option.smartmap subst_key k in
     let pat' = Option.smartmap (subst_pattern subst) data.pat in
     let code' = match data.code with
       | Res_pf (c,t) ->
-          let c' = subst_mps subst c in
+          let c' = subst_mps_or_ref subst c in
           let t' = subst_mps subst t in
           if c==c' && t'==t then data.code else Res_pf (c', t')
       | ERes_pf (c,t) ->
-          let c' = subst_mps subst c in
+          let c' = subst_mps_or_ref subst c in
           let t' = subst_mps subst t in
           if c==c' && t'==t then data.code else ERes_pf (c',t')
       | Give_exact c ->
-          let c' = subst_mps subst c in
+          let c' = subst_mps_or_ref subst c in
           if c==c' then data.code else Give_exact c'
       | Res_pf_THEN_trivial_fail (c,t) ->
-          let c' = subst_mps subst c in
+          let c' = subst_mps_or_ref subst c in
           let t' = subst_mps subst t in
           if c==c' && t==t' then data.code else Res_pf_THEN_trivial_fail (c',t')
       | Unfold_nth ref ->
@@ -898,13 +924,17 @@ let add_hints local dbnames0 h =
 (*                    Functions for printing the hints                    *)
 (**************************************************************************)
 
+let pr_constr_or_ref = function
+  | IsConstr c -> pr_constr c
+  | IsReference gr -> pr_global gr
+
 let pr_autotactic =
   function
-  | Res_pf (c,clenv) -> (str"apply " ++ pr_constr c)
-  | ERes_pf (c,clenv) -> (str"eapply " ++ pr_constr c)
-  | Give_exact c -> (str"exact " ++ pr_constr c)
+  | Res_pf (c,clenv) -> (str"apply " ++ pr_constr_or_ref c)
+  | ERes_pf (c,clenv) -> (str"eapply " ++ pr_constr_or_ref c)
+  | Give_exact c -> (str"exact " ++ pr_constr_or_ref c)
   | Res_pf_THEN_trivial_fail (c,clenv) ->
-      (str"apply " ++ pr_constr c ++ str" ; trivial")
+      (str"apply " ++ pr_constr_or_ref c ++ str" ; trivial")
   | Unfold_nth c -> (str"unfold " ++  pr_evaluable_reference c)
   | Extern tac ->
       (str "(*external*) " ++ Pptactic.pr_glob_tactic (Global.env()) tac)
@@ -1065,9 +1095,9 @@ let expand_constructor_hints env lems =
   List.map_append (fun (sigma,lem) ->
     match kind_of_term lem with
     | Ind (ind,u) ->
-	List.tabulate (fun i -> mkConstructU ((ind,i+1),u)) (nconstructors ind)
+	List.tabulate (fun i -> IsConstr (mkConstructU ((ind,i+1),u))) (nconstructors ind)
     | _ ->
-	[prepare_hint env (sigma,lem)]) lems
+	[IsConstr (prepare_hint env (sigma,lem))]) lems
 
 (* builds a hint database from a constr signature *)
 (* typically used with (lid, ltyp) = pf_hyps_types <some goal> *)
@@ -1319,12 +1349,12 @@ and my_find_search_delta db_list local_db hdc concl =
 and tac_of_hint dbg db_list local_db concl (flags, ({pat=p; code=t})) =
   let tactic = 
     match t with
-    | Res_pf (c,cl) -> unify_resolve_gen flags (c,cl)
+    | Res_pf (c,cl) -> unify_resolve_gen flags (constr_of_constr_or_ref c,cl)
     | ERes_pf _ -> (fun gl -> error "eres_pf")
-    | Give_exact c  -> exact_check c
+    | Give_exact c  -> exact_check (constr_of_constr_or_ref c)
     | Res_pf_THEN_trivial_fail (c,cl) ->
       tclTHEN
-        (unify_resolve_gen flags (c,cl))
+        (unify_resolve_gen flags (constr_of_constr_or_ref c,cl))
 	(* With "(debug) trivial", we shouldn't end here, and
 	   with "debug auto" we don't display the details of inner trivial *)
         (trivial_fail_db (no_dbg ()) (not (Option.is_empty flags)) db_list local_db)

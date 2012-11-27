@@ -23,13 +23,19 @@ open Pp
 
 (** Auto and related automation tactics *)
 
+type constr_or_reference = 
+  | IsConstr of constr
+  | IsReference of global_reference
+
+val constr_of_constr_or_ref : constr_or_reference -> constr
+
 type 'a auto_tactic =
-  | Res_pf     of constr * 'a    (** Hint Apply *)
-  | ERes_pf    of constr * 'a    (** Hint EApply *)
-  | Give_exact of constr
-  | Res_pf_THEN_trivial_fail of constr * 'a (** Hint Immediate *)
-  | Unfold_nth of evaluable_global_reference          (** Hint Unfold *)
-  | Extern     of Tacexpr.glob_tactic_expr   (** Hint Extern *)
+  | Res_pf     of constr_or_reference * 'a (* Hint Apply *)
+  | ERes_pf    of constr_or_reference * 'a (* Hint EApply *)
+  | Give_exact of constr_or_reference
+  | Res_pf_THEN_trivial_fail of constr_or_reference * 'a (* Hint Immediate *)
+  | Unfold_nth of evaluable_global_reference       (* Hint Unfold *)
+  | Extern     of Tacexpr.glob_tactic_expr       (* Hint Extern *)
 
 open Glob_term
 
@@ -135,7 +141,8 @@ val pr_hint_db : Hint_db.t -> std_ppcmds
    [c] is the term given as an exact proof to solve the goal;
    [ctyp] is the type of [c]. *)
 
-val make_exact_entry : evar_map -> int option -> ?name:hints_path_atom -> constr * constr -> hint_entry
+val make_exact_entry : evar_map -> int option -> ?name:hints_path_atom -> 
+  constr_or_reference * constr -> hint_entry
 
 (** [make_apply_entry (eapply,hnf,verbose) pri (c,cty)].
    [eapply] is true if this hint will be used only with EApply;
@@ -146,7 +153,7 @@ val make_exact_entry : evar_map -> int option -> ?name:hints_path_atom -> constr
 
 val make_apply_entry :
   env -> evar_map -> bool * bool * bool -> int option -> ?name:hints_path_atom -> 
-  constr * constr -> hint_entry
+  constr_or_reference * constr -> hint_entry
 
 (** A constr which is Hint'ed will be:
    - (1) used as an Exact, if it does not start with a product
@@ -157,7 +164,7 @@ val make_apply_entry :
 
 val make_resolves :
   env -> evar_map -> bool * bool * bool -> int option -> ?name:hints_path_atom -> 
-  constr -> hint_entry list
+  constr_or_reference -> hint_entry list
 
 (** [make_resolve_hyp hname htyp].
    used to add an hypothesis to the local hint database;

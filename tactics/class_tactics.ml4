@@ -161,12 +161,15 @@ and e_my_find_search db_list local_db hdc complete concl =
     fun (flags, {pri = b; pat = p; code = t; name = name}) ->
       let tac =
 	match t with
-	  | Res_pf (term,cl) -> with_prods nprods (term,cl) (unify_resolve flags)
-	  | ERes_pf (term,cl) -> with_prods nprods (term,cl) (unify_e_resolve flags)
-	  | Give_exact (c) -> e_give_exact flags c
+	  | Res_pf (term,cl) -> with_prods nprods (constr_of_constr_or_ref term,cl)
+	    (unify_resolve flags)
+	  | ERes_pf (term,cl) -> with_prods nprods (constr_of_constr_or_ref term,cl)
+	    (unify_e_resolve flags)
+	  | Give_exact (c) -> e_give_exact flags (constr_of_constr_or_ref c)
 	  | Res_pf_THEN_trivial_fail (term,cl) ->
-              tclTHEN (with_prods nprods (term,cl) (unify_e_resolve flags))
-	        (if complete then tclIDTAC else e_trivial_fail_db db_list local_db)
+              tclTHEN (with_prods nprods (constr_of_constr_or_ref term,cl) 
+		       (unify_e_resolve flags))
+	      (if complete then tclIDTAC else e_trivial_fail_db db_list local_db)
 	  | Unfold_nth c -> tclWEAK_PROGRESS (unfold_in_concl [AllOccurrences,c])
 	  | Extern tacast -> 
 (* 	    tclTHEN *)
@@ -244,19 +247,19 @@ let make_resolve_hyp env sigma st flags only_classes pri (id, _, cty) =
   let is_class = iscl env cty in
   let keep = not only_classes || is_class in
     if keep then 
-      let c = mkVar id in
+      let c = VarRef id in
       let name = PathHints [VarRef id] in
       let hints =
 	if is_class then
 	  let hints = build_subclasses ~check:false env sigma (VarRef id) None in
 	    (List.map_append
-	       (fun (path,pri, c) -> make_resolves env sigma ~name:(PathHints path)
-		  (true,false,Flags.is_verbose()) pri (Universes.constr_of_global c))
+	       (fun (path, pri, c) -> make_resolves env sigma ~name:(PathHints path)
+		  (true,false,Flags.is_verbose()) pri (IsReference c))
 	       hints)
 	else []
       in
         (hints @ List.map_filter
-	 (fun f -> try Some (f (c, cty)) with Failure _ | UserError _ -> None) 
+	 (fun f -> try Some (f (IsReference c, cty)) with Failure _ | UserError _ -> None) 
 	 [make_exact_entry ~name sigma pri; make_apply_entry ~name env sigma flags pri])
     else []
 

@@ -211,7 +211,10 @@ let extend_with_auto_hints l seq gl=
 	Res_pf (c,_) | Give_exact c
       | Res_pf_THEN_trivial_fail (c,_) ->
 	  (try
-	     let gr=global_of_constr c in
+	     let gr, c= match c with
+	       | IsConstr c -> global_of_constr c, c 
+	       | IsReference gr -> gr, Universes.constr_of_global gr
+	     in
 	     let typ=(pf_type_of gl c) in
 	       seqref:=add_formula Hint gr typ !seqref gl
 	   with Not_found->())

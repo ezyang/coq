@@ -127,11 +127,11 @@ and e_my_find_search db_list local_db hdc concl =
       (b,
        let tac =
 	 match t with
-	   | Res_pf (term,cl) -> unify_resolve st (term,cl)
-	   | ERes_pf (term,cl) -> unify_e_resolve st (term,cl)
-	   | Give_exact (c) -> e_give_exact c
+	   | Res_pf (term,cl) -> unify_resolve st (constr_of_constr_or_ref term,cl)
+	   | ERes_pf (term,cl) -> unify_e_resolve st (constr_of_constr_or_ref term,cl)
+	   | Give_exact (c) -> e_give_exact (constr_of_constr_or_ref c)
 	   | Res_pf_THEN_trivial_fail (term,cl) ->
-               tclTHEN (unify_e_resolve st (term,cl))
+               tclTHEN (unify_e_resolve st (constr_of_constr_or_ref term,cl))
 		 (e_trivial_fail_db db_list local_db)
 	   | Unfold_nth c -> h_reduce (Unfold [AllOccurrences,c]) onConcl
 	   | Extern tacast -> conclPattern concl p tacast
