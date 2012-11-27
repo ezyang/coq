@@ -252,6 +252,20 @@ val univ_rigid : rigid
 val univ_flexible : rigid
 val univ_flexible_alg : rigid
 
+(** The universe context associated to an evar map *)
+type evar_universe_context
+
+type 'a in_evar_universe_context = 'a * evar_universe_context
+
+val evar_universe_context_set : evar_universe_context -> Univ.universe_context_set
+val evar_universe_context_of : Univ.universe_context_set -> evar_universe_context
+val empty_evar_universe_context : evar_universe_context
+val union_evar_universe_context : evar_universe_context -> evar_universe_context ->
+  evar_universe_context
+
+val normalize_evar_universe_context : evar_universe_context ->
+  Univ.universe_full_subst Univ.in_universe_context_set
+
 val new_univ_variable : rigid -> evar_map -> evar_map * Univ.universe
 val new_sort_variable : rigid -> evar_map -> evar_map * sorts
 val make_flexible_variable : evar_map -> bool -> Univ.universe_level -> evar_map
@@ -264,8 +278,11 @@ val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
 val set_leq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
 
-val universe_context_set : ?with_algebraic:bool -> evar_map -> Univ.universe_context_set
+val evar_universe_context : evar_map -> evar_universe_context
+val get_universe_context_set : ?with_algebraic:bool -> evar_map -> Univ.universe_context_set
 val universe_context : evar_map -> Univ.universe_context
+
+val merge_universe_context : evar_map -> evar_universe_context -> evar_map
 
 val merge_context_set : rigid -> evar_map -> Univ.universe_context_set -> evar_map
 

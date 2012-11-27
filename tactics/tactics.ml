@@ -811,7 +811,7 @@ let is_record mind = (Global.lookup_mind (fst mind)).mind_record
 
 let find_ind_eliminator ind s gl =
   let gr = lookup_eliminator ind s in
-  let evd, c = pf_apply (Evd.fresh_global Evd.univ_rigid) gl gr in
+  let evd, c = pf_apply (Evd.fresh_global Evd.univ_flexible) gl gr in
     evd, c
 
 let find_eliminator c gl =
@@ -3532,7 +3532,7 @@ let abstract_subproof id tac gl =
     with Uninstantiated_evar _ ->
       error "\"abstract\" cannot handle existentials." in
   let const = Pfedit.build_constant_by_tactic id secsign 
-    (concl, Evd.universe_context_set (project gl))
+    (concl, Evd.get_universe_context_set (project gl))
     (tclCOMPLETE (tclTHEN (tclDO (List.length sign) intro) tac)) in
   let cd = Entries.DefinitionEntry const in
   let lem = mkConst (Declare.declare_constant ~internal:Declare.KernelSilent id (cd,IsProof Lemma)) in

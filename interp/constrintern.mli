@@ -132,7 +132,8 @@ val interp_type_evars : evar_map ref -> env -> ?impls:internalization_env ->
 
 (** {6 Build a judgment  } *)
 
-val interp_constr_judgment : evar_map -> env -> constr_expr -> unsafe_judgment Univ.in_universe_context_set
+val interp_constr_judgment : evar_map -> env -> constr_expr -> 
+  unsafe_judgment Evd.in_evar_universe_context
 
 (** Interprets constr patterns *)
 
@@ -154,15 +155,15 @@ val interp_binder_evars : evar_map ref -> env -> Name.t -> constr_expr -> types
 
 (** Interpret contexts: returns extended env and context *)
 
-val interp_context_gen : (env -> glob_constr -> unsafe_type_judgment Univ.in_universe_context_set) ->
-  (env -> Evarutil.type_constraint -> glob_constr -> unsafe_judgment Univ.in_universe_context_set) ->
+val interp_context_gen : (env -> glob_constr -> unsafe_type_judgment Evd.in_evar_universe_context) ->
+  (env -> Evarutil.type_constraint -> glob_constr -> unsafe_judgment Evd.in_evar_universe_context) ->
   ?global_level:bool -> ?impl_env:internalization_env ->
-  evar_map -> env -> local_binder list -> internalization_env * ((env * Univ.universe_context_set * rel_context * sorts list) * Impargs.manual_implicits)
+  evar_map -> env -> local_binder list -> internalization_env * ((env * Evd.evar_universe_context * rel_context * sorts list) * Impargs.manual_implicits)
   
 val interp_context : ?global_level:bool -> ?impl_env:internalization_env ->
   evar_map -> env -> local_binder list -> 
   internalization_env * 
-  ((env * Univ.universe_context_set * rel_context * sorts list) * Impargs.manual_implicits)
+  ((env * Evd.evar_universe_context * rel_context * sorts list) * Impargs.manual_implicits)
 
 val interp_context_evars : ?global_level:bool -> ?impl_env:internalization_env ->
   evar_map ref -> env -> local_binder list -> 

@@ -81,10 +81,10 @@ val understand_gen : typing_constraint -> evar_map -> env ->
 (** Idem but returns the judgment of the understood term *)
 
 val understand_judgment : evar_map -> env -> type_constraint -> 
-  glob_constr -> unsafe_judgment Univ.in_universe_context_set
+  glob_constr -> unsafe_judgment Evd.in_evar_universe_context
 
 val understand_type_judgment : evar_map -> env -> 
-  glob_constr -> unsafe_type_judgment Univ.in_universe_context_set
+  glob_constr -> unsafe_type_judgment Evd.in_evar_universe_context
 
 (** Idem but do not fail on unresolved evars *)
 val understand_judgment_tcc : evar_map ref -> env -> type_constraint -> 

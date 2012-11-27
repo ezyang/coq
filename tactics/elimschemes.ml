@@ -42,17 +42,17 @@ let optimize_non_type_induction_scheme kind dep sort ind =
 	mib.mind_nparams in
     let sort, ctx = Universes.extend_context (Universes.fresh_sort_in_family env sort) ctx in
     let c = snd (weaken_sort_scheme sort npars c t) in      
-      c, ctx
+      c, Evd.evar_universe_context_of ctx
   else
     let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
     let sigma, c = build_induction_scheme env sigma indu dep sort in
-      c, Evd.universe_context_set sigma
+      c, Evd.evar_universe_context sigma
 
 let build_induction_scheme_in_type dep sort ind =
   let env = Global.env () in
   let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
   let sigma, c = build_induction_scheme env sigma indu dep sort in
-    c, Evd.universe_context_set sigma
+    c, Evd.evar_universe_context sigma
  
 let rect_scheme_kind_from_type =
   declare_individual_scheme_object "_rect_nodep"
@@ -93,7 +93,7 @@ let build_case_analysis_scheme_in_type dep sort ind =
   let sigma = Evd.from_env env in
   let sigma, indu = Evd.fresh_inductive_instance env sigma ind in
   let sigma, c = build_case_analysis_scheme env sigma indu dep sort in 
-    c, Evd.universe_context_set sigma
+    c, Evd.evar_universe_context sigma
 
 let case_scheme_kind_from_type =
   declare_individual_scheme_object "_case_nodep"

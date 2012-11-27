@@ -219,13 +219,18 @@ let empty_evar_universe_context =
 let is_empty_evar_universe_context ctx =
   Univ.is_empty_universe_context_set ctx.uctx_local
 
-let merge_universe_contexts ctx ctx' =
+let union_evar_universe_context ctx ctx' =
   { uctx_local = Univ.union_universe_context_set ctx.uctx_local ctx'.uctx_local;
     uctx_univ_variables = 
      Univ.union_universe_set ctx.uctx_univ_variables ctx'.uctx_univ_variables;
     uctx_univ_algebraic = 
      Univ.union_universe_set ctx.uctx_univ_algebraic ctx'.uctx_univ_algebraic;
     uctx_universes = (*FIXME *) ctx.uctx_universes }
+
+type 'a in_evar_universe_context = 'a * evar_universe_context
+
+let evar_universe_context_set ctx = ctx.uctx_local
+let evar_universe_context_of ctx = { empty_evar_universe_context with uctx_local = ctx }
 
 module EvarMap = struct
 
@@ -460,12 +465,12 @@ let from_env ?(ctx=Univ.empty_universe_context_set) e =
 let has_undefined evd =
   EvarMap.has_undefined evd.evars
 
-let merge_evars (evd, uctx) (evd', uctx') =
-  (evd, merge_universe_contexts uctx uctx')
+let merge_universe_context ({evars = (evd, uctx)} as d) uctx' =
+  {d with evars = (evd, union_evar_universe_context uctx uctx')}
 
 let evars_reset_evd ?(with_conv_pbs=false) evd d = 
-  {d with evars = merge_evars evd.evars d.evars; 
-     conv_pbs = if with_conv_pbs then evd.conv_pbs else d.conv_pbs }
+  {d with evars = (fst evd.evars, union_evar_universe_context (snd evd.evars) (snd d.evars));
+  conv_pbs = if with_conv_pbs then evd.conv_pbs else d.conv_pbs }
 let add_conv_pb pb d = {d with conv_pbs = pb::d.conv_pbs}
 let evar_source evk d = (EvarMap.find d.evars evk).evar_source
 
@@ -555,7 +560,9 @@ let univ_rigid = UnivRigid
 let univ_flexible = UnivFlexible false
 let univ_flexible_alg = UnivFlexible true
 
-let universe_context_set ?(with_algebraic=true) ({evars = (sigma, uctx) }) = 
+let evar_universe_context {evars = (sigma, uctx)} = uctx
+
+let get_universe_context_set ?(with_algebraic=true) ({evars = (sigma, uctx) }) = 
   if with_algebraic then uctx.uctx_local
   else 
     let (ctx, csts) = uctx.uctx_local in
@@ -736,10 +743,14 @@ let set_leq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
 	 | Variable (LocalUniv u | GlobalUniv u) ->
 	   add_constraints d (Univ.enforce_leq u1 u2 Univ.empty_constraint))
 
+let normalize_evar_universe_context uctx = 
+  let (subst, us') = 
+    Universes.normalize_context_set uctx.uctx_local uctx.uctx_univ_variables
+      uctx.uctx_univ_algebraic
+  in subst, us'
+
 let nf_constraints ({evars = (sigma, uctx)} as d) = 
-  let (subst, us') = Universes.normalize_context_set uctx.uctx_local uctx.uctx_univ_variables
-    uctx.uctx_univ_algebraic
-  in
+  let (subst, us') = normalize_evar_universe_context uctx in
   let uctx' = {uctx with uctx_local = us'; uctx_univ_variables = Univ.UniverseLSet.empty} in
     {d with evars = (sigma, uctx')}, subst
         	    
