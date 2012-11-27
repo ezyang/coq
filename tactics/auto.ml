@@ -529,8 +529,8 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c, cty,
   let cty = if hnf then hnf_constr env sigma cty else cty in
     match kind_of_term cty with
     | Prod _ ->
-        let sigma = Evd.merge_context_set univ_flexible dummy_goal.sigma ctx in
-        let ce = mk_clenv_from { dummy_goal with sigma = sigma } (c,cty) in
+        let sigma' = Evd.merge_context_set univ_flexible dummy_goal.sigma ctx in
+        let ce = mk_clenv_from { dummy_goal with sigma = sigma' } (c,cty) in
 	let c' = clenv_type (* ~reduce:false *) ce in
 	let pat = snd (Patternops.pattern_of_constr sigma c') in
         let hd =
