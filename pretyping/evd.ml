@@ -754,6 +754,17 @@ let nf_constraints ({evars = (sigma, uctx)} as d) =
   let uctx' = {uctx with uctx_local = us'; uctx_univ_variables = Univ.UniverseLSet.empty} in
     {d with evars = (sigma, uctx')}, subst
         	    
+(* Conversion w.r.t. an evar map and its local universes. *)
+
+let conversion env ({evars = (sigma, uctx)} as d) pb t u =
+  let conv = match pb with 
+    | Reduction.CONV -> Reduction.conv
+    | Reduction.CUMUL -> Reduction.conv_leq
+  in 
+  let cst = conv ~evars:(existential_opt_value d) env t u in
+  let uctx = { uctx with uctx_local = Univ.add_constraints_ctx uctx.uctx_local cst } in
+    { d with evars = (sigma, uctx) }
+
 (**********************************************************)
 (* Accessing metas *)
 

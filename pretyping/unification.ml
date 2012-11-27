@@ -1171,10 +1171,13 @@ let secondOrderAbstraction env evd flags typ (p, oplist) =
   let (evd',cllist) = w_unify_to_subterm_list env evd flags p oplist typ in
   let typp = Typing.meta_type evd' p in
   let pred,predtyp = abstract_list_all env evd' typp typ cllist in
-  if not (is_conv_leq env evd predtyp typp) then
-    error_wrong_abstraction_type env evd
-      (Evd.meta_name evd p) pred typp predtyp;
-  w_merge env false flags (evd',[p,pred,(Conv,TypeProcessed)],[])
+  let evd' = 
+    try Evd.conversion env evd' CUMUL predtyp typp 
+    with NotConvertible ->
+      error_wrong_abstraction_type env evd
+        (Evd.meta_name evd p) pred typp predtyp
+  in
+    w_merge env false flags (evd',[p,pred,(Conv,TypeProcessed)],[])
 
 let secondOrderDependentAbstraction env evd flags typ (p, oplist) =
   let typp = Typing.meta_type evd p in

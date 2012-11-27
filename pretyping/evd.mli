@@ -300,6 +300,13 @@ val fresh_constructor_instance : env -> evar_map -> constructor -> evar_map * pc
 val fresh_global : rigid -> env -> evar_map -> Globnames.global_reference -> evar_map * constr
 
 (********************************************************************
+  Conversion w.r.t. an evar map: might generate universe constraints 
+  that are kept in the evarmap.
+  Raises [NotConvertible]. *)
+
+val conversion : env -> evar_map -> conv_pb -> constr -> constr -> evar_map
+
+(********************************************************************
    constr with holes *)
 type open_constr = evar_map * constr
 
