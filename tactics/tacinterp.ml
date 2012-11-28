@@ -477,9 +477,11 @@ let interp_gen kind ist allow_patvar expand_evar fail_evar use_classes
       (understand_ltac ~resolve_classes:use_classes expand_evar sigma env vars kind) c 
   in
   let evdc = 
-    (* Resolve universe constraints right away *)
+    (* Resolve universe constraints right away.
+       FIXME: assumes the invariant that the proof is already normal w.r.t. universes.
+    *)
     let (evd, c) = evdc in
-    let evd, f = Evarutil.nf_evar_map_universes evd in
+    let evd, f = Evarutil.nf_evars_and_universes evd in
       evd, f c
   in
   let (evd,c) =
