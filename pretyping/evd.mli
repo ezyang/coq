@@ -116,6 +116,9 @@ val evar_filter : evar_info -> bool list
 val evar_unfiltered_env :  evar_info -> env
 val evar_env :  evar_info -> env
 
+val map_evar_body : (constr -> constr) -> evar_body -> evar_body
+val map_evar_info : (constr -> constr) -> evar_info -> evar_info
+
 (*** Unification state ***)
 type evar_map
 

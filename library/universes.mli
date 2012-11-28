@@ -89,3 +89,13 @@ val normalize_context_set : universe_context_set ->
 val constr_of_global : Globnames.global_reference -> constr
 
 val type_of_global : Globnames.global_reference -> types in_universe_context_set
+
+(** Full universes substitutions into terms *)
+
+val nf_evars_and_universes_local : (existential -> constr option) -> universe_subst -> 
+  constr -> constr
+
+val nf_evars_and_full_universes_local : (existential -> constr option) -> 
+  universe_full_subst -> constr -> constr
+
+val subst_univs_full_constr : universe_full_subst -> constr -> constr

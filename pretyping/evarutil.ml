@@ -56,69 +56,25 @@ let j_nf_evar = Pretype_errors.j_nf_evar
 let jl_nf_evar = Pretype_errors.jl_nf_evar
 let jv_nf_evar = Pretype_errors.jv_nf_evar
 let tj_nf_evar = Pretype_errors.tj_nf_evar
-
-let subst_puniverses subst (c, u as cu) =
-  let u' = CList.smartmap (Univ.subst_univs_level subst) u in
-    if u' == u then cu else (c, u')
-
-let nf_evars_and_universes_local sigma subst =
-  let rec aux c =
-    match kind_of_term c with
-    | Evar (evdk, _ as ev) ->
-      (match existential_opt_value sigma ev with
-      | None -> c
-      | Some c -> aux c)
-    | Const pu -> 
-      let pu' = subst_puniverses subst pu in
-	if pu' == pu then c else mkConstU pu'
-    | Ind pu ->
-      let pu' = subst_puniverses subst pu in
-	if pu' == pu then c else mkIndU pu'
-    | Construct pu ->
-      let pu' = subst_puniverses subst pu in
-	if pu' == pu then c else mkConstructU pu'
-    | Sort (Type u) ->
-      let u' = Univ.subst_univs_universe subst u in
-	if u' == u then c else mkSort (sort_of_univ u')
-    | _ -> map_constr aux c
-  in aux
-
-let subst_full_puniverses subst (c, u as cu) =
-  let u' = CList.smartmap (Univ.subst_univs_full_level_fail subst) u in
-    if u' == u then cu else (c, u')
-
-let nf_evars_and_full_universes_local sigma subst =
-  let rec aux c =
-    match kind_of_term c with
-    | Evar (evdk, _ as ev) ->
-      (match try existential_opt_value sigma ev with Not_found -> None with
-      | None -> c
-      | Some c -> aux c)
-    | Const pu -> 
-      let pu' = subst_full_puniverses subst pu in
-	if pu' == pu then c else mkConstU pu'
-    | Ind pu ->
-      let pu' = subst_full_puniverses subst pu in
-	if pu' == pu then c else mkIndU pu'
-    | Construct pu ->
-      let pu' = subst_full_puniverses subst pu in
-	if pu' == pu then c else mkConstructU pu'
-    | Sort (Type u) ->
-      let u' = Univ.subst_univs_full_universe subst u in
-	if u' == u then c else mkSort (sort_of_univ u')
-    | _ -> map_constr aux c
-  in aux
-
-let subst_univs_full_constr subst c = 
-  nf_evars_and_full_universes_local Evd.empty subst c
   
+
+let nf_evars_universes evm subst =
+  Universes.nf_evars_and_full_universes_local (Reductionops.safe_evar_value evm) subst
+
 let nf_evars_and_universes evm =
   let evm, subst = Evd.nf_constraints evm in
-    evm, nf_evars_and_full_universes_local evm subst
+    evm, nf_evars_universes evm subst
 
 let e_nf_evars_and_universes evdref =
   let subst = evd_comb0 Evd.nf_constraints evdref in
-    nf_evars_and_full_universes_local !evdref subst
+    nf_evars_universes !evdref subst
+
+let nf_evar_map_universes evm =
+  let evm, subst = Evd.nf_constraints evm in
+    if List.is_empty subst then evm, fun c -> c
+    else
+      let f = Universes.subst_univs_full_constr subst in
+	Evd.map (map_evar_info f) evm, f
 
 let nf_named_context_evar sigma ctx =
   Sign.map_named_context (Reductionops.nf_evar sigma) ctx
@@ -131,14 +87,7 @@ let nf_env_evar sigma env =
   let rel' = nf_rel_context_evar sigma (Environ.rel_context env) in
     push_rel_context rel' (reset_with_named_context (val_of_named_context nc') env)
 
-let nf_evar_info evc info =
-  { info with
-    evar_concl = Reductionops.nf_evar evc info.evar_concl;
-    evar_hyps = map_named_val (Reductionops.nf_evar evc) info.evar_hyps;
-    evar_body = match info.evar_body with
-      | Evar_empty -> Evar_empty
-      | Evar_defined c -> Evar_defined (Reductionops.nf_evar evc c) }
-
+let nf_evar_info evc info = map_evar_info (Reductionops.nf_evar evc) info
 let nf_evar_map evm = Evd.map (nf_evar_info evm) evm
 let nf_evar_map_undefined evm = Evd.map_undefined (nf_evar_info evm) evm
 

@@ -73,6 +73,18 @@ let eq_evar_info ei1 ei2 =
     eq_evar_body ei1.evar_body ei2.evar_body
     (** ppedrot: [eq_constr] may be a bit too permissive here *)
 
+
+let map_evar_body f = function
+  | Evar_empty -> Evar_empty
+  | Evar_defined d -> Evar_defined (f d)
+
+let map_evar_info f evi =
+  {evi with
+    evar_body = map_evar_body f evi.evar_body;
+    evar_hyps = map_named_val f evi.evar_hyps;
+    evar_concl = f evi.evar_concl;
+    evar_candidates = Option.map (List.map f) evi.evar_candidates }
+
 (* spiwack: Revised hierarchy :
    - ExistentialMap ( Maps of existential_keys )
    - EvarInfoMap ( .t = evar_info ExistentialMap.t * evar_info ExistentialMap )
@@ -752,7 +764,8 @@ let normalize_evar_universe_context uctx =
 let nf_constraints ({evars = (sigma, uctx)} as d) = 
   let (subst, us') = normalize_evar_universe_context uctx in
   let uctx' = {uctx with uctx_local = us'; uctx_univ_variables = Univ.UniverseLSet.empty} in
-    {d with evars = (sigma, uctx')}, subst
+  let evd' = {d with evars = (sigma, uctx')} in
+    evd', subst
         	    
 (* Conversion w.r.t. an evar map and its local universes. *)
 

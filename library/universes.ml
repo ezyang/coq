@@ -406,3 +406,59 @@ let normalize_context_set (ctx, csts) us algs =
       constraints usnonalg
   in
     (subst, (ctx', constraints'))
+
+
+let subst_puniverses subst (c, u as cu) =
+  let u' = CList.smartmap (Univ.subst_univs_level subst) u in
+    if u' == u then cu else (c, u')
+
+let nf_evars_and_universes_local f subst =
+  let rec aux c =
+    match kind_of_term c with
+    | Evar (evdk, _ as ev) ->
+      (match f ev with
+      | None -> c
+      | Some c -> aux c)
+    | Const pu -> 
+      let pu' = subst_puniverses subst pu in
+	if pu' == pu then c else mkConstU pu'
+    | Ind pu ->
+      let pu' = subst_puniverses subst pu in
+	if pu' == pu then c else mkIndU pu'
+    | Construct pu ->
+      let pu' = subst_puniverses subst pu in
+	if pu' == pu then c else mkConstructU pu'
+    | Sort (Type u) ->
+      let u' = Univ.subst_univs_universe subst u in
+	if u' == u then c else mkSort (sort_of_univ u')
+    | _ -> map_constr aux c
+  in aux
+
+let subst_full_puniverses subst (c, u as cu) =
+  let u' = CList.smartmap (Univ.subst_univs_full_level_fail subst) u in
+    if u' == u then cu else (c, u')
+
+let nf_evars_and_full_universes_local f subst =
+  let rec aux c =
+    match kind_of_term c with
+    | Evar (evdk, _ as ev) ->
+      (match try f ev with Not_found -> None with
+      | None -> c
+      | Some c -> aux c)
+    | Const pu -> 
+      let pu' = subst_full_puniverses subst pu in
+	if pu' == pu then c else mkConstU pu'
+    | Ind pu ->
+      let pu' = subst_full_puniverses subst pu in
+	if pu' == pu then c else mkIndU pu'
+    | Construct pu ->
+      let pu' = subst_full_puniverses subst pu in
+	if pu' == pu then c else mkConstructU pu'
+    | Sort (Type u) ->
+      let u' = Univ.subst_univs_full_universe subst u in
+	if u' == u then c else mkSort (sort_of_univ u')
+    | _ -> map_constr aux c
+  in aux
+
+let subst_univs_full_constr subst c = 
+  nf_evars_and_full_universes_local (fun _ -> None) subst c
