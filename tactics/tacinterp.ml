@@ -481,7 +481,7 @@ let interp_gen kind ist allow_patvar expand_evar fail_evar use_classes
        FIXME: assumes the invariant that the proof is already normal w.r.t. universes.
     *)
     let (evd, c) = evdc in
-    let evd, f = Evarutil.nf_evars_and_universes evd in
+    let evd', f = Evarutil.nf_evars_and_universes evd in
       evd, f c
   in
   let (evd,c) =
