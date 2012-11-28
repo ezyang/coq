@@ -721,7 +721,7 @@ let ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c 
 
 let ise_pretype_gen_ctx expand_evar fail_evar resolve_classes sigma env lvar kind c =
   let evd, c = ise_pretype_gen expand_evar fail_evar resolve_classes sigma env lvar kind c in
-  let evd, f = Evarutil.nf_evar_map_universes evd in
+  let evd, f = Evarutil.nf_evars_and_universes evd in
     f c, Evd.get_universe_context_set evd
 
 (** Entry points of the high-level type synthesis algorithm *)
