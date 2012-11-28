@@ -200,7 +200,9 @@ val nf_evar_map_undefined : evar_map -> evar_map
 val nf_evars_and_universes : evar_map -> evar_map * (constr -> constr)
 val e_nf_evars_and_universes : evar_map ref -> constr -> constr
 
-val subst_univs_full_constr : Univ.universe_full_subst -> constr -> constr
+(** Normalize the evar map w.r.t. universes, after simplification of constraints.
+    Return the substitution function for constrs as well. *)
+val nf_evar_map_universes : evar_map -> evar_map * (constr -> constr)
 
 (** Replacing all evars, possibly raising [Uninstantiated_evar] *)
 exception Uninstantiated_evar of existential_key

@@ -459,7 +459,8 @@ let interp_fresh_id ist env l =
 
 let pf_interp_fresh_id ist gl = interp_fresh_id ist (pf_env gl)
 
-let interp_gen kind ist allow_patvar expand_evar fail_evar use_classes env sigma (c,ce) =
+let interp_gen kind ist allow_patvar expand_evar fail_evar use_classes 
+  env sigma (c,ce) =
   let (ltacvars,unbndltacvars as vars) = extract_ltac_constr_values ist env in
   let c = match ce with
   | None -> c
@@ -474,6 +475,12 @@ let interp_gen kind ist allow_patvar expand_evar fail_evar use_classes env sigma
   let evdc =
     catch_error trace 
       (understand_ltac ~resolve_classes:use_classes expand_evar sigma env vars kind) c 
+  in
+  let evdc = 
+    (* Resolve universe constraints right away *)
+    let (evd, c) = evdc in
+    let evd, f = Evarutil.nf_evar_map_universes evd in
+      evd, f c
   in
   let (evd,c) =
     if expand_evar then

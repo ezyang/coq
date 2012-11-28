@@ -242,9 +242,9 @@ Notation OmniscientFunctionalChoice :=
   (forall A B, OmniscientFunctionalChoice_on A B).
 
 Notation ConstructiveDefiniteDescription :=
-  (forall A, ConstructiveDefiniteDescription_on A).
+  (forall A : Type, ConstructiveDefiniteDescription_on A).
 Notation ConstructiveIndefiniteDescription :=
-  (forall A, ConstructiveIndefiniteDescription_on A).
+  (forall A : Type, ConstructiveIndefiniteDescription_on A).
 
 Notation IotaStatement :=
   (forall A, IotaStatement_on A).
@@ -716,7 +716,7 @@ Proof.
   exists (f (existT _ A (existT _ P H'))).
   pose (Hf' := Hf (existT _ A (existT _ P H'))).
   assumption.
-Admitted. (*FIXME: needs existT polymorphic most likely *)
+Admitted.
 
 Lemma constructive_indefinite_descr_fun_choice :
   ConstructiveIndefiniteDescription -> FunctionalChoice.
@@ -854,4 +854,4 @@ Proof.
   destruct HfS as (_,HR).
   rewrite Heq in HR.
   assumption.
-Admitted(*FIXME*).
+Qed.
