@@ -187,12 +187,12 @@ let instantiate_possibly_recursive_type indu paramdecls fields =
 (* We build projections *)
 let declare_projections indsp ?(kind=StructureComponent) ?name coers fieldimpls fields =
   let env = Global.env() in
-  let sigma = ref (Evd.from_env env) in
   let (mib,mip) = Global.lookup_inductive indsp in
   let paramdecls = mib.mind_params_ctxt in
   let poly = mib.mind_polymorphic and ctx = mib.mind_universes in
-  let indu = Evarutil.evd_comb1 (Evd.fresh_inductive_instance env) sigma indsp in
-  let r = mkIndU indu in
+  let u = if poly then fst ctx else [] in
+  let indu = indsp, u in
+  let r = mkIndU (indsp,u) in
   let rp = applist (r, Termops.extended_rel_list 0 paramdecls) in
   let paramargs = Termops.extended_rel_list 1 paramdecls in (*def in [[params;x:rp]]*)
   let x = match name with Some n -> Name n | None -> Namegen.named_hd (Global.env()) r Anonymous in
@@ -238,9 +238,7 @@ let declare_projections indsp ?(kind=StructureComponent) ?name coers fieldimpls 
                 with Type_errors.TypeError (ctx,te) ->
                   raise (NotDefinable (BadTypedProj (fid,ctx,te))) in
 	      let refi = ConstRef kn in
-	      let constr_fi = mkConstU
-		(Evarutil.evd_comb1 (Evd.fresh_constant_instance (Global.env ())) sigma kn) 
-	      in
+	      let constr_fi = mkConstU (kn, u) in
 	      Impargs.maybe_declare_manual_implicits false refi impls;
 	      if coe then begin
 	        let cl = Class.class_of_global (IndRef indsp) in
