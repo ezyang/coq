@@ -1110,7 +1110,7 @@ let vm_cast_no_check c gl =
 let exact_proof c gl =
   (* on experimente la synthese d'ise dans exact *)
   let c,ctx = Constrintern.interp_casted_constr (project gl) (pf_env gl) c (pf_concl gl)
-  in tclPUSHCONTEXT ctx (refine_no_check c) gl
+  in tclPUSHCONTEXT Evd.univ_flexible ctx (refine_no_check c) gl
 
 let (assumption : tactic) = fun gl ->
   let concl =  pf_concl gl in
@@ -1792,7 +1792,7 @@ let letin_tac_gen with_eq name (sigmac,c) test ty occs gl =
       let eq = applist (eqdata.eq,args) in
       let refl = applist (eqdata.refl, [t;mkVar id]) in
       mkNamedLetIn id c t (mkLetIn (Name heq, refl, eq, ccl)),
-      tclPUSHCONTEXT ctx (tclTHEN
+      tclPUSHCONTEXT Evd.univ_flexible ctx (tclTHEN
 	(intro_gen loc (IntroMustBe heq) lastlhyp true false)
 	(thin_body [heq;id]))
     | None ->
