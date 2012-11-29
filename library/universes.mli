@@ -102,4 +102,5 @@ val subst_univs_full_constr : universe_full_subst -> constr -> constr
 
 (** Get fresh variables for the universe context.
     Useful to make tactics that manipulate constrs in universe contexts polymorphic. *)
-val fresh_universe_context_set_instance : universe_context_set -> universe_subst
+val fresh_universe_context_set_instance : universe_context_set -> 
+  universe_subst * universe_context_set
