@@ -295,10 +295,11 @@ let leibniz_rewrite_ebindings_clause cls lft2rgt tac sigma c t l with_evars frze
   let dep_fun = if isatomic then dependent else dependent_no_evar in
   let dep = dep_proof_ok && dep_fun c (type_of_clause gl cls) in
   let elim = find_elim hdcncl lft2rgt dep cls (snd (decompose_app t)) gl in
-    pf_constr_of_global (ConstRef elim) (fun elim -> 
-    general_elim_clause with_evars frzevars tac cls sigma c t l
+  let tac elim gl =
+    general_elim_clause with_evars frzevars tac cls (project gl) c t l
       (match lft2rgt with None -> false | Some b -> b)
-      {elimindex = None; elimbody = (elim,NoBindings)}) gl
+      {elimindex = None; elimbody = (elim,NoBindings)} gl
+  in pf_constr_of_global (ConstRef elim) tac gl
 
 let adjust_rewriting_direction args lft2rgt =
   match args with
