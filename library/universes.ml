@@ -343,9 +343,13 @@ let normalize_context_set (ctx, csts) us algs =
     noneqs (empty_constraint, UniverseLMap.empty, UniverseLMap.empty)
   in
   (* Now we construct the instanciation of each variable. *)
-  let ussubst, noneqs = 
-    UniverseLSet.fold (instantiate_univ_variables ucstrsl ucstrsr)
-      us ([], noneqs)
+  let ussubst, noneqs = UniverseLSet.fold (fun u acc -> 
+    let u' = subst_univs_level subst u in
+      (* Only instantiate the canonical variables *)
+      if eq_levels u' u then
+	instantiate_univ_variables ucstrsl ucstrsr u' acc
+      else acc)
+    us ([], noneqs)
   in
   let subst, ussubst, noneqs = 
     let rec aux subst ussubst =

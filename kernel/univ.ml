@@ -795,11 +795,13 @@ let subst_univs_full_universe subst u =
       else normalize_univ (Max (gel', gtl'))
 
 let subst_univs_constraint subst (u,d,v) =
-  (subst_univs_level subst u, d, subst_univs_level subst v)
+  let u' = subst_univs_level subst u and v' = subst_univs_level subst v in
+    if d <> Lt && eq_levels u' v' then None
+    else Some (u',d,v')
 
 let subst_univs_constraints subst csts =
   Constraint.fold 
-    (fun c -> Constraint.add (subst_univs_constraint subst c)) 
+    (fun c -> Option.fold_right Constraint.add (subst_univs_constraint subst c))
     csts Constraint.empty 
 
 let subst_univs_context (ctx, csts) u v =
