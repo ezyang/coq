@@ -252,7 +252,13 @@ TACTIC EXTEND rewrite_star
 
 let add_rewrite_hint name ort t lcsr =
   let env = Global.env() and sigma = Evd.empty in
-  let f c = Constrexpr_ops.constr_loc c, fst (Constrintern.interp_constr sigma env c), ort, t(*FIXME*) in
+  let f ce = 
+    let c, ctx = Constrintern.interp_constr sigma env ce in
+    let ctx =
+      if Flags.use_polymorphic_flag () then ctx
+      else (Global.add_constraints (snd ctx); Univ.empty_universe_context_set)
+    in
+      Constrexpr_ops.constr_loc ce, (c, ctx), ort, t in
   add_rew_rules name (List.map f lcsr)
 
 VERNAC COMMAND EXTEND HintRewrite

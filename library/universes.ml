@@ -462,3 +462,21 @@ let nf_evars_and_full_universes_local f subst =
 
 let subst_univs_full_constr subst c = 
   nf_evars_and_full_universes_local (fun _ -> None) subst c
+
+let refresh_universe_context_set (univs, cst) =
+  let univs',subst = UniverseLSet.fold
+    (fun u (univs',subst) ->
+      let u' = fresh_level () in
+	(UniverseLSet.add u' univs', (u,u') :: subst))
+    univs (UniverseLSet.empty, [])
+  in
+  let cst' = subst_univs_constraints subst cst in
+    subst, (univs', cst')
+
+let fresh_universe_context_set_instance (univs, cst) =
+  UniverseLSet.fold
+    (fun u (subst) ->
+      let u' = fresh_level () in
+	(u,u') :: subst)
+    univs []
+    
