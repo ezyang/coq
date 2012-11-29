@@ -456,7 +456,7 @@ let multi_replace clause c2 c1 unsafe try_prove_eq_opt gl =
     let e = eqdata.eq in
     let sym = eqdata.sym in
     let eq = applist (e, [t1;c1;c2]) in
-    (Refiner.tclPUSHCONTEXT ctx
+    (Refiner.tclPUSHCONTEXT Evd.univ_flexible ctx
     (tclTHENS (assert_as false None eq)
       [onLastHypId (fun id ->
 	tclTHEN
@@ -1301,7 +1301,7 @@ let cutSubstInConcl_RL eqn gls =
   let ((lbeq,ctx),(t,e1,e2 as eq)) = find_eq_data_decompose gls eqn in
   let body,expected_goal = pf_apply subst_tuple_term gls e2 e1 (pf_concl gls) in
   if not (dependent (mkRel 1) body) then raise NothingToRewrite;
-    (Refiner.tclPUSHCONTEXT ctx
+    (Refiner.tclPUSHCONTEXT Evd.univ_flexible ctx
      (tclTHENFIRST
       (bareRevSubstInConcl lbeq body eq)
       (convert_concl expected_goal DEFAULTcast))) gls
@@ -1323,7 +1323,7 @@ let cutSubstInHyp_LR eqn id gls =
   let idtyp = pf_get_hyp_typ gls id in
   let body,expected_goal = pf_apply subst_tuple_term gls e1 e2 idtyp in
   if not (dependent (mkRel 1) body) then raise NothingToRewrite;
-    (Refiner.tclPUSHCONTEXT ctx
+    (Refiner.tclPUSHCONTEXT Evd.univ_flexible ctx
     (cut_replacing id expected_goal
      (tclTHENFIRST
       (bareRevSubstInConcl lbeq body eq)
