@@ -182,18 +182,18 @@ val set_xml_close_section : (Names.Id.t -> unit) -> unit
 (** {6 Section management for discharge } *)
 type variable_info = Names.Id.t * Decl_kinds.binding_kind *
     Term.constr option * Term.types
-type variable_context = variable_info list
+type variable_context = variable_info list 
 
 val instance_from_variable_context : variable_context -> Names.Id.t array
 val named_of_variable_context : variable_context -> Sign.named_context
 
-val section_segment_of_constant : Names.constant -> variable_context
-val section_segment_of_mutual_inductive: Names.mutual_inductive -> variable_context
+val section_segment_of_constant : Names.constant -> variable_context Univ.in_universe_context
+val section_segment_of_mutual_inductive: Names.mutual_inductive -> variable_context Univ.in_universe_context
 
 val section_instance : Globnames.global_reference -> Univ.universe_list * Names.Id.t array
 val is_in_section : Globnames.global_reference -> bool
 
-val add_section_variable : Names.Id.t -> Decl_kinds.binding_kind -> unit
+val add_section_variable : Names.Id.t -> Decl_kinds.binding_kind -> Univ.universe_context_set -> unit
 
 val add_section_constant : Decl_kinds.polymorphic -> Names.constant -> Sign.named_context -> unit
 val add_section_kn : Decl_kinds.polymorphic -> Names.mutual_inductive -> Sign.named_context -> unit

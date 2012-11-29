@@ -617,7 +617,7 @@ let subst_simpl_behaviour (subst, (_, (r,o as orig))) =
 let discharge_simpl_behaviour = function
   | _,(ReqGlobal (ConstRef c, req), (_, b)) ->
      let c' = pop_con c in
-     let vars = Lib.section_segment_of_constant c in
+     let vars,_ = Lib.section_segment_of_constant c in
      let extra = List.length vars in
      let nargs' = if b.b_nargs < 0 then b.b_nargs else b.b_nargs + extra in
      let recargs' = List.map ((+) extra) b.b_recargs in

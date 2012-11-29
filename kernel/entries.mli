@@ -62,7 +62,7 @@ type definition_entry = {
 
 type inline = int option (* inlining level, None for no inlining *)
 
-type parameter_entry = section_context option * types * inline 
+type parameter_entry = section_context option * types in_universe_context_set * inline 
 
 type constant_entry =
   | DefinitionEntry of definition_entry

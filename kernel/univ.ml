@@ -684,6 +684,8 @@ let constraints_of (_, cst) = cst
 let empty_universe_context = ([], empty_constraint)
 let is_empty_universe_context (univs, cst) = 
   univs = [] && is_empty_constraint cst
+let union_universe_context (univs, cst) (univs', cst') =
+  CList.union univs univs', union_constraints cst cst'
 
 (** Universe contexts (variables as a set) *)
 let empty_universe_context_set = (UniverseLSet.empty, empty_constraint)
@@ -699,6 +701,9 @@ let universe_set_of_list l =
 
 let universe_context_set_of_list l =
   (universe_set_of_list l, empty_constraint)
+
+let universe_context_set_of_universe_context (ctx,cst) =
+  (universe_set_of_list ctx, cst)
 
 let constraint_depend (l,d,r) u =
   eq_levels l u || eq_levels l r

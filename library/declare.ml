@@ -50,8 +50,8 @@ let add_cache_hook f = cache_hook := f
 (** Declaration of section variables and local definitions *)
 
 type section_variable_entry =
-  | SectionLocalDef of constr * types option * bool (* opacity *)
-  | SectionLocalAssum of types * bool (* Implicit status *)
+  | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * bool (** opacity *)
+  | SectionLocalAssum of types Univ.in_universe_context_set * bool (** Implicit status *)
 
 type variable_declaration = Dir_path.t * section_variable_entry * logical_kind
 
@@ -62,18 +62,18 @@ let cache_variable ((sp,_),o) =
   (* Constr raisonne sur les noms courts *)
   if variable_exists id then
     alreadydeclared (pr_id id ++ str " already exists");
-  let impl,opaq,cst = match d with (* Fails if not well-typed *)
-    | SectionLocalAssum (ty, impl) ->
+  let impl,opaq,ctx,cst = match d with (* Fails if not well-typed *)
+    | SectionLocalAssum ((ty,ctx), impl) ->
         let cst = Global.push_named_assum (id,ty) in
 	let impl = if impl then Implicit else Explicit in
-	impl, true, cst
-    | SectionLocalDef (c,t,opaq) ->
+	impl, true, ctx, cst
+    | SectionLocalDef (((c,t),ctx),opaq) ->
         let cst = Global.push_named_def (id,c,t) in
-        Explicit, opaq, cst in
+        Explicit, opaq, ctx, cst in
   Nametab.push (Nametab.Until 1) (restrict_path 0 sp) (VarRef id);
-  add_section_variable id impl;
+  add_section_variable id impl ctx;
   Dischargedhypsmap.set_discharged_hyps sp [];
-  add_variable_data id (p,opaq,cst,mk)
+  add_variable_data id (p,opaq,ctx,cst,mk)
 
 let discharge_variable (_,o) = match o with
   | Inr (id,_) -> Some (Inl (variable_constraints id))
@@ -145,12 +145,13 @@ let discharge_constant ((sp,kn),(cdt,dhyps,kind)) =
   let con = constant_of_kn kn in
   let cb = Global.lookup_constant con in
   let repl = replacement_context () in
-  let sechyps = section_segment_of_constant con in
-  let recipe = { d_from=cb; d_modlist=repl; d_abstract=named_of_variable_context sechyps } in
+  let sechyps,uctx = section_segment_of_constant con in
+  let recipe = { d_from=cb; d_modlist=repl; d_abstract=(named_of_variable_context sechyps,uctx) } in
   Some (GlobalRecipe recipe,(discharged_hyps kn sechyps)@dhyps,kind)
 
 (* Hack to reduce the size of .vo: we keep only what load/open needs *)
-let dummy_constant_entry = ConstantEntry (ParameterEntry (None,mkProp,None))
+let dummy_constant_entry = 
+  ConstantEntry (ParameterEntry (None,(mkProp,Univ.empty_universe_context_set),None))
 
 let dummy_constant (ce,_,mk) = dummy_constant_entry,[],mk
 
@@ -250,7 +251,7 @@ let discharge_inductive ((sp,kn),(dhyps,mie)) =
   let mind = Global.mind_of_delta_kn kn in
   let mie = Global.lookup_mind mind in
   let repl = replacement_context () in
-  let sechyps = section_segment_of_mutual_inductive mind in
+  let sechyps,uctx = section_segment_of_mutual_inductive mind in
   Some (discharged_hyps kn sechyps,
         Discharge.process_inductive (named_of_variable_context sechyps) repl mie)
 

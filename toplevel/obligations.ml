@@ -973,9 +973,9 @@ let admit_prog prg =
       (fun i x ->
         match x.obl_body with
         | None ->
-            let x,ctx = subst_deps_obl obls x in (* FIXME: not using context *)
+            let x,ctx = subst_deps_obl obls x in
             let kn = Declare.declare_constant x.obl_name 
-              (ParameterEntry (None, x.obl_type,None), IsAssumption Conjectural)
+              (ParameterEntry (None,(x.obl_type,ctx),None), IsAssumption Conjectural)
             in
               assumption_message x.obl_name;
               obls.(i) <- { x with obl_body = Some (DefinedObl kn) }

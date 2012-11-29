@@ -153,11 +153,13 @@ let save with_clean id const (locality,p,kind) hook =
   let {const_entry_body = pft;
        const_entry_secctx = _;
        const_entry_type = tpo;
-       const_entry_opaque = opacity } = const in
+       const_entry_opaque = opacity;
+       const_entry_universes = univs} = const in
   let l,r = match locality with
     | Local when Lib.sections_are_opened () ->
         let k = Kindops.logical_kind_of_goal_kind kind in
-	let c = SectionLocalDef (pft, tpo, opacity) in
+	let ctx = Univ.universe_context_set_of_universe_context univs in
+	let c = SectionLocalDef (((pft, tpo), ctx), opacity) in
 	let _ = declare_variable id (Lib.cwd(), c, k) in
 	(Local, VarRef id)
     | Local ->

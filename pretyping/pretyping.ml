@@ -182,7 +182,8 @@ let protected_get_type_of env sigma c =
   with Anomaly _ ->
     errorlabstrm "" (str "Cannot reinterpret " ++ quote (print_constr c) ++ str " in the current environment.")
 
-let pretype_id loc env sigma (lvar,unbndltacvars) id =
+let pretype_id loc env evdref (lvar,unbndltacvars) id =
+  let sigma = !evdref in
   (* Look for the binder of [id] *)
   try
     let (n,_,typ) = lookup_rel_id id (rel_context env) in
@@ -198,6 +199,12 @@ let pretype_id loc env sigma (lvar,unbndltacvars) id =
       (* Check if [id] is a section or goal variable *)
       try
 	let (_,_,typ) = lookup_named id env in
+	(* let _ =  *)
+	(*   try  *)
+   	(*     let ctx = Decls.variable_context id in *)
+	(*       evdref := Evd.merge_context_set univ_rigid !evdref ctx; *)
+	(*   with Not_found -> () *)
+	(* in *)
 	  { uj_val  = mkVar id; uj_type = typ }
       with Not_found ->
 	(* [id] not found, build nice error message if [id] yet known from ltac *)
@@ -223,7 +230,10 @@ let pretype_ref loc evdref env ref us =
   match ref with
   | VarRef id ->
       (* Section variable *)
-      (try let (_,_,ty) = lookup_named id env in make_judge (mkVar id) ty
+      (try let (_,_,ty) = lookup_named id env in
+   	   (* let ctx = Decls.variable_context id in *)
+	   (*   evdref := Evd.merge_context_set univ_rigid !evdref ctx; *)
+	     make_judge (mkVar id) ty
        with Not_found ->
          (* This may happen if env is a goal env and section variables have
             been cleared - section variables should be different from goal
@@ -255,7 +265,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 
   | GVar (loc, id) ->
       inh_conv_coerce_to_tycon loc env evdref
-	(pretype_id loc env !evdref lvar id)
+	(pretype_id loc env evdref lvar id)
 	tycon
 
   | GEvar (loc, evk, instopt) ->

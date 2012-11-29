@@ -402,21 +402,23 @@ let find_opening_node id =
 *)
 
 type variable_info = Names.Id.t * Decl_kinds.binding_kind * Term.constr option * Term.types
+
 type variable_context = variable_info list
-type abstr_list = variable_context Names.Cmap.t * variable_context Names.Mindmap.t
+type abstr_list = variable_context Univ.in_universe_context Names.Cmap.t *
+  variable_context Univ.in_universe_context Names.Mindmap.t
 
 let sectab =
-  ref ([] : ((Names.Id.t * Decl_kinds.binding_kind) list *
+  ref ([] : ((Names.Id.t * Decl_kinds.binding_kind * Univ.universe_context_set) list *
 		Cooking.work_list * abstr_list) list)
 
 let add_section () =
   sectab := ([],(Names.Cmap.empty,Names.Mindmap.empty),(Names.Cmap.empty,Names.Mindmap.empty)) :: !sectab
 
-let add_section_variable id impl =
+let add_section_variable id impl ctx =
   match !sectab with
     | [] -> () (* because (Co-)Fixpoint temporarily uses local vars *)
     | (vars,repl,abs)::sl ->
-	sectab := ((id,impl)::vars,repl,abs)::sl
+	sectab := ((id,impl,ctx)::vars,repl,abs)::sl
 
 
 let univ_variables_of c acc = 
@@ -426,16 +428,18 @@ let univ_variables_of c acc =
       (match Univ.universe_level u with
       | Some l -> CList.add_set l univs
       | None -> univs)
+    | Term.Const (_, u) | Term.Ind (_, u) | Term.Construct (_, u) -> 
+      CList.union u univs
     | _ -> Term.fold_constr aux univs c
   in aux acc c
 
 let extract_hyps poly (secs,ohyps) =
   let rec aux = function
-    | ((id,impl)::idl,(id',b,t)::hyps) when Names.Id.equal id id' ->
+    | ((id,impl,ctx)::idl,(id',b,t)::hyps) when Names.Id.equal id id' ->
       let l, r = aux (idl,hyps) in 
-	(id',impl,b,t) :: l, if poly then univ_variables_of t r else r
+	(id',impl,b,t) :: l, if poly then Univ.union_universe_context_set r ctx else r
     | (id::idl,hyps) -> aux (idl,hyps)
-    | [], _ -> [],[]
+    | [], _ -> [],Univ.empty_universe_context_set
   in aux (secs,ohyps)
 
 let instance_from_variable_context sign =
@@ -445,15 +449,16 @@ let instance_from_variable_context sign =
     | [] -> [] in
   Array.of_list (inst_rec sign)
 
-let named_of_variable_context = List.map (fun (id,_,b,t) -> (id,b,t))
-
+let named_of_variable_context ctx = List.map (fun (id,_,b,t) -> (id,b,t)) ctx
+  
 let add_section_replacement f g poly hyps =
   match !sectab with
   | [] -> ()
   | (vars,exps,abs)::sl ->
-    let sechyps,u = extract_hyps poly (vars,hyps) in
+    let sechyps,ctx = extract_hyps poly (vars,hyps) in
+    let ctx = Univ.context_of_universe_context_set ctx in
     let args = instance_from_variable_context (List.rev sechyps) in
-    sectab := (vars,f (u,args) exps,g sechyps abs)::sl
+    sectab := (vars,f (fst ctx,args) exps,g (sechyps,ctx) abs)::sl
 
 let add_section_kn poly kn =
   let f x (l1,l2) = (l1,Names.Mindmap.add kn x l2) in
@@ -477,7 +482,7 @@ let rec list_mem_assoc x = function
 
 let section_instance = function
   | VarRef id ->
-      if list_mem_assoc id (pi1 (List.hd !sectab)) then [], [||]
+      if List.exists (fun (id',_,_) -> Names.id_eq id id') (pi1 (List.hd !sectab)) then [], [||]
       else raise Not_found
   | ConstRef con ->
       Names.Cmap.find con (fst (pi2 (List.hd !sectab)))

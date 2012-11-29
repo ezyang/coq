@@ -162,11 +162,13 @@ let save id const do_guard (locality,poly,kind) hook =
   let const = adjust_guardness_conditions const do_guard in
   let {const_entry_body = pft;
        const_entry_type = tpo;
-       const_entry_opaque = opacity } = const in
+       const_entry_opaque = opacity;
+       const_entry_universes = univs} = const in
   let k = Kindops.logical_kind_of_goal_kind kind in
   let l,r = match locality with
     | Local when Lib.sections_are_opened () ->
-	let c = SectionLocalDef (pft, tpo, opacity) in
+        let ctx = Univ.universe_context_set_of_universe_context univs in
+        let c = SectionLocalDef (((pft, tpo), ctx), opacity) in
 	let _ = declare_variable id (Lib.cwd(), c, k) in
 	(Local, VarRef id)
     | Local | Global ->
@@ -190,19 +192,19 @@ let compute_proof_name locality = function
   | None ->
       next_global_ident_away default_thm_id (Pfedit.get_all_proof_names ()) 
 
-let save_remaining_recthms (local,p,kind) body opaq i (id,(t_i,(_,imps))) =
+let save_remaining_recthms (local,p,kind) body opaq i (id,((t_i,ctx_i),(_,imps))) =
   match body with
   | None ->
       (match local with
       | Local ->
           let impl=false in (* copy values from Vernacentries *)
           let k = IsAssumption Conjectural in
-          let c = SectionLocalAssum (fst t_i,impl) in (* FIXME *)
+          let c = SectionLocalAssum ((t_i,ctx_i),impl) in
 	  let _ = declare_variable id (Lib.cwd(),c,k) in
           (Local,VarRef id,imps)
       | Global ->
           let k = IsAssumption Conjectural in
-          let kn = declare_constant id (ParameterEntry (None,fst t_i (*FIXME *),None), k) in
+          let kn = declare_constant id (ParameterEntry (None,(t_i,ctx_i),None), k) in
           (Global,ConstRef kn,imps))
   | Some body ->
       let k = Kindops.logical_kind_of_goal_kind kind in
@@ -212,16 +214,17 @@ let save_remaining_recthms (local,p,kind) body opaq i (id,(t_i,(_,imps))) =
         | _ -> anomaly "Not a proof by induction" in
       match local with
       | Local ->
-	  let c = SectionLocalDef (body_i, Some (fst t_i) (*FIXME *), opaq) in
+	  let c = SectionLocalDef (((body_i, Some t_i), ctx_i), opaq) in
 	  let _ = declare_variable id (Lib.cwd(), c, k) in
           (Local,VarRef id,imps)
       | Global ->
+          let ctx = Univ.context_of_universe_context_set ctx_i in
           let const =
             { const_entry_body = body_i;
               const_entry_secctx = None;
-              const_entry_type = Some (fst t_i);
+              const_entry_type = Some t_i;
 	      const_entry_polymorphic = p;
-	      const_entry_universes = Univ.context_of_universe_context_set (snd t_i); (*FIXME *)
+	      const_entry_universes = ctx;
               const_entry_opaque = opaq } in
           let kn = declare_constant id (DefinitionEntry const, k) in
           (Global,ConstRef kn,imps)
@@ -340,7 +343,7 @@ let start_proof_com kind thms hook =
 
 let admit () =
   let (id,k,typ,hook) = Pfedit.current_proof_statement () in
-  let e = Pfedit.get_used_variables(), typ, None in
+  let e = Pfedit.get_used_variables(), (typ, Univ.empty_universe_context_set) (*FIXME*), None in
   let kn =
     declare_constant id (ParameterEntry e,IsAssumption Conjectural) in
   Pfedit.delete_current_proof ();

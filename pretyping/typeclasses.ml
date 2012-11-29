@@ -206,7 +206,7 @@ let discharge_class (_,cl) =
     in grs', discharge_rel_context subst 1 ctx @ ctx' in
   let cl_impl' = Lib.discharge_global cl.cl_impl in
   if cl_impl' == cl.cl_impl then cl else
-    let ctx = abs_context cl in
+    let ctx, uctx = abs_context cl in
     let ctx, subst = rel_of_variable_context ctx in
     let context = discharge_context ctx subst cl.cl_context in
     let props = discharge_rel_context subst (succ (List.length (fst cl.cl_context))) cl.cl_props in
