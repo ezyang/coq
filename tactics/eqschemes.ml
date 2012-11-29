@@ -131,12 +131,14 @@ let get_sym_eq_data env (ind,u) =
 (* such that symmetry is a priori definable                           *)
 (**********************************************************************)
 
-let get_non_sym_eq_data env ind =
+let get_non_sym_eq_data env (ind,u) =
   let (mib,mip as specif) = lookup_mind_specif env ind in
   if not (Int.equal (Array.length mib.mind_packets) 1) ||
     not (Int.equal (Array.length mip.mind_nf_lc) 1) then
     error "Not an inductive type with a single constructor.";
-  let realsign,_ = List.chop mip.mind_nrealargs_ctxt mip.mind_arity_ctxt in
+  let subst = Inductive.make_inductive_subst mib u in
+  let arityctxt = Sign.subst_univs_context subst mip.mind_arity_ctxt in
+  let realsign,_ = List.chop mip.mind_nrealargs_ctxt arityctxt in
   if List.exists (fun (_,b,_) -> not (Option.is_empty b)) realsign then
     error "Inductive equalities with local definitions in arity not supported";
   let constrsign,ccl = decompose_prod_assum mip.mind_nf_lc.(0) in
@@ -144,6 +146,7 @@ let get_non_sym_eq_data env ind =
   if not (Int.equal (rel_context_length constrsign) (rel_context_length mib.mind_params_ctxt)) then
     error "Constructor must have no arguments";
   let _,constrargs = List.chop mib.mind_nparams constrargs in
+  let constrargs = List.map (Term.subst_univs_constr subst) constrargs in
   (specif,constrargs,realsign,mip.mind_nrealargs)
 
 (**********************************************************************)
@@ -529,7 +532,7 @@ let build_l2r_forward_rew_scheme dep env ind kind =
 let build_r2l_forward_rew_scheme dep env ind kind = 
   let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
   let ((mib,mip as specif),constrargs,realsign,nrealargs) =
-    get_non_sym_eq_data env ind in
+    get_non_sym_eq_data env indu in
   let cstr n =
     mkApp (mkConstructUi(indu,1),extended_rel_vect n mib.mind_params_ctxt) in
   let constrargs_cstr = constrargs@[cstr 0] in
