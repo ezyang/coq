@@ -24,6 +24,7 @@ open Locus
 type rew_rule = { rew_lemma: constr;
 		  rew_type: types;
 		  rew_pat: constr;
+		  rew_ctx: Univ.universe_context_set;
 		  rew_l2r: bool;
 		  rew_tac: glob_tactic_expr }
 
@@ -94,12 +95,14 @@ let print_rewrite_hintdb bas =
 	       Pptactic.pr_glob_tactic (Global.env()) h.rew_tac)
 	   (find_rewrites bas))
 
-type raw_rew_rule = Loc.t * constr * bool * raw_tactic_expr
+type raw_rew_rule = Loc.t * constr Univ.in_universe_context_set * bool * raw_tactic_expr
 
 (* Applies all the rules of one base *)
 let one_base general_rewrite_maybe_in tac_main bas =
   let lrul = find_rewrites bas in
-  let lrul = List.map (fun h -> (h.rew_lemma,h.rew_l2r,Tacinterp.eval_tactic h.rew_tac)) lrul in
+  let lrul = List.map (fun h -> 
+    let subst = Universes.fresh_universe_context_set_instance h.rew_ctx in
+      (subst_univs_constr subst h.rew_lemma,h.rew_l2r,Tacinterp.eval_tactic h.rew_tac)) lrul in
     tclREPEAT_MAIN (tclPROGRESS (List.fold_left (fun tac (csr,dir,tc) ->
       tclTHEN tac
         (tclREPEAT_MAIN
@@ -288,11 +291,11 @@ let add_rew_rules base lrul =
   let counter = ref 0 in
   let lrul =
     List.fold_left
-      (fun dn (loc,c,b,t) ->
+      (fun dn (loc,(c,ctx),b,t) ->
 	let info = find_applied_relation false loc (Global.env ()) Evd.empty c b in
 	let pat = if b then info.hyp_left else info.hyp_right in
 	let rul = { rew_lemma = c; rew_type = info.hyp_ty;
-		    rew_pat = pat; rew_l2r = b;
+		    rew_pat = pat; rew_ctx = ctx; rew_l2r = b;
 		    rew_tac = Tacintern.glob_tactic t}
 	in incr counter;
 	  HintDN.add pat (!counter, rul) dn) HintDN.empty lrul
