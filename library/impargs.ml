@@ -510,7 +510,7 @@ let section_segment_of_reference = function
   | ConstRef con -> section_segment_of_constant con
   | IndRef (kn,_) | ConstructRef ((kn,_),_) ->
       section_segment_of_mutual_inductive kn
-  | _ -> []
+  | _ -> [], Univ.empty_universe_context
 
 let adjust_side_condition p = function
   | LessArgsThan n -> LessArgsThan (n+p)
@@ -525,7 +525,7 @@ let discharge_implicits (_,(req,l)) =
   | ImplLocal -> None
   | ImplInteractive (ref,flags,exp) ->
     (try
-      let vars = section_segment_of_reference ref in
+      let vars,_ = section_segment_of_reference ref in
       let ref' = if isVarRef ref then ref else pop_global_reference ref in
       let extra_impls = impls_of_context vars in
       let l' = [ref', List.map (add_section_impls vars extra_impls) (snd (List.hd l))] in
@@ -534,7 +534,7 @@ let discharge_implicits (_,(req,l)) =
   | ImplConstant (con,flags) ->
     (try
       let con' = pop_con con in
-      let vars = section_segment_of_constant con in
+      let vars,_ = section_segment_of_constant con in
       let extra_impls = impls_of_context vars in
       let l' = [ConstRef con',List.map (add_section_impls vars extra_impls) (snd (List.hd l))] in
 	Some (ImplConstant (con',flags),l')
@@ -542,7 +542,7 @@ let discharge_implicits (_,(req,l)) =
   | ImplMutualInductive (kn,flags) ->
     (try
       let l' = List.map (fun (gr, l) ->
-	let vars = section_segment_of_reference gr in
+	let vars,_ = section_segment_of_reference gr in
 	let extra_impls = impls_of_context vars in
 	((if isVarRef gr then gr else pop_global_reference gr),
 	 List.map (add_section_impls vars extra_impls) l)) l

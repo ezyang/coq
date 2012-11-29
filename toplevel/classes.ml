@@ -178,9 +178,10 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	    Evarutil.e_nf_evars_and_universes evars t
 	in
 	Evarutil.check_evars env Evd.empty !evars termtype;
+	let ctx = Evd.get_universe_context_set !evars in
 	let cst = Declare.declare_constant ~internal:Declare.KernelSilent id
 	  (Entries.ParameterEntry 
-            (None,termtype,None), Decl_kinds.IsAssumption Decl_kinds.Logical)
+            (None,(termtype,ctx),None), Decl_kinds.IsAssumption Decl_kinds.Logical)
 	in instance_hook k None global imps ?hook (ConstRef cst); id
       end
     else (
@@ -332,10 +333,11 @@ let context l =
   let ctx = try named_of_rel_context fullctx with _ ->
     error "Anonymous variables not allowed in contexts."
   in
+  let uctx = Evd.get_universe_context_set !evars in
   let fn status (id, _, t) =
     if Lib.is_modtype () && not (Lib.sections_are_opened ()) then
       let cst = Declare.declare_constant ~internal:Declare.KernelSilent id
-	(ParameterEntry (None,t,None), IsAssumption Logical)
+	(ParameterEntry (None,(t,uctx),None), IsAssumption Logical)
       in
 	match class_of_constr t with
 	| Some (rels, (tc, args) as _cl) ->
@@ -349,7 +351,8 @@ let context l =
 	(fun (x,_) ->
 	   match x with ExplByPos (_, Some id') -> Id.equal id id' | _ -> false) impls
       in
-	Command.declare_assumption false (Local (* global *), (*FIXME*)false, Definitional) t
+	Command.declare_assumption false (Local (* global *), (*FIXME*)false, Definitional) 
+	  (t, uctx)
 	  [] impl (* implicit *) None (* inline *) (Loc.ghost, id) && status)
   in List.fold_left fn true (List.rev ctx)
        

@@ -46,12 +46,12 @@ let section_segment_of_reference = function
   | ConstRef con -> Lib.section_segment_of_constant con
   | IndRef (kn,_) | ConstructRef ((kn,_),_) ->
       Lib.section_segment_of_mutual_inductive kn
-  | _ -> []
+  | _ -> [], Univ.empty_universe_context
 
 let discharge_rename_args = function
   | _, (ReqGlobal (c, names), _) ->
      let c' = pop_global_reference c in
-     let vars = section_segment_of_reference c in
+     let vars,_ = section_segment_of_reference c in
      let var_names = List.map (fun (id, _,_,_) -> Name id) vars in
      let names' = List.map (fun l -> var_names @ l) names in
      Some (ReqGlobal (c', names), (c', names'))

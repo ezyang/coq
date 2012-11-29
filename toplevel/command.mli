@@ -27,7 +27,7 @@ open Pfedit
 
 val set_declare_definition_hook : (definition_entry -> unit) -> unit
 val get_declare_definition_hook : unit -> (definition_entry -> unit)
-val set_declare_assumptions_hook : (types -> unit) -> unit
+val set_declare_assumptions_hook : (types Univ.in_universe_context_set -> unit) -> unit
 
 (** {6 Definitions/Let} *)
 
@@ -45,17 +45,19 @@ val do_definition : Id.t -> definition_kind ->
 (** {6 Parameters/Assumptions} *)
 
 val interp_assumption :
-  local_binder list -> constr_expr -> types * Impargs.manual_implicits
+  local_binder list -> constr_expr -> 
+  types Univ.in_universe_context_set * Impargs.manual_implicits
 
 (** returns [false] if the assumption is neither local to a section,
     nor in a module type and meant to be instantiated. *)
-val declare_assumption : coercion_flag -> assumption_kind -> types ->
+val declare_assumption : coercion_flag -> assumption_kind -> 
+  types Univ.in_universe_context_set ->
   Impargs.manual_implicits ->
   bool (** implicit *) -> Entries.inline -> variable Loc.located -> bool
 
 val declare_assumptions : variable Loc.located list ->
-  coercion_flag -> assumption_kind -> types -> Impargs.manual_implicits ->
-  bool -> Entries.inline -> bool
+  coercion_flag -> assumption_kind -> types Univ.in_universe_context_set -> 
+  Impargs.manual_implicits -> bool -> Entries.inline -> bool
 
 (** {6 Inductive and coinductive types} *)
 

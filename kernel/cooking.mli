@@ -19,7 +19,7 @@ type work_list = (universe_list * Id.t array) Cmap.t *
 
 type recipe = {
   d_from : constant_body;
-  d_abstract : Sign.named_context;
+  d_abstract : Sign.named_context in_universe_context;
   d_modlist : work_list }
 
 val cook_constant :

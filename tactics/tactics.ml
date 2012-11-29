@@ -3565,7 +3565,9 @@ let admit_as_an_axiom gl =
   if occur_existential concl then error"\"admit\" cannot handle existentials.";
   let axiom =
     let cd = 
-      Entries.ParameterEntry (Pfedit.get_used_variables(),concl,None) in
+      let evd, nf = nf_evars_and_universes (project gl) in
+      let ctx = Evd.get_universe_context_set evd in
+	Entries.ParameterEntry (Pfedit.get_used_variables(),(nf concl,ctx),None) in
     let con = Declare.declare_constant ~internal:Declare.KernelSilent na (cd,IsAssumption Logical) in
     Universes.constr_of_global (ConstRef con)
   in

@@ -134,7 +134,9 @@ let declare_definition ident (local,p,k) ce imps hook =
   let r = match local with
     | Local when Lib.sections_are_opened () ->
         let c =
-          SectionLocalDef(ce.const_entry_body, ce.const_entry_type,false) in
+	  let bt = (ce.const_entry_body, ce.const_entry_type) in
+	  let ctx = Univ.universe_context_set_of_universe_context ce.const_entry_universes in
+            SectionLocalDef((bt,ctx),false) in
         let _ = declare_variable ident (Lib.cwd(),c,IsDefinition k) in
         definition_message ident;
         if Pfedit.refining () then
@@ -168,12 +170,12 @@ let do_definition ident k bl red_option c ctypopt hook =
 
 (* 2| Variable/Hypothesis/Parameter/Axiom declarations *)
 
-let declare_assumption is_coe (local,p,kind) c imps impl nl (_,ident) =
+let declare_assumption is_coe (local,p,kind) (c,ctx) imps impl nl (_,ident) =
   let r,status = match local with
     | Local when Lib.sections_are_opened () ->
         let _ =
           declare_variable ident
-            (Lib.cwd(), SectionLocalAssum (c,impl), IsAssumption kind) in
+            (Lib.cwd(), SectionLocalAssum ((c,ctx),impl), IsAssumption kind) in
         assumption_message ident;
         if is_verbose () && Pfedit.refining () then
           msg_warning (str"Variable" ++ spc () ++ pr_id ident ++
@@ -183,7 +185,7 @@ let declare_assumption is_coe (local,p,kind) c imps impl nl (_,ident) =
     | (Global|Local) ->
         let kn =
           declare_constant ident 
-            (ParameterEntry (None,c,nl), IsAssumption kind) in
+            (ParameterEntry (None,(c,ctx),nl), IsAssumption kind) in
 	let gr = ConstRef kn in
 	  maybe_declare_manual_implicits false gr imps;
         assumption_message ident;
@@ -203,7 +205,11 @@ let set_declare_assumptions_hook = (:=) declare_assumptions_hook
 let interp_assumption bl c =
   let c = prod_constr_expr c bl in
   let env = Global.env () in
-  interp_type_evars_impls env c
+  let evdref = ref (Evd.from_env env) in
+  let ty, impls = interp_type_evars_impls ~evdref env c in
+  let evd, nf = nf_evars_and_universes !evdref in
+  let ctx = Evd.get_universe_context_set evd in
+    ((nf ty, ctx), impls)
 
 let declare_assumptions idl is_coe k c imps impl_is_on nl =
   !declare_assumptions_hook c;

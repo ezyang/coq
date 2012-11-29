@@ -1860,9 +1860,12 @@ let add_morphism_infer (glob,poly) m n =
   init_setoid ();
   let instance_id = add_suffix n "_Proper" in
   let instance = build_morphism_signature m in
+  let ctx = Univ.empty_universe_context_set (*FIXME *) in
     if Lib.is_modtype () then
       let cst = Declare.declare_constant ~internal:Declare.KernelSilent instance_id
-				(Entries.ParameterEntry (None,instance,None), Decl_kinds.IsAssumption Decl_kinds.Logical)
+				(Entries.ParameterEntry 
+				 (None,(instance,Univ.empty_universe_context_set),None), 
+				 Decl_kinds.IsAssumption Decl_kinds.Logical)
       in
 	add_instance (Typeclasses.new_instance (Lazy.force proper_class) None glob 
 		      (Flags.use_polymorphic_flag ()) (ConstRef cst));
@@ -1871,7 +1874,7 @@ let add_morphism_infer (glob,poly) m n =
       let kind = Decl_kinds.Global, false, Decl_kinds.DefinitionBody Decl_kinds.Instance in
 	Flags.silently
 	  (fun () ->
-	    Lemmas.start_proof instance_id kind (instance, Univ.empty_universe_context_set (*FIXME*))
+	    Lemmas.start_proof instance_id kind (instance, ctx)
 	      (fun _ -> function
 		Globnames.ConstRef cst ->
 		  add_instance (Typeclasses.new_instance (Lazy.force proper_class) None

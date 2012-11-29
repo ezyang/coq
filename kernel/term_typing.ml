@@ -104,13 +104,14 @@ let infer_declaration env dcl =
     in
     let univs = check_context_subset cst c.const_entry_universes in
       def, typ, c.const_entry_polymorphic, univs, c.const_entry_secctx
-  | ParameterEntry (ctx,t,nl) ->
-    let (j,cst) = infer env t in
+  | ParameterEntry (ctx,(t,uctx),nl) ->
+    let env' = push_constraints_to_env uctx env in
+    let (j,cst) = infer env' t in
     let t = hcons_constr (Typeops.assumption_of_judgment env j) in
-      (* TODO: polymorphic parameters *)
-    let univs = context_of_universe_context_set cst in
+    (* let univs = check_context_subset cst uctx in *) (*FIXME*)
+    let univs = Univ.context_of_universe_context_set uctx in
       Undef nl, t, false, univs, ctx
-
+      
 let global_vars_set_constant_type env = global_vars_set env
 
 let build_constant_declaration env kn (def,typ,poly,univs,ctx) =

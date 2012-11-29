@@ -128,7 +128,7 @@ let abstract_constant_body =
 
 type recipe = {
   d_from : constant_body;
-  d_abstract : named_context;
+  d_abstract : named_context Univ.in_universe_context;
   d_modlist : work_list }
 
 let on_body f = function
@@ -149,12 +149,15 @@ let univ_variables_of c =
       (match Univ.universe_level u with
       | Some l -> Univ.UniverseLSet.add l univs
       | None -> univs)
+    | Term.Const (_, u) | Term.Ind (_, u) | Term.Construct (_, u) -> 
+      CList.fold_left (fun acc u -> Univ.UniverseLSet.add u acc) univs u
     | _ -> fold_constr aux univs c
   in aux Univ.UniverseLSet.empty c
 
 let cook_constant env r =
   let cb = r.d_from in
-  let hyps = Sign.map_named_context (expmod_constr r.d_modlist) r.d_abstract in
+  let to_abstract, abs_ctx = r.d_abstract in
+  let hyps = Sign.map_named_context (expmod_constr r.d_modlist) to_abstract in
   let body = on_body
     (fun c -> abstract_constant_body (expmod_constr r.d_modlist c) hyps)
     cb.const_body
@@ -168,15 +171,7 @@ let cook_constant env r =
   in
   let univs = 
     if cb.const_polymorphic then
-      let (ctx, cst) = cb.const_universes in
-      let univs = Sign.fold_named_context (fun (n,b,t) univs -> 
-        let vars = univ_variables_of t in
-	  Univ.UniverseLSet.union vars univs)
-	  r.d_abstract ~init:UniverseLSet.empty
-      in
-      let existing = Univ.universe_set_of_list ctx in
-      let newvars = Univ.UniverseLSet.diff univs existing in
-	(List.append (Univ.UniverseLSet.elements newvars) ctx, cst)
+      union_universe_context abs_ctx cb.const_universes
     else cb.const_universes
   in
   (body, typ, cb.const_polymorphic, univs, const_hyps)

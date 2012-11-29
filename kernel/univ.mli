@@ -147,11 +147,15 @@ val universe_set_of_list : universe_list -> universe_set
 (** Universe contexts (as lists) *)
 val empty_universe_context : universe_context
 val is_empty_universe_context : universe_context -> bool
+(** Keeps the order of the instances *)
+val union_universe_context : universe_context -> universe_context -> 
+  universe_context
 
 (** Universe contexts (as sets) *)
 val empty_universe_context_set : universe_context_set
 val singleton_universe_context_set : universe_level -> universe_context_set
 val universe_context_set_of_list : universe_list -> universe_context_set
+val universe_context_set_of_universe_context : universe_context -> universe_context_set
 
 val is_empty_universe_context_set : universe_context_set -> bool
 val union_universe_context_set : universe_context_set -> universe_context_set -> 
