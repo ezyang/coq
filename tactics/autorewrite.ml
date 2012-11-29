@@ -100,13 +100,17 @@ type raw_rew_rule = Loc.t * constr Univ.in_universe_context_set * bool * raw_tac
 (* Applies all the rules of one base *)
 let one_base general_rewrite_maybe_in tac_main bas =
   let lrul = find_rewrites bas in
+  let try_rewrite dir ctx c tc = 
+    let subst, ctx' = Universes.fresh_universe_context_set_instance ctx in
+    let c' = subst_univs_constr subst c in
+      Refiner.tclPUSHCONTEXT ctx' (general_rewrite_maybe_in dir c' tc)
+  in
   let lrul = List.map (fun h -> 
-    let subst = Universes.fresh_universe_context_set_instance h.rew_ctx in
-      (subst_univs_constr subst h.rew_lemma,h.rew_l2r,Tacinterp.eval_tactic h.rew_tac)) lrul in
-    tclREPEAT_MAIN (tclPROGRESS (List.fold_left (fun tac (csr,dir,tc) ->
+    (h.rew_ctx,h.rew_lemma,h.rew_l2r,Tacinterp.eval_tactic h.rew_tac)) lrul in
+    tclREPEAT_MAIN (tclPROGRESS (List.fold_left (fun tac (ctx,csr,dir,tc) ->
       tclTHEN tac
         (tclREPEAT_MAIN
-	    (tclTHENFIRST (general_rewrite_maybe_in dir csr tc) tac_main)))
+	    (tclTHENFIRST (try_rewrite dir ctx csr tc) tac_main)))
       tclIDTAC lrul))
 
 (* The AutoRewrite tactic *)
