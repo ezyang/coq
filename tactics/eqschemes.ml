@@ -147,7 +147,8 @@ let get_non_sym_eq_data env (ind,u) =
     error "Constructor must have no arguments";
   let _,constrargs = List.chop mib.mind_nparams constrargs in
   let constrargs = List.map (Term.subst_univs_constr subst) constrargs in
-  (specif,constrargs,realsign,mip.mind_nrealargs)
+  let paramsctxt = Sign.subst_univs_context subst mib.mind_params_ctxt in
+  (specif,constrargs,realsign,paramsctxt,mip.mind_nrealargs)
 
 (**********************************************************************)
 (* Build the symmetry lemma associated to an inductive type           *)
@@ -531,7 +532,7 @@ let build_l2r_forward_rew_scheme dep env ind kind =
 
 let build_r2l_forward_rew_scheme dep env ind kind = 
   let (ind,u as indu), ctx = Universes.fresh_inductive_instance env ind in
-  let ((mib,mip as specif),constrargs,realsign,nrealargs) =
+  let ((mib,mip as specif),constrargs,realsign,paramsctxt,nrealargs) =
     get_non_sym_eq_data env indu in
   let cstr n =
     mkApp (mkConstructUi(indu,1),extended_rel_vect n mib.mind_params_ctxt) in
@@ -553,7 +554,7 @@ let build_r2l_forward_rew_scheme dep env ind kind =
            if dep then extended_rel_vect 0 realsign_ind
 	   else extended_rel_vect 1 realsign) in
   let c = 
-  (my_it_mkLambda_or_LetIn mib.mind_params_ctxt
+  (my_it_mkLambda_or_LetIn paramsctxt
   (my_it_mkLambda_or_LetIn_name realsign_ind
   (mkNamedLambda varP
     (my_it_mkProd_or_LetIn (lift_rel_context (nrealargs+1)
@@ -724,15 +725,18 @@ let build_congr env (eq,refl,ctx) ind =
   let (ind,u as indu), ctx = with_context_set ctx 
     (Universes.fresh_inductive_instance env ind) in
   let (mib,mip) = lookup_mind_specif env ind in
+  let subst = Inductive.make_inductive_subst mib u in
   if not (Int.equal (Array.length mib.mind_packets) 1) || not (Int.equal (Array.length mip.mind_nf_lc) 1) then
     error "Not an inductive type with a single constructor.";
   if not (Int.equal mip.mind_nrealargs 1) then
     error "Expect an inductive type with one predicate parameter.";
   let i = 1 in
-  let realsign,_ = List.chop mip.mind_nrealargs_ctxt mip.mind_arity_ctxt in
+  let arityctxt = Sign.subst_univs_context subst mip.mind_arity_ctxt in
+  let paramsctxt = Sign.subst_univs_context subst mib.mind_params_ctxt in
+  let realsign,_ = List.chop mip.mind_nrealargs_ctxt arityctxt in
   if List.exists (fun (_,b,_) -> not (Option.is_empty b)) realsign then
     error "Inductive equalities with local definitions in arity not supported.";
-  let env_with_arity = push_rel_context mip.mind_arity_ctxt env in
+  let env_with_arity = push_rel_context arityctxt env in
   let (_,_,ty) = lookup_rel (mip.mind_nrealargs - i + 1) env_with_arity in
   let constrsign,ccl = decompose_prod_assum mip.mind_nf_lc.(0) in
   let _,constrargs = decompose_app ccl in
@@ -745,14 +749,14 @@ let build_congr env (eq,refl,ctx) ind =
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let uni, ctx = Universes.extend_context (Universes.new_global_univ ()) ctx in
   let c = 
-  my_it_mkLambda_or_LetIn mib.mind_params_ctxt
+  my_it_mkLambda_or_LetIn paramsctxt
      (mkNamedLambda varB (mkSort (Type uni))
      (mkNamedLambda varf (mkArrow (lift 1 ty) (mkVar varB))
      (my_it_mkLambda_or_LetIn_name (lift_rel_context 2 realsign)
      (mkNamedLambda varH
         (applist
            (mkIndU indu,
-	    extended_rel_list (mip.mind_nrealargs+2) mib.mind_params_ctxt @
+	    extended_rel_list (mip.mind_nrealargs+2) paramsctxt @
 	    extended_rel_list 0 realsign))
      (mkCase (ci,
        my_it_mkLambda_or_LetIn_name
@@ -762,7 +766,7 @@ let build_congr env (eq,refl,ctx) ind =
             applist
              (mkIndU indu,
 	        extended_rel_list (2*mip.mind_nrealargs_ctxt+3)
-		  mib.mind_params_ctxt
+		  paramsctxt
 	        @ extended_rel_list 0 realsign),
             mkApp (eq,
 	      [|mkVar varB;
