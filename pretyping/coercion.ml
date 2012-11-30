@@ -323,17 +323,20 @@ let saturate_evd env evd =
 (* appliquer le chemin de coercions p à hj *)
 let apply_coercion env sigma p hj typ_cl =
   try
-    fst (List.fold_left
-           (fun (ja,typ_cl) i ->
-	      let fv,isid = coercion_value i in
-	      let argl = (class_args_of env sigma typ_cl)@[ja.uj_val] in
-	      let jres = apply_coercion_args env argl fv in
-		(if isid then
-		   { uj_val = ja.uj_val; uj_type = jres.uj_type }
-		 else
-		   jres),
-	      jres.uj_type)
-           (hj,typ_cl) p)
+    let j,t,evd = 
+      List.fold_left
+        (fun (ja,typ_cl,sigma) i ->
+	  let ((fv,isid),ctx) = coercion_value i in
+	  let sigma = Evd.merge_context_set Evd.univ_flexible sigma ctx in
+	  let argl = (class_args_of env sigma typ_cl)@[ja.uj_val] in
+	  let jres = apply_coercion_args env argl fv in
+	    (if isid then
+	      { uj_val = ja.uj_val; uj_type = jres.uj_type }
+	     else
+	      jres),
+	    jres.uj_type,sigma)
+      (hj,typ_cl,sigma) p
+    in evd, j
   with _ -> anomaly "apply_coercion"
 
 let inh_app_fun env evd j =
@@ -346,7 +349,7 @@ let inh_app_fun env evd j =
     | _ ->
       	try let t,p =
 	  lookup_path_to_fun_from env evd j.uj_type in
-	  (evd,apply_coercion env evd p j t)
+	    apply_coercion env evd p j t
 	with Not_found when Flags.is_program_mode () ->
 	  try
 	    let isevars = ref evd in
@@ -365,7 +368,7 @@ let inh_app_fun env evd j =
 let inh_tosort_force loc env evd j =
   try
     let t,p = lookup_path_to_sort_from env evd j.uj_type in
-    let j1 = apply_coercion env evd p j t in
+    let evd,j1 = apply_coercion env evd p j t in
     let j2 = on_judgment_type (whd_evar evd) j1 in
       (evd,type_judgment env j2)
   with Not_found ->
@@ -403,16 +406,16 @@ let inh_coerce_to_fail env evd rigidonly v t c1 =
   then
     raise NoCoercion
   else
-    let v', t' =
+    let evd, v', t' =
       try
 	let t2,t1,p = lookup_path_between env evd (t,c1) in
 	  match v with
 	  Some v ->
-	    let j =
+	    let evd,j =
 	      apply_coercion env evd p
 		{uj_val = v; uj_type = t} t2 in
-	      Some j.uj_val, j.uj_type
-	  | None -> None, t
+	      evd, Some j.uj_val, j.uj_type
+	  | None -> evd, None, t
       with Not_found -> raise NoCoercion
     in
       try (the_conv_x_leq env t' c1 evd, v')
