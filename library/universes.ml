@@ -159,6 +159,8 @@ let find_list_map u map =
 module UF = LevelUnionFind
 type universe_full_subst = (universe_level * universe) list
 
+exception Stays
+
 let instantiate_univ_variables ucstrsl ucstrsr u (subst, cstrs) =
  (** The universe variable was not fixed yet.
      Compute its level using its lower bound and generate
@@ -179,17 +181,34 @@ let instantiate_univ_variables ucstrsl ucstrsr u (subst, cstrs) =
   let uinst, cstrs =
     try 
       let l = UniverseLMap.find u ucstrsl in
-      let lbound =
+      let lbound, stay =
 	match lbound with
-	| None -> Universe.make u (** No lower bounds but some upper bounds, u has to stay *)
-	| Some lbound -> lbound
+	| None -> Universe.make u, true (** No lower bounds but some upper bounds, u has to stay *)
+	| Some lbound -> 
+	  let stay = match lbound with
+	    | Univ.Universe.Atom _ | Univ.Universe.Max (_, []) -> false
+	    | _ -> true (* u will have to stay if we have to compute its super form. *)
+	  in lbound, stay
       in
-      let cstrs =
-	List.fold_left (fun cstr (d,r) -> 
-	  if d = Le (* ?u <= r *) then enforce_leq lbound (Universe.make r) cstr
-	  else (* ?u < r *) enforce_leq (super lbound) (Universe.make r) cstr)
-	cstrs l
-      in Some lbound, cstrs
+	try
+	  let cstrs =
+	    List.fold_left (fun cstrs (d,r) ->
+	      if d = Le (* ?u <= r *) then enforce_leq lbound (Universe.make r) cstrs
+	      else (* ?u < r *) 
+		if not stay then
+		  enforce_leq (super lbound) (Universe.make r) cstrs
+		else raise Stays)
+	    cstrs l
+	  in Some lbound, cstrs
+	with Stays ->
+	  (** We can't instantiate ?u at all. *)
+	  let uu = Universe.make u in
+	  let cstrs = enforce_leq lbound uu cstrs in
+	  let cstrs = List.fold_left (fun cstrs (d,r) ->
+	    let lev = if d == Le then uu else super uu in
+	      enforce_leq lev (Universe.make r) cstrs)
+	    cstrs l
+	  in None, cstrs
     with Not_found -> lbound, cstrs
   in 
   let subst' = 
