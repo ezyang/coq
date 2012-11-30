@@ -42,6 +42,7 @@ type coe_typ = global_reference
 type coe_info_typ = {
   coe_value : constr;
   coe_type : types;
+  coe_context : Univ.universe_context_set;
   coe_strength : locality;
   coe_is_identity : bool;
   coe_param : int }
@@ -174,7 +175,7 @@ let subst_cl_typ subst ct = match ct with
 
 (*CSC: here we should change the datatype for coercions: it should be possible
        to declare any term as a coercion *)
-let subst_coe_typ subst t = fst (subst_global subst t)
+let subst_coe_typ subst t = subst_global_reference subst t
 
 (* class_of : Term.constr -> int *)
 
@@ -265,8 +266,10 @@ let lookup_pattern_path_between (s,t) =
 
 (* coercion_value : coe_index -> unsafe_judgment * bool *)
 
-let coercion_value { coe_value = c; coe_type = t; coe_is_identity = b } =
-  (make_judge c t, b)
+let coercion_value { coe_value = c; coe_type = t; coe_context = ctx; coe_is_identity = b } =
+  let subst, ctx = Universes.fresh_universe_context_set_instance ctx in
+  let c' = subst_univs_constr subst c and t' = subst_univs_constr subst t in
+    (make_judge c' t', b), ctx
 
 (* pretty-print functions are now in Pretty *)
 (* rajouter une coercion dans le graphe *)
@@ -368,9 +371,12 @@ let cache_coercion (_,(coe,stre,isid,cls,clt,ps)) =
   add_class clt;
   let is,_ = class_info cls in
   let it,_ = class_info clt in
+  let value, ctx = Universes.fresh_global_instance (Global.env()) coe in
+  let typ = Retyping.get_type_of (Global.env ()) Evd.empty value in
   let xf =
-    { coe_value = fst (Universes.fresh_global_instance (Global.env()) coe);
-      coe_type = fst (Universes.type_of_global coe) (*FIXME*);
+    { coe_value = value;
+      coe_type = typ;
+      coe_context = ctx;
       coe_strength = stre;
       coe_is_identity = isid;
       coe_param = ps } in
