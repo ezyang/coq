@@ -71,6 +71,10 @@ type constr
    and application grouping *)
 val eq_constr : constr -> constr -> bool
 
+(** [eq_constr_univs a b] [true, c] if [a] equals [b] modulo alpha, casts,
+   application grouping and the universe equalities in [c]. *)
+val eq_constr_univs : constr -> constr -> bool Univ.constrained
+
 (** [types] is the same as [constr] but is intended to be used for
    documentation to indicate that such or such function specifically works
    with {e types} (i.e. terms of type a sort).

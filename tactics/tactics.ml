@@ -1733,18 +1733,28 @@ let default_matching_flags sigma = {
 let make_pattern_test env sigma0 (sigma,c) =
   let flags = default_matching_flags sigma0 in
   let matching_fun t =
-    try let sigma = w_unify env sigma Reduction.CONV ~flags c t in Some(sigma,t)
+    try let sigma = w_unify env sigma Reduction.CONV ~flags c t in 
+	  Some(sigma, t)
     with _ -> raise NotUnifiable in
   let merge_fun c1 c2 =
     match c1, c2 with
-    | Some (_,c1), Some (_,c2) when not (is_fconv Reduction.CONV env sigma0 c1 c2) ->
-        raise NotUnifiable
-    | _ -> c1 in
+    | Some (evd,c1), Some (_,c2) -> 
+        let evd, b = trans_fconv Reduction.CONV empty_transparent_state env evd c1 c2 in
+	  if b then Some (evd, c1) 
+          else raise NotUnifiable
+    | Some _, None -> c1
+    | None, Some _ -> c2
+    | None, None -> None 
+  in
   { match_fun = matching_fun; merge_fun = merge_fun; 
     testing_state = None; last_found = None },
   (fun test -> match test.testing_state with
-   | None -> finish_evar_resolution env sigma0 (sigma,c)
-   | Some (sigma,_) -> nf_evar sigma c)
+  | None -> tclIDTAC, finish_evar_resolution env sigma0 (sigma,c)
+  | Some (sigma,_) -> 
+  let tac gl = 
+    let ctx = Evd.get_universe_context_set sigma in
+      tclEVARS (Evd.merge_context_set Evd.univ_flexible (project gl) ctx) gl
+  in tac, nf_evar sigma c)
 
 let letin_abstract id c (test,out) (occs,check_occs) gl =
   let env = pf_env gl in
@@ -1778,7 +1788,7 @@ let letin_tac_gen with_eq name (sigmac,c) test ty occs gl =
     if name == Anonymous then fresh_id [] x gl else
       if not (mem_named_context x (pf_hyps gl)) then x else
 	error ("The variable "^(Id.to_string x)^" is already declared.") in
-  let (depdecls,lastlhyp,ccl,c) = letin_abstract id c test occs gl in
+  let (depdecls,lastlhyp,ccl,(tac,c)) = letin_abstract id c test occs gl in
   let t = match ty with Some t -> t | None -> pf_apply typ_of gl c in
   let newcl,eq_tac = match with_eq with
     | Some (lr,(loc,ido)) ->
@@ -1798,12 +1808,18 @@ let letin_tac_gen with_eq name (sigmac,c) test ty occs gl =
     | None ->
 	mkNamedLetIn id c t ccl, tclIDTAC in
   tclTHENLIST
-    [ convert_concl_no_check newcl DEFAULTcast;
+    [ tac; convert_concl_no_check newcl DEFAULTcast;
       intro_gen dloc (IntroMustBe id) lastlhyp true false;
       tclMAP convert_hyp_no_check depdecls;
       eq_tac ] gl
 
-let make_eq_test c = (make_eq_test c,fun _ -> c)
+let make_eq_test c = 
+  let out cstr = 
+    let tac gl = 
+      tclEVARS (Evd.add_constraints (project gl) cstr.testing_state) gl
+    in tac, c
+  in
+    (make_eq_univs_test c, out)
 
 let letin_tac with_eq name c ty occs gl =
   letin_tac_gen with_eq name (project gl,c) (make_eq_test c) ty (occs,true) gl

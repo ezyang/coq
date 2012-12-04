@@ -191,7 +191,7 @@ Lemma eq_sigT_snd :
   forall X P (x1 x2:X) H1 H2 (H:existT P x1 H1 = existT P x2 H2), rew (eq_sigT_fst H) in H1 = H2.
 Proof.
   intros.
-  unfold eq_sigT_fst.
+  unfold eq_sigT_fst. 
   change x2 with (projT1 (existT P x2 H2)).
   change H2 with (projT2 (existT P x2 H2)) at 3.
   destruct H.

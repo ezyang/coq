@@ -153,6 +153,12 @@ type 'a trans_conversion_function = transparent_state -> env -> 'a -> 'a -> Univ
 exception NotConvertible
 exception NotConvertibleVect of int
 
+let conv_table_key k1 k2 cuniv =
+  match k1, k2 with
+  | ConstKey (cst, u), ConstKey (cst', u') when eq_constant_key cst cst' ->
+      List.fold_right2 Univ.enforce_eq_level u u' cuniv
+  | _ -> raise NotConvertible
+
 let compare_stacks f fmind lft1 stk1 lft2 stk2 cuniv =
   let rec cmp_rec pstk1 pstk2 cuniv =
     match (pstk1,pstk2) with
@@ -251,6 +257,9 @@ let in_whnf (t,stk) =
     | (FFlex _ | FProd _ | FEvar _ | FInd _ | FAtom _ | FRel _) -> true
     | FLOCKED -> assert false
 
+let convert_universes l1 l2 cuniv = 
+  List.fold_right2 enforce_eq_level l1 l2 cuniv
+
 (* Conversion between  [lft1]term1 and [lft2]term2 *)
 let rec ccnv cv_pb l2r infos lft1 lft2 term1 term2 cuniv =
   eqappr cv_pb l2r infos (lft1, (term1,[])) (lft2, (term2,[])) cuniv
@@ -300,9 +309,9 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
     (* 2 constants, 2 local defined vars or 2 defined rels *)
     | (FFlex fl1, FFlex fl2) ->
 	(try (* try first intensional equality *)
-	  if eq_table_key fl1 fl2
-          then convert_stacks l2r infos lft1 lft2 v1 v2 cuniv
-          else raise NotConvertible
+	   if eq_table_key fl1 fl2 then convert_stacks l2r infos lft1 lft2 v1 v2 cuniv
+           else 
+	     convert_stacks l2r infos lft1 lft2 v1 v2 (conv_table_key fl1 fl2 cuniv)
         with NotConvertible ->
           (* else the oracle tells which constant is to be expanded *)
           let (app1,app2) =
@@ -377,13 +386,15 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
     | (FInd (ind1,u1), FInd (ind2,u2)) ->
         if eq_ind ind1 ind2
 	then
-          convert_stacks l2r infos lft1 lft2 v1 v2 cuniv
+          convert_stacks l2r infos lft1 lft2 v1 v2 
+	    (convert_universes u1 u2 cuniv)
         else raise NotConvertible
 
     | (FConstruct ((ind1,j1),u1), FConstruct ((ind2,j2),u2)) ->
 	if Int.equal j1 j2 && eq_ind ind1 ind2
 	then
-          convert_stacks l2r infos lft1 lft2 v1 v2 cuniv
+          convert_stacks l2r infos lft1 lft2 v1 v2 
+	    (convert_universes u1 u2 cuniv)
         else raise NotConvertible
 
     | (FFix (((op1, i1),(_,tys1,cl1)),e1), FFix(((op2, i2),(_,tys2,cl2)),e2)) ->
@@ -448,8 +459,9 @@ let clos_fconv trans cv_pb l2r evars env t1 t2 =
   ccnv cv_pb l2r infos el_id el_id (inject t1) (inject t2) empty_constraint
 
 let trans_fconv reds cv_pb l2r evars env t1 t2 =
-  if eq_constr t1 t2 then empty_constraint
-  else clos_fconv reds cv_pb l2r evars env t1 t2
+  let b, univs = eq_constr_univs t1 t2 in
+    if b then univs
+    else clos_fconv reds cv_pb l2r evars env t1 t2
 
 let trans_conv_cmp ?(l2r=false) conv reds = trans_fconv reds conv l2r (fun _->None)
 let trans_conv ?(l2r=false) ?(evars=fun _->None) reds = trans_fconv reds CONV l2r evars

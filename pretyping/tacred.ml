@@ -1082,7 +1082,10 @@ let abstract_scheme env sigma (locc,a) c =
   if occur_meta a then
     mkLambda (na,ta,c)
   else
-    mkLambda (na,ta,subst_closed_term_occ locc a c)
+    (* It is ok to forget about universes here,
+       typing will ensure this is correct. *)
+    let c', univs = subst_closed_term_univs_occ locc a c in
+      mkLambda (na,ta,c') 
 
 let pattern_occs loccs_trm env sigma c =
   let abstr_trm = List.fold_right (abstract_scheme env sigma) loccs_trm c in
