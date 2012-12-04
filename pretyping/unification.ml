@@ -55,7 +55,10 @@ let abstract_scheme env c l lname_typ =
    are unclear...
        if occur_meta ta then error "cannot find a type for the generalisation"
        else *) if occur_meta a then mkLambda_name env (na,ta,t)
-       else mkLambda_name env (na,ta,subst_closed_term_occ locc a t))
+       else
+	 let t', univs = subst_closed_term_univs_occ locc a t in
+	   (* Just forget about univs, typing will rebuild that information anyway *)
+	   mkLambda_name env (na,ta,t'))
     c
     (List.rev l)
     lname_typ
@@ -522,9 +525,8 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
 	    else error_cannot_unify (fst curenvnb) sigma (cM,cN)
     else error_cannot_unify (fst curenvnb) sigma (cM,cN)
 	    
-  and expand (curenv,_ as curenvnb) pb b wt (sigma,metasubst,_ as substn) cM f1 l1 cN f2 l2 =
-
-    if
+  and expand (curenv,_ as curenvnb) pb b wt (sigma,metasubst,evarsubst as substn) cM f1 l1 cN f2 l2 =
+    let res =
       (* Try full conversion on meta-free terms. *)
       (* Back to 1995 (later on called trivial_unify in 2002), the
 	 heuristic was to apply conversion on meta-free (but not
@@ -537,26 +539,28 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
 	 (it is used by apply and rewrite); it might now be redundant
 	 with the support for delta-expansion (which is used
 	 essentially for apply)... *)
-      not (subterm_restriction b flags) &&
+      if subterm_restriction b flags then None else 
       match flags.modulo_conv_on_closed_terms with
-      | None -> false
+      | None -> None
       | Some convflags ->
       let subst = if flags.use_metas_eagerly_in_conv_on_closed_terms then metasubst else ms in
       match subst_defined_metas subst cM with
-      | None -> (* some undefined Metas in cM *) false
+      | None -> (* some undefined Metas in cM *) None
       | Some m1 ->
       match subst_defined_metas subst cN with
-      | None -> (* some undefined Metas in cN *) false
+      | None -> (* some undefined Metas in cN *) None
       | Some n1 ->
           (* No subterm restriction there, too much incompatibilities *)
-	  if is_trans_fconv pb convflags env sigma m1 n1
-	  then true else
-	    if is_ground_term sigma m1 && is_ground_term sigma n1 then
-	      error_cannot_unify curenv sigma (cM,cN)
-	    else false
-    then
-      substn
-    else
+	  let sigma, b = trans_fconv pb convflags env sigma m1 n1 in
+	    if b then Some (sigma, metasubst, evarsubst)
+	    else 
+	      if is_ground_term sigma m1 && is_ground_term sigma n1 then
+		error_cannot_unify curenv sigma (cM,cN)
+	      else None
+    in
+      match res with
+      | Some substn -> substn
+      | None ->
       let cf1 = key_of b flags f1 and cf2 = key_of b flags f2 in
 	match oracle_order curenv cf1 cf2 with
 	| None -> error_cannot_unify curenv sigma (cM,cN)
@@ -640,19 +644,24 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
       |None -> anomaly "As expected, solve_canonical_projection breaks the term too much"
   in
   let evd = sigma in
-    if (if occur_meta_or_undefined_evar evd m || occur_meta_or_undefined_evar evd n
-        || subterm_restriction conv_at_top flags then false
-      else if (match flags.modulo_conv_on_closed_terms with
-      | Some convflags -> is_trans_fconv cv_pb convflags env sigma m n
-      | _ -> constr_cmp cv_pb m n) then true
-      else if (match flags.modulo_conv_on_closed_terms, flags.modulo_delta with
+  let res = 
+    if occur_meta_or_undefined_evar evd m || occur_meta_or_undefined_evar evd n
+      || subterm_restriction conv_at_top flags then None
+    else 
+      let sigma, b = match flags.modulo_conv_on_closed_terms with
+      | Some convflags -> trans_fconv cv_pb convflags env sigma m n
+      | _ -> sigma, constr_cmp cv_pb m n in
+	if b then Some sigma
+	else if (match flags.modulo_conv_on_closed_terms, flags.modulo_delta with
             | Some (cv_id, cv_k), (dl_id, dl_k) ->
                 Id.Pred.subset dl_id cv_id && Cpred.subset dl_k cv_k
             | None,(dl_id, dl_k) ->
                 Id.Pred.is_empty dl_id && Cpred.is_empty dl_k)
-      then error_cannot_unify env sigma (m, n) else false)
-    then subst
-    else unirec_rec (env,0) cv_pb conv_at_top false subst m n
+      then error_cannot_unify env sigma (m, n) else None)
+  in 
+    match res with 
+    | Some sigma -> sigma, ms, es
+    | None -> unirec_rec (env,0) cv_pb conv_at_top false subst m n
 
 let unify_0 env sigma = unify_0_with_initial_metas (sigma,[],[]) true env
 
@@ -1156,7 +1165,8 @@ let w_unify_to_subterm_list env evd flags hdmeta oplist t =
 	    List.exists (fun op -> eq_constr op cl) l
 	  then error_non_linear_unification env evd hdmeta cl
 	  else (evd',cl::l)
-      else if flags.allow_K_in_toplevel_higher_order_unification or dependent op t
+      else if flags.allow_K_in_toplevel_higher_order_unification or 
+	dependent_univs op t
       then
 	(evd,op::l)
       else

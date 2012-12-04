@@ -317,6 +317,9 @@ let simplify_max_expressions csts subst =
     smartmap_universe_list remove_higher x
   in
     CList.smartmap (smartmap_pair id simplify_max) subst
+
+let subst_univs_subst u l s = 
+  CList.smartmap (fun (u', v' as p) -> if eq_levels v' u then (u', l) else p) s
     
 let normalize_context_set (ctx, csts) us algs = 
   let uf = UF.create () in
@@ -375,7 +378,7 @@ let normalize_context_set (ctx, csts) us algs =
       List.fold_left (fun (subst', usubst') (u, us) -> 
         let us' = subst_univs_universe subst' us in
 	  match universe_level us' with
-	  | Some l -> ((u, l) :: subst', usubst')
+	  | Some l -> ((u, l) :: subst_univs_subst u l subst', usubst')
 	  | None -> (** Couldn't find a level, keep the universe? *)
 	    (subst', (u, us') :: usubst'))
       (subst, []) ussubst

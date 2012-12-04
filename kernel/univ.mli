@@ -31,6 +31,8 @@ type universe_level = UniverseLevel.t
 
 type universe_list = universe_level list
 
+val eq_universe_list : universe_list -> universe_list -> bool
+
 module Universe :
 sig
   type t = 

@@ -804,6 +804,13 @@ let is_trans_conv reds env sigma = test_trans_conversion Reduction.trans_conv re
 let is_trans_conv_leq reds env sigma = test_trans_conversion Reduction.trans_conv_leq reds env sigma
 let is_trans_fconv = function | CONV -> is_trans_conv | CUMUL -> is_trans_conv_leq
 
+let trans_fconv pb reds env sigma x y = 
+  let f = match pb with CONV -> Reduction.trans_conv | CUMUL -> Reduction.trans_conv_leq in
+    try let cst = f ~evars:(safe_evar_value sigma) reds env x y in
+	  Evd.add_constraints sigma cst, true
+    with NotConvertible -> sigma, false
+    | Anomaly _ -> error "Conversion test raised an anomaly"
+
 (********************************************************************)
 (*             Special-Purpose Reduction                            *)
 (********************************************************************)

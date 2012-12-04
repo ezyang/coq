@@ -84,6 +84,10 @@ type universe_set = UniverseLSet.t
 type 'a puniverses = 'a * universe_list
 let out_punivs (a, _) = a
 
+let eq_universe_list l l' = 
+  try List.for_all2 UniverseLevel.equal l l'
+  with Invalid_argument _ -> false
+
 let empty_universe_list = []
 let empty_universe_set = UniverseLSet.empty
 let union_universe_set = UniverseLSet.union

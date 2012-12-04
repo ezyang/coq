@@ -234,14 +234,15 @@ let rec evar_conv_x ts env evd pbty term1 term2 =
      could have found, we do it only if the terms are free of evar.
      Note: incomplete heuristic... *)
   let ground_test =
-    if is_ground_term evd term1 && is_ground_term evd term2 then
-      if is_trans_fconv pbty ts env evd term1 term2 then
-        Some true
-      else if is_ground_env evd env then Some false
-      else None
-    else None in
+    if is_ground_term evd term1 && is_ground_term evd term2 then (
+      let evd, b = trans_fconv pbty ts env evd term1 term2 in
+	if b then Some (evd, true)
+	else if is_ground_env evd env then Some (evd, false)
+	else None)
+    else None
+  in
   match ground_test with
-      Some b -> (evd,b)
+      Some res -> res
     | None ->
 	(* Until pattern-unification is used consistently, use nohdbeta to not
 	   destroy beta-redexes that can be used for 1st-order unification *)
@@ -342,9 +343,11 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	ise_try evd [f1; f2]
 
 	| _, _ ->
-	let f1 i = (* FIXME will unfold polymorphic constants always *)
-	  if eq_constr term1 term2 then
-	    exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
+	let f1 i = 
+	  let b,univs = eq_constr_univs term1 term2 in
+	  if b then
+	    let i = Evd.add_constraints i univs in
+	      exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
 	  else
 	     (i,false)
 	and f2 i =
@@ -738,7 +741,7 @@ let apply_conversion_problem_heuristic ts env evd pbty t1 t2 =
          type inference *)
       choose_less_dependent_instance evk2 evd term1 args2
   | Evar (evk1,args1), Evar (evk2,args2) when Int.equal evk1 evk2 ->
-      let f env evd pbty x y = (evd,is_trans_fconv pbty ts env evd x y) in
+      let f env evd pbty x y = trans_fconv pbty ts env evd x y in
       solve_refl ~can_drop:true f env evd evk1 args1 args2, true
   | Evar ev1, Evar ev2 ->
       solve_evar_evar ~force:true
