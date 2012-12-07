@@ -209,7 +209,7 @@ let unfold_red kn =
 type table_key = constant puniverses tableKey
 
 let eq_pconstant_key (c,u) (c',u') =
-  eq_constant_key c c' && Univ.eq_universe_list u u'
+  eq_constant_key c c' && Univ.LList.eq u u'
   
 module IdKeyHash =
 struct

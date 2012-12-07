@@ -30,9 +30,15 @@ end
 type universe_level = Level.t
 (** Alias name. *)
 
-type universe_list = universe_level list
+module LList :
+sig
+  type t = Level.t list
 
-val eq_universe_list : universe_list -> universe_list -> bool
+  val empty : t
+  val eq : t -> t -> bool
+end
+
+type universe_list = LList.t
 
 module Universe :
 sig
@@ -52,6 +58,10 @@ sig
   (** Create a constraint-free universe out of a given level. *)
 
   val pr : t -> Pp.std_ppcmds
+
+  val level : t -> Level.t option
+
+  val normalize : t -> t
 end
 
 type universe = Universe.t
@@ -59,15 +69,19 @@ type universe = Universe.t
 
 val pr_uni : universe -> Pp.std_ppcmds
 
-module LSet : sig 
+module LSet : 
+sig 
   include Set.S with type elt = universe_level
 	      
   val pr : t -> Pp.std_ppcmds
+
+  val of_list : universe_list -> t
 end
 
 type universe_set = LSet.t
 	      
-module LMap : sig
+module LMap : 
+sig
   include Map.S with type key = universe_level
 
   (** Favorizes the bindings in the first map. *)
@@ -80,8 +94,6 @@ module LMap : sig
 
   val pr : ('a -> Pp.std_ppcmds) -> 'a t -> Pp.std_ppcmds
 end
-
-val empty_universe_list : universe_list
 
 type 'a universe_map = 'a LMap.t
 
@@ -164,8 +176,6 @@ val union_constraints : constraints -> constraints -> constraints
 
 (** Constrained *)
 val constraints_of : 'a constrained -> constraints
-
-val universe_set_of_list : universe_list -> universe_set
 
 (** Universe contexts (as lists) *)
 val empty_universe_context : universe_context
