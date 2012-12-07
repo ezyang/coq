@@ -66,6 +66,8 @@ module Level = struct
       Int.equal i1 i2 && Int.equal (Names.Dir_path.compare dp1 dp2) 0
     | _ -> false
 
+  let eq u v = equal u v
+
   let make m n = Level (n, m)
 
   let to_string = function
@@ -85,7 +87,12 @@ module LSet = struct
 
   let pr s = 
     str"{" ++ pr_universe_list (elements s) ++ str"}"
+
+  let of_list l =
+    List.fold_left (fun acc x -> add x acc) empty l
 end
+
+
 
 module LMap = struct 
   module M = Map.Make (Level)
@@ -114,6 +121,16 @@ module LMap = struct
       
 end
 
+module LList = struct
+  type t = Level.t list
+
+  let empty = []
+  let eq l l' = 
+    try List.for_all2 Level.equal l l'
+    with Invalid_argument _ -> false
+
+end
+
 type universe_level = Level.t
 type universe_list = universe_level list
 type universe_set = LSet.t
@@ -122,11 +139,6 @@ type 'a universe_map = 'a LMap.t
 type 'a puniverses = 'a * universe_list
 let out_punivs (a, _) = a
 
-let eq_universe_list l l' = 
-  try List.for_all2 Level.equal l l'
-  with Invalid_argument _ -> false
-
-let empty_universe_list = []
 let compare_levels = Level.compare
 let eq_levels = Level.equal
 
@@ -178,6 +190,23 @@ struct
 	 prlist_with_sep pr_comma
 	   (fun x -> str "(" ++ Level.pr x ++ str ")+1") gtl) ++
 	str ")"
+
+  let level = function
+  | Atom l -> Some l
+  | Max _ -> None
+
+
+  let rec normalize x = 
+    match x with
+    | Atom _ -> x
+    | Max ([],[]) -> Atom Level.Prop
+    | Max ([u],[]) -> Atom u
+    | Max (gel, gtl) -> 
+      let gel' = CList.uniquize gel in
+      let gtl' = CList.uniquize gtl in
+	if gel' == gel && gtl' == gtl then x
+	else normalize (Max (gel', gtl'))
+    
 end
 
 let pr_uni = Universe.pr
@@ -186,20 +215,7 @@ open Universe
 
 type universe = Universe.t
 
-let universe_level = function
-  | Atom l -> Some l
-  | Max _ -> None
-
-let rec normalize_univ x = 
-  match x with
-  | Atom _ -> x
-  | Max ([],[]) -> Atom Level.Prop
-  | Max ([u],[]) -> Atom u
-  | Max (gel, gtl) -> 
-    let gel' = CList.uniquize gel in
-    let gtl' = CList.uniquize gtl in
-      if gel' == gel && gtl' == gtl then x
-      else normalize_univ (Max (gel', gtl'))
+let universe_level = Universe.level
 
 (* When typing [Prop] and [Set], there is no constraint on the level,
    hence the definition of [type1_univ], the type of [Prop] *)
@@ -752,17 +768,14 @@ let is_empty_universe_context_set (univs, cst) =
 let union_universe_context_set (univs, cst) (univs', cst') =
   LSet.union univs univs', union_constraints cst cst'
 
-let universe_set_of_list l =
-  List.fold_left (fun acc x -> LSet.add x acc) LSet.empty l
-
 let universe_context_set_of_list l =
-  (universe_set_of_list l, empty_constraint)
+  (LSet.of_list l, empty_constraint)
 
 let universe_context_set_of_universe_context (ctx,cst) =
-  (universe_set_of_list ctx, cst)
+  (LSet.of_list ctx, cst)
 
 let constraint_depend (l,d,r) u =
-  eq_levels l u || eq_levels l r
+  Level.eq l u || Level.eq l r
 
 let constraint_depend_list (l,d,r) us =
   List.mem l us || List.mem r us
@@ -825,7 +838,7 @@ let subst_univs_universe subst u =
     let gel' = CList.smartmap (subst_univs_level subst) gel in
     let gtl' = CList.smartmap (subst_univs_level subst) gtl in
       if gel == gel' && gtl == gtl' then u
-      else normalize_univ (Max (gel', gtl'))
+      else Universe.normalize (Max (gel', gtl'))
 
 let subst_univs_full_level subst l = 
   try LMap.find l subst
@@ -852,11 +865,11 @@ let subst_univs_full_universe subst u =
     let gel' = CList.smartmap (subst_univs_full_level_fail subst) gel in
     let gtl' = CList.smartmap (subst_univs_full_level_fail subst) gtl in
       if gel == gel' && gtl == gtl' then u
-      else normalize_univ (Max (gel', gtl'))
+      else Universe.normalize (Max (gel', gtl'))
 
 let subst_univs_constraint subst (u,d,v) =
   let u' = subst_univs_level subst u and v' = subst_univs_level subst v in
-    if d <> Lt && eq_levels u' v' then None
+    if d <> Lt && Level.eq u' v' then None
     else Some (u',d,v')
 
 let subst_univs_constraints subst csts =
@@ -1291,7 +1304,7 @@ module Huniv =
 let hcons_univlevel = Hashcons.simple_hcons Hunivlevel.generate Names.Dir_path.hcons
 let hcons_univ = Hashcons.simple_hcons Huniv.generate hcons_univlevel
 
-let hcons_univ x = hcons_univ (normalize_univ x)
+let hcons_univ x = hcons_univ (Universe.normalize x)
 
 let equal_universes x y = 
   let x' = hcons_univ x and y' = hcons_univ y in
