@@ -32,7 +32,7 @@ let constrain_type env j ctx poly = function
 	(* TODO*)
 	check_consistent_constraints ctx cst;
 	assert (eq_constr t tj.utj_val);
-	t, ctx
+	t, add_constraints_ctx ctx cst
 
 let local_constrain_type env j = function
   | None ->

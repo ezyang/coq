@@ -21,8 +21,6 @@ val new_univ : Names.dir_path -> universe
 val new_Type : Names.dir_path -> types
 val new_Type_sort : Names.dir_path -> sorts
 
-val fresh_universe_instance : universe_context -> universe_list
-
 (** Build a fresh instance for a given context, its associated substitution and 
     the instantiated constraints. *)
 

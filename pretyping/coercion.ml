@@ -32,19 +32,22 @@ open Termops
 exception NoCoercion
 
 (* Here, funj is a coercion therefore already typed in global context *)
-let apply_coercion_args env argl funj =
+let apply_coercion_args env evd check argl funj =
+  let evdref = ref evd in
   let rec apply_rec acc typ = function
     | [] -> { uj_val = applist (j_val funj,argl);
 	      uj_type = typ }
     | h::restl ->
 	(* On devrait pouvoir s'arranger pour qu'on n'ait pas Ã  faire hnf_constr *)
-  	match kind_of_term (whd_betadeltaiota env Evd.empty typ) with
+  	match kind_of_term (whd_betadeltaiota env evd typ) with
 	| Prod (_,c1,c2) ->
-	    (* Typage garanti par l'appel à app_coercion*)
+	    if check && not (e_cumul env evdref (Retyping.get_type_of env evd h) c1) then
+	      anomaly "apply_coercion_args: mismatch between arguments and coercion";
 	    apply_rec (h::acc) (subst1 h c2) restl
 	| _ -> anomaly "apply_coercion_args"
   in
-    apply_rec [] funj.uj_type argl
+  let res = apply_rec [] funj.uj_type argl in
+    !evdref, res
 
 (* appliquer le chemin de coercions de patterns p *)
 let apply_pattern_coercion loc pat p =
@@ -329,7 +332,9 @@ let apply_coercion env sigma p hj typ_cl =
 	  let ((fv,isid),ctx) = coercion_value i in
 	  let sigma = Evd.merge_context_set Evd.univ_flexible sigma ctx in
 	  let argl = (class_args_of env sigma typ_cl)@[ja.uj_val] in
-	  let jres = apply_coercion_args env argl fv in
+	  let sigma, jres = 
+	    apply_coercion_args env sigma (not (Univ.is_empty_universe_context_set ctx)) argl fv 
+	  in
 	    (if isid then
 	      { uj_val = ja.uj_val; uj_type = jres.uj_type }
 	     else

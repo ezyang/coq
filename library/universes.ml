@@ -34,7 +34,7 @@ let fresh_universe_instance (ctx, _) =
 
 let fresh_instance_from_context (vars, cst as ctx) =
   let inst = fresh_universe_instance ctx in
-  let subst = List.combine vars inst in
+  let subst = make_universe_subst vars (inst, cst) in
   let constraints = instantiate_univ_context subst ctx in
     (inst, subst), constraints
 
@@ -44,7 +44,7 @@ let fresh_universe_set_instance (ctx, _) =
 let fresh_instance_from (vars, cst as ctx) =
   let ctx' = fresh_universe_set_instance ctx in
   let inst = UniverseLSet.elements ctx' in
-  let subst = List.combine vars inst in
+  let subst = make_universe_subst vars (inst, cst) in
   let constraints = instantiate_univ_context subst ctx in
     (inst, subst), (ctx', constraints)
 
@@ -319,7 +319,7 @@ let simplify_max_expressions csts subst =
     CList.smartmap (smartmap_pair id simplify_max) subst
 
 let subst_univs_subst u l s = 
-  CList.smartmap (fun (u', v' as p) -> if eq_levels v' u then (u', l) else p) s
+  add_universe_map u l s
     
 let normalize_context_set (ctx, csts) us algs = 
   let uf = UF.create () in
@@ -336,10 +336,12 @@ let normalize_context_set (ctx, csts) us algs =
       Constraint.add (canon, Univ.Eq, g) cst) global cstrs 
     in
     (** Should this really happen? *)
-    let subst = List.map (fun f -> (f, canon)) 
-      (UniverseLSet.elements (UniverseLSet.union rigid flexible)) @ subst 
-    in (subst, cstrs))
-    ([], Constraint.empty) partition
+    let subst' = UniverseLSet.fold (fun f -> add_universe_map f canon)
+      (UniverseLSet.union rigid flexible) empty_universe_map
+    in 
+    let subst = union_universe_map subst' subst in
+      (subst, cstrs))
+    (empty_universe_map, Constraint.empty) partition
   in
   (* Noneqs is now in canonical form w.r.t. equality constraints, 
      and contains only inequality constraints. *)
@@ -378,7 +380,7 @@ let normalize_context_set (ctx, csts) us algs =
       List.fold_left (fun (subst', usubst') (u, us) -> 
         let us' = subst_univs_universe subst' us in
 	  match universe_level us' with
-	  | Some l -> ((u, l) :: subst_univs_subst u l subst', usubst')
+	  | Some l -> (add_universe_map u l (subst_univs_subst u l subst'), usubst')
 	  | None -> (** Couldn't find a level, keep the universe? *)
 	    (subst', (u, us') :: usubst'))
       (subst, []) ussubst
@@ -418,13 +420,13 @@ let normalize_context_set (ctx, csts) us algs =
     List.partition (fun (u, _) -> UniverseLSet.mem u algs) ussubst
   in
   let subst = 
-    usalg @
-    CList.map_filter (fun (u, v) ->
-      if eq_levels u v then None
-      else Some (u, Universe.make (subst_univs_level subst v)))
-      subst
+    union_universe_map (Univ.universe_map_of_list usalg)
+      (UniverseLMap.fold (fun u v acc ->
+        if eq_levels u v then acc
+	else add_universe_map u (Universe.make (subst_univs_level subst v)) acc)
+       subst empty_universe_map)
   in
-  let ctx' = List.fold_left (fun ctx' (u, _) -> UniverseLSet.remove u ctx') ctx subst in
+  let ctx' = UniverseLSet.diff ctx (universe_map_universes subst) in
   let constraints' =
     (** Residual constraints that can't be normalized further. *)
     List.fold_left (fun csts (u, v) -> 
@@ -493,8 +495,8 @@ let fresh_universe_context_set_instance (univs, cst) =
   let univs',subst = UniverseLSet.fold
     (fun u (univs',subst) ->
       let u' = fresh_level () in
-	(UniverseLSet.add u' univs', (u,u') :: subst))
-    univs (UniverseLSet.empty, [])
+	(UniverseLSet.add u' univs', add_universe_map u u' subst))
+    univs (UniverseLSet.empty, empty_universe_map)
   in
   let cst' = subst_univs_constraints subst cst in
     subst, (univs', cst')

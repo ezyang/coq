@@ -1751,10 +1751,10 @@ let make_pattern_test env sigma0 (sigma,c) =
   (fun test -> match test.testing_state with
   | None -> tclIDTAC, finish_evar_resolution env sigma0 (sigma,c)
   | Some (sigma,_) -> 
-  let tac gl = 
-    let ctx = Evd.get_universe_context_set sigma in
-      tclEVARS (Evd.merge_context_set Evd.univ_flexible (project gl) ctx) gl
-  in tac, nf_evar sigma c)
+  (* let tac gl =  *)
+  (*   let ctx = Evd.get_universe_context_set sigma in *)
+  (*     tclEVARS (Evd.merge_context_set Evd.univ_flexible (project gl) ctx) gl *)
+  (* in *) tclIDTAC, nf_evar sigma c)
 
 let letin_abstract id c (test,out) (occs,check_occs) gl =
   let env = pf_env gl in

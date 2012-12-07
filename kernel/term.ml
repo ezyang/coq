@@ -643,7 +643,9 @@ let eq_constr_univs m n =
     in
     let rec eq_constr' m n = 
       m == n ||	compare_constr eq_universes eq_constr m n
-    in (compare_constr eq_universes eq_constr' m n, !cstrs)
+    in
+    let res = compare_constr eq_universes eq_constr' m n in
+      res, !cstrs
 
 (** Strict equality of universe instances. *)
 let compare_constr = compare_constr eq_universes
@@ -1188,7 +1190,7 @@ let sort_of_univ u =
   else Type u
 
 let subst_univs_constr subst c =
-  if subst = [] then c
+  if Univ.is_empty_subst subst then c
   else 
     let f = CList.smartmap (Univ.subst_univs_level subst) in
     let changed = ref false in

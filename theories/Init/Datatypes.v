@@ -229,7 +229,7 @@ Bind Scope list_scope with list.
 
 Local Open Scope list_scope.
 
-Definition length (A : Type) : list A -> nat :=
+Polymorphic Definition length (A : Type) : list A -> nat :=
   fix length l :=
   match l with
    | nil => O
@@ -238,7 +238,7 @@ Definition length (A : Type) : list A -> nat :=
 
 (** Concatenation of two lists *)
 
-Definition app (A : Type) : list A -> list A -> list A :=
+Polymorphic Definition app (A : Type) : list A -> list A -> list A :=
   fix app l m :=
   match l with
    | nil => m
