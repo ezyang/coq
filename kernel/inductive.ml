@@ -53,7 +53,7 @@ let inductive_params (mib,_) = mib.mind_nparams
 let make_inductive_subst mib u =
   if mib.mind_polymorphic then 
     make_universe_subst u mib.mind_universes
-  else []
+  else Univ.empty_subst
 
 let instantiate_inductive_constraints mib subst =
   if mib.mind_polymorphic then

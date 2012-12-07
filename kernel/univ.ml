@@ -80,6 +80,30 @@ module UniverseLSet = Set.Make (UniverseLevel)
 type universe_level = UniverseLevel.t
 type universe_list = universe_level list
 type universe_set = UniverseLSet.t
+type 'a universe_map = 'a UniverseLMap.t
+
+let empty_universe_map = UniverseLMap.empty
+let add_universe_map = UniverseLMap.add
+let union_universe_map l r = 
+  UniverseLMap.merge 
+    (fun k l r -> 
+      match l, r with
+      | Some _, _ -> l
+      | _, _ -> r) l r
+
+let find_universe_map = UniverseLMap.find
+let universe_map_elements = UniverseLMap.bindings
+let universe_map_of_set s d = 
+  UniverseLSet.fold (fun u -> add_universe_map u d) s
+    empty_universe_map
+
+let mem_universe_map l m = UniverseLMap.mem l m
+
+let universe_map_of_list l =
+  List.fold_left (fun m (u, v) -> add_universe_map u v m) empty_universe_map l 
+
+let universe_map_universes m =
+  UniverseLMap.fold (fun u _ acc -> UniverseLSet.add u acc) m UniverseLSet.empty
 
 type 'a puniverses = 'a * universe_list
 let out_punivs (a, _) = a
@@ -672,10 +696,10 @@ type 'a in_universe_context_set = 'a * universe_context_set
 
 (** A universe substitution, note that no algebraic universes are
     involved *)
-type universe_subst = (universe_level * universe_level) list
+type universe_subst = universe_level universe_map
 
 (** A full substitution might involve algebraic universes *)
-type universe_full_subst = (universe_level * universe) list
+type universe_full_subst = universe universe_map
 
 (** Constraints *)
 let empty_constraint = Constraint.empty
@@ -693,6 +717,8 @@ let union_universe_context (univs, cst) (univs', cst') =
 
 (** Universe contexts (variables as a set) *)
 let empty_universe_context_set = (UniverseLSet.empty, empty_constraint)
+let is_empty_universe_context_set (univs, cst) =
+  UniverseLSet.is_empty univs
 let singleton_universe_context_set u = (UniverseLSet.singleton u, empty_constraint)
 let is_empty_universe_context_set (univs, cst) = 
   UniverseLSet.is_empty univs && is_empty_constraint cst
@@ -751,13 +777,17 @@ let context_of_universe_context_set (ctx, cst) =
 (** Substitutions. *)
 
 let make_universe_subst inst (ctx, csts) = 
-  try List.combine ctx inst
+  try List.fold_left2 (fun acc c i -> add_universe_map c i acc) 
+        empty_universe_map ctx inst
   with Invalid_argument _ -> 
     anomaly ("Mismatched instance and context when building universe substitution")
 
+let empty_subst = UniverseLMap.empty
+let is_empty_subst = UniverseLMap.is_empty
+
 (** Substitution functions *)
 let subst_univs_level subst l = 
-  try List.assoc l subst
+  try find_universe_map l subst
   with Not_found -> l
 
 let subst_univs_universe subst u =
@@ -772,16 +802,16 @@ let subst_univs_universe subst u =
       else normalize_univ (Max (gel', gtl'))
 
 let subst_univs_full_level subst l = 
-  try List.assoc l subst
+  try find_universe_map l subst
   with Not_found -> Atom l
 
 let subst_univs_full_level_opt subst l = 
-  try Some (List.assoc l subst)
+  try Some (find_universe_map l subst)
   with Not_found -> None
 
 let subst_univs_full_level_fail subst l = 
   try 
-    (match List.assoc l subst with
+    (match find_universe_map l subst with
     | Atom u -> u
     | Max _ -> anomaly "Trying to substitute an algebraic universe where only levels are allowed")
   with Not_found -> l
@@ -807,10 +837,6 @@ let subst_univs_constraints subst csts =
   Constraint.fold 
     (fun c -> Option.fold_right Constraint.add (subst_univs_constraint subst c))
     csts Constraint.empty 
-
-let subst_univs_context (ctx, csts) u v =
-  let ctx' = UniverseLSet.remove u ctx in
-    (ctx', subst_univs_constraints [u,v] csts)
 
 (** Substitute instance inst for ctx in csts *)
 let instantiate_univ_context subst (_, csts) = 

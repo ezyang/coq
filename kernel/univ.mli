@@ -64,6 +64,18 @@ type universe_set = UniverseLSet.t
 val empty_universe_set : universe_set
 val union_universe_set : universe_set -> universe_set -> universe_set
 
+type 'a universe_map = 'a UniverseLMap.t
+val empty_universe_map : 'a universe_map
+(* Favorizes the bindings in the first map. *)
+val union_universe_map : 'a universe_map -> 'a universe_map -> 'a universe_map
+val add_universe_map : universe_level -> 'a -> 'a universe_map -> 'a universe_map
+val find_universe_map : universe_level -> 'a universe_map -> 'a
+val universe_map_elements : 'a universe_map -> (universe_level * 'a) list
+val universe_map_of_set : universe_set -> 'a -> 'a universe_map
+val mem_universe_map : universe_level -> 'a universe_map -> bool
+val universe_map_of_list : (universe_level * 'a) list -> 'a universe_map
+val universe_map_universes : 'a universe_map -> universe_set
+
 type 'a puniverses = 'a * universe_list
 val out_punivs : 'a puniverses -> 'a
 
@@ -131,10 +143,10 @@ type 'a in_universe_context_set = 'a * universe_context_set
 
 (** A universe substitution, note that no algebraic universes are
     involved *)
-type universe_subst = (universe_level * universe_level) list
+type universe_subst = universe_level universe_map
 
 (** A full substitution might involve algebraic universes *)
-type universe_full_subst = (universe_level * universe) list
+type universe_full_subst = universe universe_map
 
 (** Constraints *)
 val empty_constraint : constraints
@@ -155,6 +167,7 @@ val union_universe_context : universe_context -> universe_context ->
 
 (** Universe contexts (as sets) *)
 val empty_universe_context_set : universe_context_set
+val is_empty_universe_context_set : universe_context_set -> bool
 val singleton_universe_context_set : universe_level -> universe_context_set
 val universe_context_set_of_list : universe_list -> universe_context_set
 val universe_context_set_of_universe_context : universe_context -> universe_context_set
@@ -177,6 +190,8 @@ val context_of_universe_context_set : universe_context_set -> universe_context
 
 (** Make a universe level substitution: the list must match the context variables. *)
 val make_universe_subst : universe_list -> universe_context -> universe_subst
+val empty_subst : universe_subst
+val is_empty_subst : universe_subst -> bool
 
 (** Get the instantiated graph. *)
 val instantiate_univ_context : universe_subst -> universe_context -> constraints
@@ -185,8 +200,8 @@ val instantiate_univ_context : universe_subst -> universe_context -> constraints
 val subst_univs_level : universe_subst -> universe_level -> universe_level
 val subst_univs_universe : universe_subst -> universe -> universe
 val subst_univs_constraints : universe_subst -> constraints -> constraints
-val subst_univs_context : universe_context_set -> universe_level -> universe_level -> 
-  universe_context_set
+(* val subst_univs_context : universe_context_set -> universe_level -> universe_level ->  *)
+(*   universe_context_set *)
 
 val subst_univs_full_level : universe_full_subst -> universe_level -> universe
 

@@ -217,29 +217,29 @@ End ChoiceSchemes.
 (** Generalized schemes *)
 
 Notation RelationalChoice :=
-  (forall A B, RelationalChoice_on A B).
+  (forall A B : Type, RelationalChoice_on A B).
 Notation FunctionalChoice :=
-  (forall A B, FunctionalChoice_on A B).
+  (forall A B : Type, FunctionalChoice_on A B).
 Definition FunctionalDependentChoice :=
-  (forall A, FunctionalDependentChoice_on A).
+  (forall A : Type, FunctionalDependentChoice_on A).
 Definition FunctionalCountableChoice :=
-  (forall A, FunctionalCountableChoice_on A).
+  (forall A : Type, FunctionalCountableChoice_on A).
 Notation FunctionalChoiceOnInhabitedSet :=
-  (forall A B, inhabited B -> FunctionalChoice_on A B).
+  (forall A B : Type, inhabited B -> FunctionalChoice_on A B).
 Notation FunctionalRelReification :=
-  (forall A B, FunctionalRelReification_on A B).
+  (forall A B : Type, FunctionalRelReification_on A B).
 
 Notation GuardedRelationalChoice :=
-  (forall A B, GuardedRelationalChoice_on A B).
+  (forall A B : Type, GuardedRelationalChoice_on A B).
 Notation GuardedFunctionalChoice :=
-  (forall A B, GuardedFunctionalChoice_on A B).
+  (forall A B : Type, GuardedFunctionalChoice_on A B).
 Notation GuardedFunctionalRelReification :=
-  (forall A B, GuardedFunctionalRelReification_on A B).
+  (forall A B : Type, GuardedFunctionalRelReification_on A B).
 
 Notation OmniscientRelationalChoice :=
-  (forall A B, OmniscientRelationalChoice_on A B).
+  (forall A B : Type, OmniscientRelationalChoice_on A B).
 Notation OmniscientFunctionalChoice :=
-  (forall A B, OmniscientFunctionalChoice_on A B).
+  (forall A B : Type, OmniscientFunctionalChoice_on A B).
 
 Notation ConstructiveDefiniteDescription :=
   (forall A : Type, ConstructiveDefiniteDescription_on A).
@@ -247,9 +247,9 @@ Notation ConstructiveIndefiniteDescription :=
   (forall A : Type, ConstructiveIndefiniteDescription_on A).
 
 Notation IotaStatement :=
-  (forall A, IotaStatement_on A).
+  (forall A : Type, IotaStatement_on A).
 Notation EpsilonStatement :=
-  (forall A, EpsilonStatement_on A).
+  (forall A : Type, EpsilonStatement_on A).
 
 (** Subclassical schemes *)
 
@@ -293,7 +293,7 @@ Proof.
 Qed.
 
 Lemma funct_choice_imp_rel_choice :
-  forall A B, FunctionalChoice_on A B -> RelationalChoice_on A B.
+  forall A B : Type, FunctionalChoice_on A B -> RelationalChoice_on A B.
 Proof.
   intros A B FunCh R H.
   destruct (FunCh R H) as (f,H0).
@@ -306,7 +306,7 @@ Proof.
 Qed.
 
 Lemma funct_choice_imp_description :
-  forall A B, FunctionalChoice_on A B -> FunctionalRelReification_on A B.
+  forall A B : Type, FunctionalChoice_on A B -> FunctionalRelReification_on A B.
 Proof.
   intros A B FunCh R H.
   destruct (FunCh R) as [f H0].
@@ -319,7 +319,7 @@ Proof.
 Qed.
 
 Corollary FunChoice_Equiv_RelChoice_and_ParamDefinDescr :
-  forall A B, FunctionalChoice_on A B <->
+  forall A B : Type, FunctionalChoice_on A B <->
     RelationalChoice_on A B /\ FunctionalRelReification_on A B.
 Proof.
   intros A B; split.
@@ -363,7 +363,7 @@ Proof.
 Qed.
 
 Lemma rel_choice_indep_of_general_premises_imp_guarded_rel_choice :
-  forall A B, inhabited B -> RelationalChoice_on A B ->
+  forall A B : Type, inhabited B -> RelationalChoice_on A B ->
     IndependenceOfGeneralPremises -> GuardedRelationalChoice_on A B.
 Proof.
   intros A B Inh AC_rel IndPrem P R H.
@@ -375,7 +375,7 @@ Proof.
 Qed.
 
 Lemma guarded_rel_choice_imp_rel_choice :
-  forall A B, GuardedRelationalChoice_on A B -> RelationalChoice_on A B.
+  forall A B : Type, GuardedRelationalChoice_on A B -> RelationalChoice_on A B.
 Proof.
   intros A B GAC_rel R H.
   destruct (GAC_rel (fun _ => True) R) as (R',(HR'R,H0)).

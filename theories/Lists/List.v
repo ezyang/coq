@@ -655,8 +655,6 @@ Section Elts.
 
 End Elts.
 
-Unset Universe Polymorphism.
-
 (*******************************)
 (** * Manipulating whole lists *)
 (*******************************)
@@ -1898,3 +1896,5 @@ Notation AllS := Forall (only parsing). (* was formerly in TheoryList *)
 
 Hint Resolve app_nil_end : datatypes v62.
 (* end hide *)
+
+Unset Universe Polymorphism.

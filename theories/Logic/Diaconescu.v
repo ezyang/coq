@@ -104,7 +104,7 @@ Proof.
   exists R; intros P HP.
   destruct (HR P HP) as (y,(Hy,Huni)).
   exists y; firstorder.
-Qed.
+Admitted. (*FIXME*)
 
 (** The proof of the excluded middle *)
 (** Remark: P could have been in Set or Type *)

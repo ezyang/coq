@@ -463,9 +463,9 @@ let build_case_analysis_scheme_default env sigma pity kind =
 let change_sort_arity sort =
   let rec drec a = match kind_of_term a with
     | Cast (c,_,_) -> drec c
-    | Prod (n,t,c) -> mkProd (n, t, drec c)
-    | LetIn (n,b,t,c) -> mkLetIn (n,b, t, drec c)
-    | Sort _ -> mkSort sort
+    | Prod (n,t,c) -> let s, c' = drec c in s, mkProd (n, t, c')
+    | LetIn (n,b,t,c) -> let s, c' = drec c in s, mkLetIn (n,b,t,c')
+    | Sort s -> s, mkSort sort
     | _ -> assert false
   in
     drec
@@ -476,24 +476,29 @@ let modify_sort_scheme sort =
     match kind_of_term elim with
       | Lambda (n,t,c) ->
 	  if Int.equal npar 0 then
-	    mkLambda (n, change_sort_arity sort t, c)
+	    let s', t' = change_sort_arity sort t in
+	      s', mkLambda (n, t', c)
 	  else
-	    mkLambda (n, t, drec (npar-1) c)
-      | LetIn (n,b,t,c) -> mkLetIn (n,b,t,drec npar c)
+	    let s', t' = drec (npar-1) c in
+	      s', mkLambda (n, t, t')
+      | LetIn (n,b,t,c) -> 
+        let s', t' = drec npar c in s', mkLetIn (n,b,t,t')
       | _ -> anomaly "modify_sort_scheme: wrong elimination type"
   in
   drec
 
 (* Change the sort in the type of an inductive definition, builds the
    corresponding eta-expanded term *)
-let weaken_sort_scheme sort npars term =
+let weaken_sort_scheme env evd set sort npars term ty =
+  let evdref = ref evd in
   let rec drec np elim =
     match kind_of_term elim with
       | Prod (n,t,c) ->
 	  if Int.equal np 0 then
-            let t' = change_sort_arity sort t in
-            mkProd (n, t', c),
-            mkLambda (n, t', mkApp(term,Termops.rel_vect 0 (npars+1)))
+            let osort, t' = change_sort_arity sort t in
+	      evdref := (if set then Evd.set_eq_sort else Evd.set_leq_sort) !evdref sort osort;
+              mkProd (n, t', c),
+              mkLambda (n, t', mkApp(term,Termops.rel_vect 0 (npars+1)))
 	  else
             let c',term' = drec (np-1) c in
 	    mkProd (n, t, c'), mkLambda (n, t, term')
@@ -501,7 +506,8 @@ let weaken_sort_scheme sort npars term =
            mkLetIn (n,b,t,c'), mkLetIn (n,b,t,term')
       | _ -> anomaly "weaken_sort_scheme: wrong elimination type"
   in
-  drec npars
+  let ty, term = drec npars ty in
+    !evdref, ty, term
 
 (**********************************************************************)
 (* Interface to build complex Scheme *)

@@ -24,11 +24,12 @@ open Ind_tables
 
 let optimize_non_type_induction_scheme kind dep sort ind =
   let env = Global.env () in
+  let sigma = Evd.from_env env in
   if check_scheme kind ind then
     (* in case the inductive has a type elimination, generates only one
        induction scheme, the other ones share the same code with the
        apropriate type *)
-    let cte,ctx = Universes.fresh_constant_instance env (find_scheme kind ind) in
+    let sigma, cte = Evd.fresh_constant_instance env sigma (find_scheme kind ind) in
     let c = mkConstU cte in
     let t = type_of_constant_in (Global.env()) cte in
     let (mib,mip) = Global.lookup_inductive ind in
@@ -40,11 +41,12 @@ let optimize_non_type_induction_scheme kind dep sort ind =
 	mib.mind_nparams_rec
       else
 	mib.mind_nparams in
-    let sort, ctx = Universes.extend_context (Universes.fresh_sort_in_family env sort) ctx in
-    let c = snd (weaken_sort_scheme sort npars c t) in      
-      c, Evd.evar_universe_context_of ctx
+    let sigma, sort = Evd.fresh_sort_in_family env sigma sort in
+    let sigma, t', c' = weaken_sort_scheme env sigma true sort npars c t in
+    let sigma, nf = Evarutil.nf_evars_and_universes sigma in
+      nf c, Evd.evar_universe_context sigma
   else
-    let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
+    let sigma, indu = Evd.fresh_inductive_instance env sigma ind in
     let sigma, c = build_induction_scheme env sigma indu dep sort in
       c, Evd.evar_universe_context sigma
 
