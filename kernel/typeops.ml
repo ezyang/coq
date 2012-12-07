@@ -349,7 +349,7 @@ let univ_combinator (ctx,univ) (j,ctx') =
   (j,(union_universe_context_set ctx ctx', merge_constraints (snd ctx') univ))
 
 let univ_combinator_cst (ctx,univ) (j,cst) =
-  (j,(union_universe_context_set ctx (empty_universe_set, cst), merge_constraints cst univ))
+  (j,(union_universe_context_set ctx (Univ.LSet.empty, cst), merge_constraints cst univ))
 
 (* The typing machine. *)
     (* ATTENTION : faudra faire le typage du contexte des Const,
@@ -462,7 +462,7 @@ and execute_recdef env (names,lar,vdef) i cu =
   let vdefv = Array.map j_val vdefj in
   let cst = type_fixpoint env1 names lara vdefj in
   univ_combinator cu2
-    ((lara.(i),(names,lara,vdefv)), (empty_universe_set, cst))
+    ((lara.(i),(names,lara,vdefv)), (Univ.LSet.empty, cst))
 
 and execute_array env = Array.fold_map' (execute env)
 
