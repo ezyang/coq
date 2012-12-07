@@ -587,7 +587,7 @@ let map_constr_with_binders g f l c = match kind_of_term c with
    not taken into account *)
 
 let eq_universes u1 u2 =
-  try List.for_all2 Univ.UniverseLevel.equal u1 u2
+  try List.for_all2 Univ.Level.equal u1 u2
   with Invalid_argument _ -> anomaly ("Ill-formed universe instance")
 
 let compare_constr eq_universes f t1 t2 =

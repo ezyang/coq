@@ -261,13 +261,14 @@ type evar_universe_context
 type 'a in_evar_universe_context = 'a * evar_universe_context
 
 val evar_universe_context_set : evar_universe_context -> Univ.universe_context_set
+val evar_context_universe_context : evar_universe_context -> Univ.universe_context
 val evar_universe_context_of : Univ.universe_context_set -> evar_universe_context
 val empty_evar_universe_context : evar_universe_context
 val union_evar_universe_context : evar_universe_context -> evar_universe_context ->
   evar_universe_context
 
 val normalize_evar_universe_context : evar_universe_context ->
-  Univ.universe_full_subst Univ.in_universe_context_set
+  Univ.universe_full_subst in_evar_universe_context
 
 val new_univ_variable : rigid -> evar_map -> evar_map * Univ.universe
 val new_sort_variable : rigid -> evar_map -> evar_map * sorts

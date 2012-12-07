@@ -74,7 +74,7 @@ let rec pr_disjunction pr = function
 let pr_puniverses f env (c,u) = 
   f env c ++ 
   (if Flags.is_universe_polymorphism () && u <> [] then
-    str"(*" ++ prlist_with_sep spc Univ.pr_uni_level u ++ str"*)"
+    str"(*" ++ prlist_with_sep spc Univ.Level.pr u ++ str"*)"
   else mt())
 
 let explain_elim_arity env ind sorts c pj okinds =

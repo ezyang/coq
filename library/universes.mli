@@ -63,9 +63,9 @@ module UF : Unionfind.PartitionSig with type elt = universe_level
 
 val instantiate_univ_variables : 
   (Univ.constraint_type * Univ.universe_level) list
-  Univ.UniverseLMap.t ->
+  Univ.LMap.t ->
   (Univ.constraint_type * Univ.universe_level) list
-  Univ.UniverseLMap.t ->
+  Univ.LMap.t ->
   universe_level ->
   (UF.elt * Univ.universe) list * Univ.constraints ->
   (UF.elt * Univ.universe) list * Univ.constraints

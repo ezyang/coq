@@ -501,7 +501,7 @@ let subst_constant_def sub = function
   | OpaqueDef lc -> OpaqueDef (subst_lazy_constr sub lc)
 
 (** Local variables and graph *)
-type universe_context = Univ.UniverseLSet.t * Univ.constraints 
+type universe_context = Univ.LSet.t * Univ.constraints 
 
 type constant_body = {
     const_hyps : section_context; (* New: younger hyp at top *)

@@ -135,7 +135,7 @@ let pr_global = pr_global_env Id.Set.empty
 let pr_puniverses f env (c,u) =
   f env c ++ 
   (if !Constrextern.print_universes then
-    str"(*" ++ prlist_with_sep spc Univ.pr_uni_level u ++ str"*)"
+    str"(*" ++ prlist_with_sep spc Univ.Level.pr u ++ str"*)"
    else mt ())
 
 let pr_constant env cst = pr_global_env (Termops.vars_of_env env) (ConstRef cst)

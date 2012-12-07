@@ -8,7 +8,7 @@
 
 (** Universes. *)
 
-module UniverseLevel :
+module Level :
 sig
   type t
   (** Type of universe levels. A universe level is essentially a unique name
@@ -24,9 +24,10 @@ sig
   (** Create a new universe level from a unique identifier and an associated
       module path. *)
 
+  val pr : t -> Pp.std_ppcmds
 end
 
-type universe_level = UniverseLevel.t
+type universe_level = Level.t
 (** Alias name. *)
 
 type universe_list = universe_level list
@@ -47,34 +48,42 @@ sig
   val equal : t -> t -> bool
   (** Equality function *)
 
-  val make : UniverseLevel.t -> t
+  val make : Level.t -> t
   (** Create a constraint-free universe out of a given level. *)
 
+  val pr : t -> Pp.std_ppcmds
 end
 
 type universe = Universe.t
 (** Alias name. *)
 
-module UniverseLSet : Set.S with type elt = universe_level
-module UniverseLMap : Map.S with type key = universe_level
+val pr_uni : universe -> Pp.std_ppcmds
+
+module LSet : sig 
+  include Set.S with type elt = universe_level
+	      
+  val pr : t -> Pp.std_ppcmds
+end
+
+type universe_set = LSet.t
+	      
+module LMap : sig
+  include Map.S with type key = universe_level
+
+  (** Favorizes the bindings in the first map. *)
+  val union : 'a t -> 'a t -> 'a t
+  val elements : 'a t -> (universe_level * 'a) list
+  val of_list : (universe_level * 'a) list -> 'a t
+  val of_set : universe_set -> 'a -> 'a t
+  val mem : universe_level -> 'a t -> bool
+  val universes : 'a t -> universe_set
+
+  val pr : ('a -> Pp.std_ppcmds) -> 'a t -> Pp.std_ppcmds
+end
 
 val empty_universe_list : universe_list
 
-type universe_set = UniverseLSet.t
-val empty_universe_set : universe_set
-val union_universe_set : universe_set -> universe_set -> universe_set
-
-type 'a universe_map = 'a UniverseLMap.t
-val empty_universe_map : 'a universe_map
-(* Favorizes the bindings in the first map. *)
-val union_universe_map : 'a universe_map -> 'a universe_map -> 'a universe_map
-val add_universe_map : universe_level -> 'a -> 'a universe_map -> 'a universe_map
-val find_universe_map : universe_level -> 'a universe_map -> 'a
-val universe_map_elements : 'a universe_map -> (universe_level * 'a) list
-val universe_map_of_set : universe_set -> 'a -> 'a universe_map
-val mem_universe_map : universe_level -> 'a universe_map -> bool
-val universe_map_of_list : (universe_level * 'a) list -> 'a universe_map
-val universe_map_universes : 'a universe_map -> universe_set
+type 'a universe_map = 'a LMap.t
 
 type 'a puniverses = 'a * universe_list
 val out_punivs : 'a puniverses -> 'a
@@ -265,12 +274,9 @@ val univ_depends : universe -> universe -> bool
 
 (** {6 Pretty-printing of universes. } *)
 
-val pr_uni_level : universe_level -> Pp.std_ppcmds
-val pr_uni : universe -> Pp.std_ppcmds
 val pr_universes : universes -> Pp.std_ppcmds
 val pr_constraints : constraints -> Pp.std_ppcmds
 val pr_universe_list : universe_list -> Pp.std_ppcmds
-val pr_universe_set : universe_set -> Pp.std_ppcmds
 val pr_universe_context : universe_context -> Pp.std_ppcmds
 val pr_universe_context_set : universe_context_set -> Pp.std_ppcmds
 
@@ -285,7 +291,7 @@ val dump_universes :
 val hcons_univlevel : universe_level -> universe_level
 val hcons_univ : universe -> universe
 val hcons_constraints : constraints -> constraints
-val hcons_universe_set : universe_set -> universe_set
+val hcons : universe_set -> universe_set
 val hcons_universe_context : universe_context -> universe_context
 val hcons_universe_context_set : universe_context_set -> universe_context_set 
 

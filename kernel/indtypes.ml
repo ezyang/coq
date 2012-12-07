@@ -280,7 +280,7 @@ let typecheck_inductive env ctx mie =
 	else
 	  if not (check_leq (universes env') lev u) then
 	    anomalylabstrm "check_inductive" (Pp.str"Incorrect universe " ++
-					      pr_uni u ++ Pp.str " declared for inductive type, inferred level is " ++ pr_uni lev)
+					      Universe.pr u ++ Pp.str " declared for inductive type, inferred level is " ++ Universe.pr lev)
       in
 	(id,cn,lc,(sign,(info,full_arity,s))), cst)
     inds ind_min_levels (snd ctx)
@@ -397,7 +397,7 @@ if Int.equal nmr 0 then 0 else
   in find 0 (n-1) (lpar,List.rev hyps)
 
 let lambda_implicit_lift n a =
-  let level = UniverseLevel.make (Dir_path.make [Id.of_string "implicit"]) 0 in
+  let level = Level.make (Dir_path.make [Id.of_string "implicit"]) 0 in
   let implicit_sort = mkType (Universe.make level) in
   let lambda_implicit a = mkLambda (Anonymous, implicit_sort, a) in
   iterate lambda_implicit n (lift n a)

@@ -367,7 +367,7 @@ let detype_sort = function
   | Type u ->
     GType
       (if !print_universes
-       then Some (Pp.string_of_ppcmds (Univ.pr_uni u))
+       then Some (Pp.string_of_ppcmds (Univ.Universe.pr u))
        else None)
 
 type binder_kind = BProd | BLambda | BLetIn

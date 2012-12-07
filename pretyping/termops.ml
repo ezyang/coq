@@ -20,7 +20,7 @@ open Locus
 let print_sort = function
   | Prop Pos -> (str "Set")
   | Prop Null -> (str "Prop")
-  | Type u -> (str "Type(" ++ Univ.pr_uni u ++ str ")")
+  | Type u -> (str "Type(" ++ Univ.Universe.pr u ++ str ")")
 
 let pr_sort_family = function
   | InSet -> (str "Set")
@@ -35,7 +35,7 @@ let pr_con sp = str(string_of_con sp)
 
 let pr_puniverses p u = 
   if u = [] then p 
-  else p ++ str"(*" ++ prlist_with_sep spc Univ.pr_uni_level u ++ str"*)"
+  else p ++ str"(*" ++ prlist_with_sep spc Univ.Level.pr u ++ str"*)"
 
 let rec pr_constr c = match kind_of_term c with
   | Rel n -> str "#"++int n
