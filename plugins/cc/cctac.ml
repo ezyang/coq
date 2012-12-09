@@ -442,7 +442,7 @@ let simple_reflexivity () = apply (Universes.constr_of_global _refl_equal)
 let f_equal gl =
   let cut_eq c1 c2 =
     let ty = (pf_type_of gl c1) in
-      if eq_constr c1 c2 then tclIDTAC
+      if eq_constr_nounivs c1 c2 then tclIDTAC
       else
 	tclTHENTRY
 	(Tactics.cut (app_global _eq [|ty; c1; c2|]))
