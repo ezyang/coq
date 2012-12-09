@@ -188,6 +188,8 @@ let parse_args arglist =
 	else if String.equal s "no" then Coq_config.with_geoproof := false
 	else usage ();
 	parse rem
+    | "-parameters-matter" :: rem ->
+        Indtypes.enforce_parameters_matter (); parse rem
     | "-impredicative-set" :: rem ->
         set_engagement Declarations.ImpredicativeSet; parse rem
 
