@@ -78,8 +78,6 @@ type global_reference_or_constr =
   | IsGlobal of global_reference
   | IsConstr of constr
 
-val constr_of_global_or_constr : global_reference_or_constr -> constr Univ.in_universe_context_set
-
 (** {6 Temporary function to brutally form kernel names from section paths } *)
 
 val encode_mind : Dir_path.t -> Id.t -> mutual_inductive

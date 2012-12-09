@@ -44,14 +44,6 @@ open Locus
 (*            The Type of Constructions Autotactic Hints                    *)
 (****************************************************************************)
 
-type constr_or_reference = 
-  | IsConstr of constr
-  | IsReference of global_reference
-
-let constr_of_constr_or_ref env = function
-  | IsConstr c -> c, Univ.empty_universe_context_set
-  | IsReference r -> Universes.fresh_global_instance env r
-
 type 'a auto_tactic =
   | Res_pf     of 'a (* Hint Apply *)
   | ERes_pf    of 'a (* Hint EApply *)
@@ -128,7 +120,7 @@ let empty_se = ([],[],Bounded_net.create ())
 let eq_constr_or_reference x y = 
   match x, y with
   | IsConstr x, IsConstr y -> eq_constr x y
-  | IsReference x, IsReference y -> eq_gr x y
+  | IsGlobal x, IsGlobal y -> eq_gr x y
   | _, _ -> false
 
 let eq_pri_auto_tactic (_, x) (_, y) =
@@ -174,7 +166,7 @@ let is_transparent_gr (ids, csts) = function
 let dummy_goal = Goal.V82.dummy_goal
 
 let instantiate_constr_or_ref env sigma c =
-  let c, ctx = constr_of_constr_or_ref env c in
+  let c, ctx = Universes.fresh_global_or_constr_instance env c in
   let cty = Retyping.get_type_of env sigma c in
     (c, cty), ctx
 
@@ -561,7 +553,7 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c, cty,
    cty is the type of constr *)
 
 let make_resolves env sigma flags pri ?name cr =
-  let c, ctx = constr_of_constr_or_ref env cr in
+  let c, ctx = Universes.fresh_global_or_constr_instance env cr in
   let cty = Retyping.get_type_of env sigma c in
   let try_apply f =
     try Some (f (c, cty, ctx)) with Failure _ -> None in
@@ -603,7 +595,7 @@ let make_extern pri pat tacast =
      code = Extern tacast })  
 
 let make_trivial env sigma ?(name=PathAny) r =
-  let c,ctx = constr_of_global_or_constr env r in
+  let c,ctx = Universes.fresh_global_or_constr_instance env r in
   let t = hnf_constr env sigma (type_of env sigma c) in
   let hd = head_of_constr_reference (fst (head_constr t)) in
   let ce = mk_clenv_from dummy_goal (c,t) in
@@ -678,9 +670,9 @@ let set_extern_subst_tactic f = forward_subst_tactic := f
   (*   | IsConstr c -> let c' = subst_mps subst c in  *)
   (* 		      if c' == c then cr *)
   (* 		      else IsConstr c' *)
-  (*   | IsReference r -> let r' = subst_global_reference subst r in *)
+  (*   | IsGlobal r -> let r' = subst_global_reference subst r in *)
   (* 			 if r' == r then cr *)
-  (* 			 else IsReference r' *)
+  (* 			 else IsGlobal r' *)
   (* in *)
 
 let subst_autohint (subst,(local,name,hintlist as obj)) =
@@ -775,8 +767,7 @@ let add_resolves env sigma clist local dbnames =
 	 (inAutoHint
 	    (local,dbname, AddHints
      	      (List.flatten (List.map (fun (x, hnf, path, gr) ->
-	        let c = constr_of_global_or_constr env gr in
-		  make_resolves env sigma (true,hnf,Flags.is_verbose()) x ~name:path c) clist)))))
+	        make_resolves env sigma (true,hnf,Flags.is_verbose()) x ~name:path gr) clist)))))
     dbnames
 
 let add_unfolds l local dbnames =
@@ -878,7 +869,7 @@ let interp_hints =
     let evd,c = Constrintern.interp_open_constr Evd.empty (Global.env()) c in
     let c = prepare_hint (Global.env()) (evd,c) in
     Evarutil.check_evars (Global.env()) Evd.empty evd c;
-    c, Evd.get_universe_context_set evd in
+      c in
   let fr r =
     let gr = global_with_alias r in
     let r' = evaluable_of_global_reference (Global.env()) gr in
@@ -937,7 +928,7 @@ let add_hints local dbnames0 h =
 
 let pr_constr_or_ref = function
   | IsConstr c -> pr_constr c
-  | IsReference gr -> pr_global gr
+  | IsGlobal gr -> pr_global gr
 
 let pr_autotactic =
   function

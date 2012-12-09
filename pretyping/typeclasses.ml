@@ -283,7 +283,7 @@ let build_subclasses ~check env sigma glob pri =
 	  let rest = aux pri body path' in
 	    hints @ (path', pri, body) :: rest
 	in List.fold_left declare_proj [] projs 
-  in aux pri (fresh_constr_of_global glob) [glob]
+  in aux pri (Universes.constr_of_global glob) [glob]
 
 (*
  * instances persistent object

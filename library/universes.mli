@@ -45,6 +45,9 @@ val fresh_constructor_instance : env -> constructor ->
 val fresh_global_instance : env -> Globnames.global_reference -> 
   constr in_universe_context_set
 
+val fresh_global_or_constr_instance : env -> Globnames.global_reference_or_constr -> 
+  constr in_universe_context_set
+
 val extend_context : 'a in_universe_context_set -> universe_context_set -> 
   'a in_universe_context_set
 
