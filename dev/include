@@ -39,6 +39,7 @@
 #install_printer  (* univ context set *) ppuniverse_context_set;;
 #install_printer  (* univ set *) ppuniverse_set;;
 #install_printer  (* univ list *) ppuniverse_list;;
+#install_printer  (* univ subst *) ppuniverse_subst;;
 #install_printer  (* univ full subst *) ppuniverse_full_subst;;
 #install_printer  (* univ opt subst *) ppuniverse_opt_subst;;
 #install_printer  (* evar univ ctx *) ppevar_universe_context;;

@@ -550,7 +550,7 @@ let collect_vars c =
    [m] is appropriately lifted through abstractions of [t] *)
 
 let dependent_main noevar univs m t =
-  let eqc x y = if univs then fst (eq_constr_univs x y) else eq_constr x y in
+  let eqc x y = if univs then fst (eq_constr_univs x y) else eq_constr_nounivs x y in
   let rec deprec m t =
     if eqc m t then
       raise Occur

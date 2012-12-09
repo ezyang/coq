@@ -844,11 +844,11 @@ let normalize_evar_universe_context_variables uctx =
   let ctx_local = subst_univs_context_with_def def subst uctx.uctx_local in
     subst, { uctx with uctx_local = ctx_local; uctx_univ_variables = normalized_variables }
     
-let normalize_evar_universe_context uctx = 
+let normalize_evar_universe_context uctx subst = 
   let undef, _ = Univ.LMap.partition (fun i b -> b = None) uctx.uctx_univ_variables in
   let undef = Univ.LMap.universes undef in
   let (subst', us') = 
-    Universes.normalize_context_set uctx.uctx_local undef
+    Universes.normalize_context_set uctx.uctx_local subst undef
       uctx.uctx_univ_algebraic
   in 
   let uctx' = { uctx with uctx_local = us'; uctx_univ_variables = Univ.LMap.empty } in
@@ -865,10 +865,9 @@ let normalize_univ_level fullsubst u =
   
 let nf_constraints ({evars = (sigma, uctx)} as d) = 
   let subst, uctx' = normalize_evar_universe_context_variables uctx in
-  let subst', uctx' = normalize_evar_universe_context uctx' in
+  let subst', uctx' = normalize_evar_universe_context uctx' subst in
   let evd' = {d with evars = (sigma, uctx')} in
-  let subst'' = Univ.LMap.map (normalize_univ_level subst') subst in
-    evd', Univ.LMap.union subst' subst''
+    evd', subst'
 
 (* Conversion w.r.t. an evar map and its local universes. *)
 

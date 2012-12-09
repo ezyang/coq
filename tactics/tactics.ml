@@ -1530,14 +1530,14 @@ let generalized_name c t ids cl = function
                constante dont on aurait pu prendre directement le nom *)
 	    named_hd (Global.env()) t Anonymous
 
-let generalize_goal gl i ((occs,c,b),na) cl =
+let generalize_goal gl i ((occs,c,b),na) (cl,cst) =
   let t = pf_type_of gl c in
   let decls,cl = decompose_prod_n_assum i cl in
   let dummy_prod = it_mkProd_or_LetIn mkProp decls in
-  let newdecls,_ = decompose_prod_n_assum i (subst_term c dummy_prod) in
-  let cl' = subst_closed_term_occ occs c (it_mkProd_or_LetIn cl newdecls) in
+  let newdecls,_ = decompose_prod_n_assum i (subst_term_gen eq_constr_nounivs c dummy_prod) in
+  let cl',cst' = subst_closed_term_univs_occ occs c (it_mkProd_or_LetIn cl newdecls) in
   let na = generalized_name c t (pf_ids_of_hyps gl) cl' na in
-    mkProd_or_LetIn (na,b,t) cl'
+    mkProd_or_LetIn (na,b,t) cl', Univ.Constraint.union cst cst'
 
 let generalize_dep ?(with_let=false) c gl =
   let env = pf_env gl in
@@ -1567,18 +1567,20 @@ let generalize_dep ?(with_let=false) c gl =
       | _ -> None
     else None
   in
-  let cl'' = generalize_goal gl 0 ((AllOccurrences,c,body),Anonymous) cl' in
+  let cl'',cst = generalize_goal gl 0 ((AllOccurrences,c,body),Anonymous) (cl',Univ.empty_constraint) in
   let args = Array.to_list (instance_from_named_context to_quantify_rev) in
-  tclTHEN
-    (apply_type cl'' (if Option.is_empty body then c::args else args))
-    (thin (List.rev tothin'))
+  tclTHENLIST
+    [tclPUSHCONSTRAINTS cst;
+     apply_type cl'' (if Option.is_empty body then c::args else args);
+     thin (List.rev tothin')]
     gl
 
 let generalize_gen_let lconstr gl =
-  let newcl =
-    List.fold_right_i (generalize_goal gl) 0 lconstr (pf_concl gl) in
-  apply_type newcl (List.map_filter (fun ((_,c,b),_) -> 
-    if Option.is_empty b then Some c else None) lconstr) gl
+  let newcl,cst =
+    List.fold_right_i (generalize_goal gl) 0 lconstr (pf_concl gl,Univ.empty_constraint) in
+  tclTHEN (tclPUSHCONSTRAINTS cst)
+    (apply_type newcl (List.map_filter (fun ((_,c,b),_) -> 
+      if Option.is_empty b then Some c else None) lconstr)) gl
 
 let generalize_gen lconstr =
   generalize_gen_let (List.map (fun ((occs,c),na) ->

@@ -391,6 +391,9 @@ let tclEVARS sigma gls = tclIDTAC {gls with sigma=sigma}
 let tclPUSHCONTEXT rigid ctx tac gl = 
   tclTHEN (tclEVARS (Evd.merge_context_set rigid (project gl) ctx)) tac gl
 
+let tclPUSHCONSTRAINTS cst gl = 
+  tclEVARS (Evd.add_constraints (project gl) cst) gl
+
 (* Pretty-printers. *)
 
 let pp_info = ref (fun _ _ _ -> assert false)

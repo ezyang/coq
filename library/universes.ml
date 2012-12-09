@@ -284,7 +284,7 @@ let simplify_max_expressions csts subst =
 let subst_univs_subst u l s = 
   LMap.add u l s
     
-let normalize_context_set (ctx, csts) us algs = 
+let normalize_context_set (ctx, csts) substdef us algs = 
   let uf = UF.create () in
   let noneqs = 
     Constraint.fold (fun (l,d,r as cstr) noneqs ->
@@ -382,6 +382,7 @@ let normalize_context_set (ctx, csts) us algs =
   let usalg, usnonalg = 
     List.partition (fun (u, _) -> LSet.mem u algs) ussubst
   in
+  let subst = LMap.union substdef subst in
   let subst = 
     LMap.union (Univ.LMap.of_list usalg)
       (LMap.fold (fun u v acc ->

@@ -747,6 +747,9 @@ let pr_universe_context_set (ctx, cst) =
 let pr_universe_full_subst = 
   LMap.pr (fun u -> str" := " ++ Universe.pr u ++ spc ())
 
+let pr_universe_subst = 
+  LMap.pr (fun u -> str" := " ++ Level.pr u ++ spc ())
+
 (** Constraints *)
 let empty_constraint = Constraint.empty
 let is_empty_constraint = Constraint.is_empty
