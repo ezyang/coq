@@ -216,7 +216,7 @@ end
 (* 2nd part used to check consistency on the fly. *)
 type evar_universe_context = 
   { uctx_local : Univ.universe_context_set; (** The local context of variables *)
-    uctx_univ_variables : Univ.universe_level option Univ.universe_map; 
+    uctx_univ_variables : Universes.universe_opt_subst;
       (** The local universes that are unification variables *)
     uctx_univ_algebraic : Univ.universe_set; (** The subset of unification variables that can be instantiated with 
 						 algebraic universes as they appear in types only. *)
@@ -245,6 +245,46 @@ type 'a in_evar_universe_context = 'a * evar_universe_context
 let evar_universe_context_set ctx = ctx.uctx_local
 let evar_context_universe_context ctx = Univ.context_of_universe_context_set ctx.uctx_local
 let evar_universe_context_of ctx = { empty_evar_universe_context with uctx_local = ctx }
+
+let nf_univ_level vars l = 
+  let rec aux acc l =
+    match Univ.LMap.find_opt l vars with
+    | Some (Some b) -> aux (Univ.LSet.add l acc) b
+    | Some None -> acc, true, l
+    | None -> acc, false, l
+  in aux Univ.LSet.empty l 
+
+let set_univ_variables vars undefs l' =
+  Univ.LSet.fold (fun u vars -> 
+    Univ.LMap.add u (Some l') vars)
+    undefs vars
+
+let process_constraints vars local cstrs =
+  Univ.Constraint.fold (fun (l,d,r as cstr) (vars, local) ->
+    if d = Univ.Eq then
+      let eql, undefl, l' = nf_univ_level vars l 
+      and eqr, undefr, r' = nf_univ_level vars r in
+      let eqs = Univ.LSet.union eql eqr in
+      let can, noncan = if undefl then r', l else l', r in
+	if undefl || undefr then
+	  let eqs = 
+	    if Univ.Level.eq can noncan then eqs
+	    else Univ.LSet.add noncan eqs
+	  in
+	  let vars' = set_univ_variables vars eqs can in
+	    (vars', local)
+	else
+	  let vars' = set_univ_variables vars eqs can in
+	    (vars', Univ.Constraint.add cstr local)
+    else (vars, Univ.Constraint.add cstr local))
+  cstrs (vars, local)
+
+let add_constraints_context ctx cstrs =
+  let univs, local = ctx.uctx_local in
+  let vars, local = process_constraints ctx.uctx_univ_variables local cstrs in
+    { ctx with uctx_local = (univs, local);
+      uctx_univ_variables = vars;
+      uctx_universes = Univ.merge_constraints cstrs ctx.uctx_universes }
 
 module EvarMap = struct
 
@@ -287,10 +327,6 @@ module EvarMap = struct
         EvarInfoMap.is_defined sigma2 k))
 
   let merge e e' = fold e' (fun n v sigma -> add sigma n v) e
-
-  let add_constraints_context ctx cstrs =
-    { ctx with uctx_local = Univ.add_constraints_ctx ctx.uctx_local cstrs; 
-      uctx_universes = Univ.merge_constraints cstrs ctx.uctx_universes }
   let add_constraints (sigma, ctx) cstrs =
     (sigma, add_constraints_context ctx cstrs)
 end
@@ -670,6 +706,35 @@ let is_sort_variable {evars=(_,uctx)} s =
     | None -> None)
   | _ -> None
 
+let normalize_universe_level_unsafe uctx t =
+  match Univ.LMap.find t uctx.uctx_univ_variables with
+  | None -> t
+  | Some b -> b
+
+let normalize_universe_level {evars=(_,uctx)} t =
+  try normalize_universe_level_unsafe uctx t
+  with Not_found -> t
+
+let normalize_universe_list_ctx uctx l =
+  CList.smartmap (fun u -> 
+    try (normalize_universe_level_unsafe uctx u) 
+    with Not_found -> u) l
+
+let normalize_universe_list {evars=(_,uctx)} l =
+  normalize_universe_list_ctx uctx l
+
+let normalize_universe {evars=(_,uctx)} t =
+  match t with
+  | Univ.Universe.Atom l -> 
+    (try Univ.Universe.Atom (normalize_universe_level_unsafe uctx l)
+     with Not_found -> t)
+  | Univ.Universe.Max (gel, gtl) ->
+    let gel' = normalize_universe_list_ctx uctx gel 
+    and gtl' = normalize_universe_list_ctx uctx gtl
+    in 
+      if gel' == gel && gtl' == gtl then t
+      else Univ.Universe.normalize (Univ.Universe.Max (gel', gtl'))
+
 let whd_sort_variable {evars=(_,sm)} t = t
 
 let is_eq_sort s1 s2 =
@@ -739,7 +804,15 @@ let set_eq_level d u1 u2 =
 let set_leq_level d u1 u2 =
   add_constraints d (Univ.enforce_leq_level u1 u2 Univ.empty_constraint)
 
+let normalize_sort evars s =
+  match s with
+  | Prop _ -> s
+  | Type u -> 
+    let u' = normalize_universe evars u in
+      if u' == u then s else Type u'
+
 let set_leq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
+  let s1 = normalize_sort d s1 and s2 = normalize_sort d s2 in
   match is_eq_sort s1 s2 with
   | None -> d
   | Some (u1, u2) ->
@@ -758,29 +831,6 @@ let set_leq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
 	 | Variable (LocalUniv u | GlobalUniv u) ->
 	   add_constraints d (Univ.enforce_leq u1 u2 Univ.empty_constraint))
 
-let normalize_univ_variable ectx b =
-  let rec aux cur =
-    try let res = Univ.LMap.find cur !ectx in
-	  match res with
-	  | Some b -> 
-	    (match aux b with
-	    | Some _ as b' -> ectx := Univ.LMap.add cur b' !ectx; b'
-	    | None -> res)
-	  | None -> None
-    with Not_found -> None
-  in aux b
-	  
-let normalize_univ_variables ctx = 
-  let ectx = ref ctx in
-  let undef, def, subst = 
-    Univ.LMap.fold (fun u _ (undef, def, subst) -> 
-      let res = normalize_univ_variable ectx u in
-	match res with
-	| None -> (Univ.LSet.add u undef, def, subst)
-	| Some b -> (undef, Univ.LSet.add u def, Univ.LMap.add u b subst))
-    ctx (Univ.LSet.empty, Univ.LSet.empty, Univ.LMap.empty)
-  in !ectx, undef, def, subst
-
 let subst_univs_context_with_def def usubst (ctx, cst) =
   (Univ.LSet.diff ctx def, Univ.subst_univs_constraints usubst cst)
 
@@ -789,7 +839,7 @@ let subst_univs_context usubst ctx =
 
 let normalize_evar_universe_context_variables uctx =
   let normalized_variables, undef, def, subst = 
-    normalize_univ_variables uctx.uctx_univ_variables 
+    Universes.normalize_univ_variables uctx.uctx_univ_variables 
   in
   let ctx_local = subst_univs_context_with_def def subst uctx.uctx_local in
     subst, { uctx with uctx_local = ctx_local; uctx_univ_variables = normalized_variables }
@@ -805,16 +855,21 @@ let normalize_evar_universe_context uctx =
     subst', uctx'
 
 let nf_univ_variables ({evars = (sigma, uctx)} as d) = 
-  let subst, uctx = normalize_evar_universe_context_variables uctx in
-  let subst, uctx' = normalize_evar_universe_context uctx in
+  let subst, uctx' = normalize_evar_universe_context_variables uctx in
   let evd' = {d with evars = (sigma, uctx')} in
     evd', subst
 
+let normalize_univ_level fullsubst u =
+  try Univ.LMap.find u fullsubst
+  with Not_found -> Univ.Universe.make u
+  
 let nf_constraints ({evars = (sigma, uctx)} as d) = 
-  let subst, uctx' = normalize_evar_universe_context uctx in
+  let subst, uctx' = normalize_evar_universe_context_variables uctx in
+  let subst', uctx' = normalize_evar_universe_context uctx' in
   let evd' = {d with evars = (sigma, uctx')} in
-    evd', subst
-        	    
+  let subst'' = Univ.LMap.map (normalize_univ_level subst') subst in
+    evd', Univ.LMap.union subst' subst''
+
 (* Conversion w.r.t. an evar map and its local universes. *)
 
 let conversion env ({evars = (sigma, uctx)} as d) pb t u =
@@ -1071,6 +1126,13 @@ let evar_dependency_closure n sigma =
       aux (n-1) (List.uniquize (Sort.list order (l@l'))) in
   aux n (undefined_list sigma)
 
+let pr_evar_universe_context ctx =
+  if is_empty_evar_universe_context ctx then mt ()
+  else
+    (str"UNIVERSES:"++brk(0,1)++ h 0 (Univ.pr_universe_context_set ctx.uctx_local) ++ fnl () ++
+     str"UNDEFINED UNIVERSES:"++brk(0,1)++ 
+       h 0 (Universes.pr_universe_opt_subst ctx.uctx_univ_variables))
+
 let pr_evar_map_t depth sigma =
   let (evars,ctx) = sigma.evars in
   let pr_evar_list l =
@@ -1078,11 +1140,6 @@ let pr_evar_map_t depth sigma =
 	   (fun (ev,evi) ->
 	     h 0 (str(string_of_existential ev) ++
                     str"==" ++ pr_evar_info evi)) l) in
-  let pr_body v = 
-    match v with
-    | None -> mt ()
-    | Some v -> str" := " ++ Univ.Level.pr v
-  in
   let evs =
     if EvarInfoMap.is_empty evars then mt ()
     else
@@ -1096,13 +1153,8 @@ let pr_evar_map_t depth sigma =
           (if Int.equal n 0 then mt() else str" (+level "++int n++str" closure):")++
           brk(0,1)++
           pr_evar_list (evar_dependency_closure n sigma)++fnl()
-  and svs =
-    if is_empty_evar_universe_context ctx then mt ()
-    else
-      (str"UNIVERSES:"++brk(0,1)++ h 0 (Univ.pr_universe_context_set ctx.uctx_local) ++ fnl () ++
-       str"UNDEFINED UNIVERSES:"++brk(0,1)++ 
-         h 0 (Univ.LMap.pr pr_body ctx.uctx_univ_variables))
-  in evs ++ svs
+  and svs = pr_evar_universe_context ctx in 
+    evs ++ svs
 
 let print_env_short env =
   let pr_body n = function None -> pr_name n | Some b -> str "(" ++ pr_name n ++ str " := " ++ print_constr b ++ str ")" in

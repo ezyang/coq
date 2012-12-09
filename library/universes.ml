@@ -277,47 +277,6 @@ let simplify_max_expressions csts subst =
   in
     CList.smartmap (smartmap_pair id simplify_max) subst
 
-let smartmap_universe_list f x =
-  match x with
-  | Atom _ -> x
-  | Max (gel, gtl) ->
-    let gel' = f Le gel and gtl' = f Lt gtl in
-      if gel == gel' && gtl == gtl' then x
-      else 
-	(match gel', gtl' with
-	| [x], [] -> Atom x
-	| [], [] -> raise (Invalid_argument "smartmap_universe_list")
-	| _, _ -> Max (gel', gtl'))
-
-let smartmap_pair f g x =
-  let (a, b) = x in
-  let a' = f a and b' = g b in
-    if a' == a && b' == b then x
-    else (a', b')
-
-let has_constraint csts x d y =
-  Constraint.exists (fun (l,d',r) ->
-    eq_levels x l && d = d' && eq_levels y r)
-    csts
-
-let id x = x
-
-let simplify_max_expressions csts subst = 
-  let remove_higher d l =
-    let rec aux found acc = function
-      | [] -> if found then acc else l
-      | ge :: ges -> 
-      if List.exists (fun ge' -> has_constraint csts ge d ge') acc 
-	|| List.exists (fun ge' -> has_constraint csts ge d ge') ges then
-	aux true acc ges
-      else aux found (ge :: acc) ges
-    in aux false [] l
-  in
-  let simplify_max x =
-    smartmap_universe_list remove_higher x
-  in
-    CList.smartmap (smartmap_pair id simplify_max) subst
-
 let subst_univs_subst u l s = 
   LMap.add u l s
     
@@ -508,3 +467,36 @@ let fresh_universe_context_set_instance (univs, cst) =
 (* 	(u,u') :: subst) *)
 (*     univs [] *)
     
+
+
+let normalize_univ_variable ectx b =
+  let rec aux cur =
+    try let res = Univ.LMap.find cur !ectx in
+	  match res with
+	  | Some b -> 
+	    (match aux b with
+	    | Some _ as b' -> ectx := Univ.LMap.add cur b' !ectx; b'
+	    | None -> res)
+	  | None -> None
+    with Not_found -> None
+  in aux b
+	  
+let normalize_univ_variables ctx = 
+  let ectx = ref ctx in
+  let undef, def, subst = 
+    Univ.LMap.fold (fun u _ (undef, def, subst) -> 
+      let res = normalize_univ_variable ectx u in
+	match res with
+	| None -> (Univ.LSet.add u undef, def, subst)
+	| Some b -> (undef, Univ.LSet.add u def, Univ.LMap.add u b subst))
+    ctx (Univ.LSet.empty, Univ.LSet.empty, Univ.LMap.empty)
+  in !ectx, undef, def, subst
+
+
+let pr_universe_body = function
+  | None -> mt ()
+  | Some v -> str" := " ++ Univ.Level.pr v
+
+type universe_opt_subst = universe_level option universe_map
+
+let pr_universe_opt_subst = Univ.LMap.pr pr_universe_body

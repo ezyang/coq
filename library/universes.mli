@@ -79,6 +79,8 @@ val normalize_context_set : universe_context_set ->
   universe_set (* univ variables that can be substituted by algebraics *) -> 
   universe_full_subst in_universe_context_set
 
+val normalize_univ_variables : universe_level option universe_map -> 
+  universe_level option universe_map * universe_set * universe_set * universe_subst
 
 (** Create a fresh global in the global environment, shouldn't be done while
     building polymorphic values as the constraints are added to the global
@@ -102,3 +104,7 @@ val subst_univs_full_constr : universe_full_subst -> constr -> constr
     Useful to make tactics that manipulate constrs in universe contexts polymorphic. *)
 val fresh_universe_context_set_instance : universe_context_set -> 
   universe_subst * universe_context_set
+
+type universe_opt_subst = universe_level option universe_map
+
+val pr_universe_opt_subst : universe_opt_subst -> Pp.std_ppcmds

@@ -17,7 +17,7 @@ sig
   val compare : t -> t -> int
   (** Comparison function *)
 
-  val equal : t -> t -> bool
+  val eq : t -> t -> bool
   (** Equality function *)
 
   val make : Names.Dir_path.t -> int -> t
@@ -91,6 +91,8 @@ sig
   val of_set : universe_set -> 'a -> 'a t
   val mem : universe_level -> 'a t -> bool
   val universes : 'a t -> universe_set
+
+  val find_opt : universe_level -> 'a t -> 'a option
 
   val pr : ('a -> Pp.std_ppcmds) -> 'a t -> Pp.std_ppcmds
 end
@@ -289,6 +291,7 @@ val pr_constraints : constraints -> Pp.std_ppcmds
 val pr_universe_list : universe_list -> Pp.std_ppcmds
 val pr_universe_context : universe_context -> Pp.std_ppcmds
 val pr_universe_context_set : universe_context_set -> Pp.std_ppcmds
+val pr_universe_full_subst : universe_full_subst -> Pp.std_ppcmds
 
 (** {6 Dumping to a file } *)
 

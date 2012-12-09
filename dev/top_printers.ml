@@ -138,13 +138,16 @@ let pppftreestate p = pp(print_pftreestate p)
 (* let pproof p = pp(print_proof Evd.empty empty_named_context p) *)
 
 let ppuni u = pp(pr_uni u)
-let ppuni_level u = pp (pr_uni_level u)
-let ppuniverses u = pp (str"[" ++ pr_universes u ++ str"]")
+let ppuni_level u = pp (Level.pr u)
+let ppuniverses u = pp (str"[" ++ Universe.pr u ++ str"]")
 
-let ppuniverse_set l = pp (pr_universe_set l)
+let ppuniverse_set l = pp (LSet.pr l)
 let ppuniverse_list l = pp (pr_universe_list l)
 let ppuniverse_context l = pp (pr_universe_context l)
 let ppuniverse_context_set l = pp (pr_universe_context_set l)
+let ppuniverse_opt_subst l = pp (Universes.pr_universe_opt_subst l)
+let ppuniverse_full_subst l = pp (Univ.pr_universe_full_subst l)
+let ppevar_universe_context l = pp (Evd.pr_evar_universe_context l)
 
 let ppconstraints c = pp (pr_constraints c)
 
@@ -216,7 +219,7 @@ let constr_display csr =
     incr cnt; pp (str "with " ++ int !cnt ++ pr_uni u ++ fnl ())
 
   and univ_level_display u =
-    incr cnt; pp (str "with " ++ int !cnt ++ pr_uni_level u ++ fnl ())
+    incr cnt; pp (str "with " ++ int !cnt ++ Level.pr u ++ fnl ())
   
   and sort_display = function
     | Prop(Pos) -> "Prop(Pos)"
@@ -331,7 +334,7 @@ let print_pure_constr csr =
   and box_display c = open_hovbox 1; term_display c; close_box()
 
   and universes_display u =
-    List.iter (fun u -> print_space (); pp (pr_uni_level u)) u
+    List.iter (fun u -> print_space (); pp (Level.pr u)) u
 
   and sort_display = function
     | Prop(Pos) -> print_string "Set"

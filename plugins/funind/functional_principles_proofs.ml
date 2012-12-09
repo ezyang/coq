@@ -134,6 +134,8 @@ let refine c =
 let thin l =
   Tacmach.thin_no_check l
 
+let eq_constr u v = eq_constr_nounivs u v
+
 let is_trivial_eq t =
   let res =   try
     begin
