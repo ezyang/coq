@@ -674,7 +674,18 @@ let rec whd_evar sigma c =
         (match safe_evar_value sigma ev with
             Some c -> whd_evar sigma c
           | None -> c)
-    | Sort s -> whd_sort_variable sigma c
+    | Sort (Type u) -> 
+      let u' = Evd.normalize_universe sigma u in
+	if u' == u then c else mkSort (Type u')
+    | Const (c', u) -> 
+      let u' = Evd.normalize_universe_list sigma u in
+	if u' == u then c else mkConstU (c', u')
+    | Ind (i, u) -> 
+      let u' = Evd.normalize_universe_list sigma u in
+	if u' == u then c else mkIndU (i, u')
+    | Construct (co, u) -> 
+      let u' = Evd.normalize_universe_list sigma u in
+	if u' == u then c else mkConstructU (co, u')
     | _ -> c
 
 let nf_evar =

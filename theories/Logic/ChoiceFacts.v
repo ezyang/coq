@@ -96,6 +96,12 @@ Local Unset Intuition Negation Unfolding.
 
 (** Choice, reification and description schemes *)
 
+(** We make them all polymorphic. most of them have existentials as conclusion
+    so they require polymorphism otherwise their first application (e.g. to an
+    existential in [Set]) will fix the level of [A].
+*)
+Set Universe Polymorphism.
+
 Section ChoiceSchemes.
 
 Variables A B :Type.
@@ -213,6 +219,8 @@ Definition IotaStatement_on :=
     inhabited A -> { x:A | (exists! x, P x) -> P x }.
 
 End ChoiceSchemes.
+
+Unset Universe Polymorphism.
 
 (** Generalized schemes *)
 
@@ -716,7 +724,7 @@ Proof.
   exists (f (existT _ A (existT _ P H'))).
   pose (Hf' := Hf (existT _ A (existT _ P H'))).
   assumption.
-Admitted.
+Qed.
 
 Lemma constructive_indefinite_descr_fun_choice :
   ConstructiveIndefiniteDescription -> FunctionalChoice.
@@ -745,7 +753,7 @@ Proof.
   exists (f (existT _ A (existT _ P H'))).
   pose (Hf' := Hf (existT _ A (existT _ P H'))).
   assumption.
-Admitted. (*FIXME*)
+Qed.
 
 Lemma constructive_definite_descr_fun_reification :
   ConstructiveDefiniteDescription -> FunctionalRelReification.
@@ -794,7 +802,7 @@ be applied on the same Type universes on both sides of the first
 Require Import Setoid.
 
 Theorem constructive_definite_descr_excluded_middle :
-  ConstructiveDefiniteDescription ->
+  (forall A : Type, ConstructiveDefiniteDescription_on A) ->
   (forall P:Prop, P \/ ~ P) -> (forall P:Prop, {P} + {~ P}).
 Proof.
   intros Descr EM P.

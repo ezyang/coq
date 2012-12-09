@@ -267,6 +267,9 @@ val empty_evar_universe_context : evar_universe_context
 val union_evar_universe_context : evar_universe_context -> evar_universe_context ->
   evar_universe_context
 
+val add_constraints_context : evar_universe_context -> 
+  Univ.constraints -> evar_universe_context
+
 val normalize_evar_universe_context : evar_universe_context ->
   Univ.universe_full_subst in_evar_universe_context
 
@@ -277,6 +280,10 @@ val is_sort_variable : evar_map -> sorts -> (Univ.universe_level * bool) option
 (** [is_sort_variable evm s] returns [Some (u, is_rigid)] or [None] if [s] is 
     not a sort variable declared in [evm] *)
 val whd_sort_variable : evar_map -> constr -> constr
+val normalize_universe_level : evar_map -> Univ.universe_level -> Univ.universe_level
+val normalize_universe : evar_map -> Univ.universe -> Univ.universe
+val normalize_universe_list : evar_map -> Univ.universe_list -> Univ.universe_list
+
 val set_leq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
@@ -291,6 +298,8 @@ val merge_universe_context : evar_map -> evar_universe_context -> evar_map
 val merge_context_set : rigid -> evar_map -> Univ.universe_context_set -> evar_map
 
 val with_context_set : rigid -> evar_map -> 'a Univ.in_universe_context_set -> evar_map * 'a
+
+val nf_univ_variables : evar_map -> evar_map * Univ.universe_subst
 
 val nf_constraints : evar_map -> evar_map * Univ.universe_full_subst
 
@@ -336,6 +345,7 @@ val pr_evar_info : evar_info -> Pp.std_ppcmds
 val pr_evar_map_constraints : evar_map -> Pp.std_ppcmds
 val pr_evar_map : int option -> evar_map -> Pp.std_ppcmds
 val pr_metaset : Metaset.t -> Pp.std_ppcmds
+val pr_evar_universe_context : evar_universe_context -> Pp.std_ppcmds
 
 
 (*** /!\Deprecated /!\ **

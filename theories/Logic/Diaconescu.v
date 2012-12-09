@@ -99,12 +99,12 @@ Lemma AC_bool_subset_to_bool :
 Proof.
   destruct (guarded_rel_choice _ _
    (fun Q:bool -> Prop =>  exists y : _, Q y)
-   (fun (Q:bool -> Prop) (y:bool) => Q y)) as (R,(HRsub,HR)).
+   (fun (Q:bool -> Prop) (y:bool) => Q y)) as (R,(HRsub,HR)). 
     exact (fun _ H => H).
   exists R; intros P HP.
   destruct (HR P HP) as (y,(Hy,Huni)).
   exists y; firstorder.
-Admitted. (*FIXME*)
+Qed.
 
 (** The proof of the excluded middle *)
 (** Remark: P could have been in Set or Type *)

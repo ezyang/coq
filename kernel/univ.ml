@@ -59,14 +59,12 @@ module Level = struct
       else if i1 > i2 then 1
       else Names.Dir_path.compare dp1 dp2)
 
-  let equal u v = match u,v with
+  let eq u v = match u,v with
     | Prop, Prop -> true
     | Set, Set -> true
     | Level (i1, dp1), Level (i2, dp2) ->
       Int.equal i1 i2 && Int.equal (Names.Dir_path.compare dp1 dp2) 0
     | _ -> false
-
-  let eq u v = equal u v
 
   let make m n = Level (n, m)
 
@@ -116,9 +114,12 @@ module LMap = struct
     fold (fun u _ acc -> LSet.add u acc) m LSet.empty
 
   let pr f m =
-    fold (fun u v acc -> 
-      h 0 (Level.pr u ++ f v) ++ acc) m (mt())
-      
+    h 0 (prlist_with_sep fnl (fun (u, v) ->
+      Level.pr u ++ f v) (elements m))
+
+  let find_opt t m =
+    try Some (find t m)
+    with Not_found -> None
 end
 
 module LList = struct
@@ -126,7 +127,7 @@ module LList = struct
 
   let empty = []
   let eq l l' = 
-    try List.for_all2 Level.equal l l'
+    try List.for_all2 Level.eq l l'
     with Invalid_argument _ -> false
 
 end
@@ -140,7 +141,7 @@ type 'a puniverses = 'a * universe_list
 let out_punivs (a, _) = a
 
 let compare_levels = Level.compare
-let eq_levels = Level.equal
+let eq_levels = Level.eq
 
 (* An algebraic universe [universe] is either a universe variable
    [Level.t] or a formal universe known to be greater than some
@@ -239,7 +240,7 @@ let super = function
 let sup u v =
   match u,v with
     | Atom ua, Atom va ->
-	if Level.equal ua va then u else
+	if Level.eq ua va then u else
 	  if ua = Level.Prop then v
 	  else if va = Level.Prop then u
 	  else Max ([ua;va],[])
@@ -743,6 +744,9 @@ let pr_universe_context_set (ctx, cst) =
   if LSet.is_empty ctx && Constraint.is_empty cst then mt() else
     LSet.pr ctx ++ str " |= " ++ v 1 (pr_constraints cst)
 
+let pr_universe_full_subst = 
+  LMap.pr (fun u -> str" := " ++ Universe.pr u ++ spc ())
+
 (** Constraints *)
 let empty_constraint = Constraint.empty
 let is_empty_constraint = Constraint.is_empty
@@ -888,17 +892,17 @@ type constraint_function =
 
 let constraint_add_leq v u c =
   (* We just discard trivial constraints like u<=u *)
-  if Level.equal v u then c
+  if Level.eq v u then c
   else Constraint.add (v,Le,u) c
 
 let check_univ_eq u v =
   match u, v with
   | (Atom u, Atom v)
   | Atom u, Max ([v],[])
-  | Max ([u],[]), Atom v -> Level.equal u v
+  | Max ([u],[]), Atom v -> Level.eq u v
   | Max (gel,gtl), Max (gel',gtl') ->
-    compare_list Level.equal gel gel' &&
-    compare_list Level.equal gtl gtl'
+    compare_list Level.eq gel gel' &&
+    compare_list Level.eq gtl gtl'
   | _, _ -> false
 
 let enforce_leq u v c =
@@ -917,7 +921,7 @@ let enforce_eq u v c =
   match (u,v) with
     | Atom u, Atom v ->
       (* We discard trivial constraints like u=u *)
-      if Level.equal u v then c else Constraint.add (u,Eq,v) c
+      if Level.eq u v then c else Constraint.add (u,Eq,v) c
     | _ -> anomaly "A universe comparison can only happen between variables"
 
 let enforce_eq u v c =
@@ -925,10 +929,10 @@ let enforce_eq u v c =
   else enforce_eq u v c
 
 let enforce_eq_level u v c =
-  if Level.equal u v then c else Constraint.add (u,Eq,v) c
+  if Level.eq u v then c else Constraint.add (u,Eq,v) c
 
 let enforce_leq_level u v c =
-  if Level.equal u v then c else Constraint.add (u,Le,v) c
+  if Level.eq u v then c else Constraint.add (u,Le,v) c
   
 let merge_constraints c g =
   Constraint.fold enforce_constraint c g
@@ -1151,11 +1155,11 @@ let make_max = function
   | (le,lt) -> Max (le,lt)
 
 let remove_large_constraint u = function
-  | Atom u' as x -> if Level.equal u u' then Max ([],[]) else x
+  | Atom u' as x -> if Level.eq u u' then Max ([],[]) else x
   | Max (le,lt) -> make_max (List.remove u le,lt)
 
 let is_direct_constraint u = function
-  | Atom u' -> Level.equal u u'
+  | Atom u' -> Level.eq u u'
   | Max (le,lt) -> List.mem u le
 
 (*
@@ -1218,7 +1222,7 @@ let no_upper_constraints u cst =
 
 let univ_depends u v =
   match u, v with
-    | Atom u, Atom v -> Level.equal u v
+    | Atom u, Atom v -> Level.eq u v
     | Atom u, Max (gel,gtl) -> List.mem u gel || List.mem u gtl
     | _ -> anomaly "univ_depends given a non-atomic 1st arg"
 

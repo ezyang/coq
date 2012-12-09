@@ -586,10 +586,6 @@ let map_constr_with_binders g f l c = match kind_of_term c with
    application associativity, binders name and Cases annotations are
    not taken into account *)
 
-let eq_universes u1 u2 =
-  try List.for_all2 Univ.Level.equal u1 u2
-  with Invalid_argument _ -> anomaly ("Ill-formed universe instance")
-
 let compare_constr eq_universes f t1 t2 =
   match kind_of_term t1, kind_of_term t2 with
   | Rel n1, Rel n2 -> Int.equal n1 n2
@@ -626,7 +622,7 @@ let compare_constr eq_universes f t1 t2 =
 (* alpha conversion : ignore print names and casts *)
 
 let rec eq_constr m n =
-  (m == n) || compare_constr eq_universes eq_constr m n
+  (m == n) || compare_constr LList.eq eq_constr m n
 
 let eq_constr m n = eq_constr m n (* to avoid tracing a recursive fun *)
 
@@ -642,13 +638,16 @@ let eq_constr_univs m n =
       with Invalid_argument _ -> anomaly "Ill-formed universe instance"
     in
     let rec eq_constr' m n = 
-      m == n ||	compare_constr eq_universes eq_constr m n
+      m == n ||	compare_constr eq_universes eq_constr' m n
     in
     let res = compare_constr eq_universes eq_constr' m n in
       res, !cstrs
 
+let rec eq_constr_nounivs m n =
+  (m == n) || compare_constr (fun _ _ -> true) eq_constr_nounivs m n
+
 (** Strict equality of universe instances. *)
-let compare_constr = compare_constr eq_universes
+let compare_constr = compare_constr LList.eq
 
 let constr_ord_int f t1 t2 =
   let (=?) f g i1 i2 j1 j2=
