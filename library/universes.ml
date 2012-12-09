@@ -89,6 +89,10 @@ let constr_of_global gr =
   let c, ctx = fresh_global_instance (Global.env ()) gr in
     Global.add_constraints (snd ctx); c
 
+let fresh_global_or_constr_instance env = function
+  | IsConstr c -> c, Univ.empty_universe_context_set
+  | IsGlobal gr -> fresh_global_instance env gr
+
 open Declarations
 
 let type_of_reference env r =

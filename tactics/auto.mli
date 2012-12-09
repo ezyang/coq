@@ -23,13 +23,6 @@ open Pp
 
 (** Auto and related automation tactics *)
 
-type constr_or_reference = 
-  | IsConstr of constr
-  | IsReference of global_reference
-
-val constr_of_constr_or_ref : env -> constr_or_reference -> 
-  constr * Univ.universe_context_set
-
 type 'a auto_tactic =
   | Res_pf     of 'a (* Hint Apply *)
   | ERes_pf    of 'a (* Hint EApply *)
@@ -164,7 +157,7 @@ val make_apply_entry :
 
 val make_resolves :
   env -> evar_map -> bool * bool * bool -> int option -> ?name:hints_path_atom -> 
-  constr_or_reference -> hint_entry list
+  global_reference_or_constr -> hint_entry list
 
 (** [make_resolve_hyp hname htyp].
    used to add an hypothesis to the local hint database;
