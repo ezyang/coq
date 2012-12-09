@@ -291,6 +291,7 @@ val pr_constraints : constraints -> Pp.std_ppcmds
 val pr_universe_list : universe_list -> Pp.std_ppcmds
 val pr_universe_context : universe_context -> Pp.std_ppcmds
 val pr_universe_context_set : universe_context_set -> Pp.std_ppcmds
+val pr_universe_subst : universe_subst -> Pp.std_ppcmds
 val pr_universe_full_subst : universe_full_subst -> Pp.std_ppcmds
 
 (** {6 Dumping to a file } *)

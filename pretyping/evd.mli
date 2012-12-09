@@ -270,7 +270,7 @@ val union_evar_universe_context : evar_universe_context -> evar_universe_context
 val add_constraints_context : evar_universe_context -> 
   Univ.constraints -> evar_universe_context
 
-val normalize_evar_universe_context : evar_universe_context ->
+val normalize_evar_universe_context : evar_universe_context -> Univ.universe_subst ->
   Univ.universe_full_subst in_evar_universe_context
 
 val new_univ_variable : rigid -> evar_map -> evar_map * Univ.universe

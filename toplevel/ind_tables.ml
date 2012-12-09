@@ -125,7 +125,7 @@ let compute_name internal id =
 let define internal id c p univs =
   let fd = declare_constant ~internal in
   let id = compute_name internal id in
-  let subst, ctx = Evd.normalize_evar_universe_context univs in
+  let subst, ctx = Evd.normalize_evar_universe_context univs Univ.LMap.empty in
   let c = Universes.subst_univs_full_constr subst c in
   let kn = fd id
     (DefinitionEntry
