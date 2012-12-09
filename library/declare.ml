@@ -253,7 +253,7 @@ let discharge_inductive ((sp,kn),(dhyps,mie)) =
   let repl = replacement_context () in
   let sechyps,uctx = section_segment_of_mutual_inductive mind in
   Some (discharged_hyps kn sechyps,
-        Discharge.process_inductive (named_of_variable_context sechyps) repl mie)
+        Discharge.process_inductive (named_of_variable_context sechyps,uctx) repl mie)
 
 let dummy_one_inductive_entry mie = {
   mind_entry_typename = mie.mind_entry_typename;

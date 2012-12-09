@@ -71,7 +71,7 @@ and mk_clos_app_but f_map subs f args n =
       | None -> mk_clos_app_but f_map subs f args (n+1)
 
 let interp_map l t =
-  try Some(List.assoc_f eq_constr t l) with Not_found -> None
+  try Some(List.assoc_f eq_constr_nounivs t l) with Not_found -> None
 
 let protect_maps = ref String.Map.empty
 let add_map s m = protect_maps := String.Map.add s m !protect_maps
@@ -462,7 +462,7 @@ let op_smorph r add mul req m1 m2 =
 (* let default_ring_equality (r,add,mul,opp,req) = *)
 (*   let is_setoid = function *)
 (*       {rel_refl=Some _; rel_sym=Some _;rel_trans=Some _;rel_aeq=rel} -> *)
-(*         eq_constr req rel (\* Qu: use conversion ? *\) *)
+(*         eq_constr_nounivs req rel (\* Qu: use conversion ? *\) *)
 (*     | _ -> false in *)
 (*   match default_relation_for_carrier ~filter:is_setoid r with *)
 (*       Leibniz _ -> *)
@@ -477,7 +477,7 @@ let op_smorph r add mul req m1 m2 =
 (*         let is_endomorphism = function *)
 (*             { args=args } -> List.for_all *)
 (*                 (function (var,Relation rel) -> *)
-(*                   var=None && eq_constr req rel *)
+(*                   var=None && eq_constr_nounivs req rel *)
 (*                   | _ -> false) args in *)
 (*         let add_m = *)
 (*           try default_morphism ~filter:is_endomorphism add *)
@@ -514,7 +514,7 @@ let op_smorph r add mul req m1 m2 =
 
 let ring_equality (r,add,mul,opp,req) =
   match kind_of_term req with
-    | App (f, [| _ |]) when eq_constr f (Lazy.force coq_eq) ->
+    | App (f, [| _ |]) when eq_constr_nounivs f (Lazy.force coq_eq) ->
 	let setoid = lapp coq_eq_setoid [|r|] in
 	let op_morph =
 	  match opp with
@@ -568,13 +568,13 @@ let dest_ring env sigma th_spec =
   let th_typ = Retyping.get_type_of env sigma th_spec in
   match kind_of_term th_typ with
       App(f,[|r;zero;one;add;mul;sub;opp;req|])
-        when eq_constr f (Lazy.force coq_almost_ring_theory) ->
+        when eq_constr_nounivs f (Lazy.force coq_almost_ring_theory) ->
           (None,r,zero,one,add,mul,Some sub,Some opp,req)
     | App(f,[|r;zero;one;add;mul;req|])
-        when eq_constr f (Lazy.force coq_semi_ring_theory) ->
+        when eq_constr_nounivs f (Lazy.force coq_semi_ring_theory) ->
         (Some true,r,zero,one,add,mul,None,None,req)
     | App(f,[|r;zero;one;add;mul;sub;opp;req|])
-        when eq_constr f (Lazy.force coq_ring_theory) ->
+        when eq_constr_nounivs f (Lazy.force coq_ring_theory) ->
         (Some false,r,zero,one,add,mul,Some sub,Some opp,req)
     | _ -> error "bad ring structure"
 
@@ -584,10 +584,10 @@ let dest_morph env sigma m_spec =
   match kind_of_term m_typ with
       App(f,[|r;zero;one;add;mul;sub;opp;req;
               c;czero;cone;cadd;cmul;csub;copp;ceqb;phi|])
-        when eq_constr f (Lazy.force coq_ring_morph) ->
+        when eq_constr_nounivs f (Lazy.force coq_ring_morph) ->
           (c,czero,cone,cadd,cmul,Some csub,Some copp,ceqb,phi)
     | App(f,[|r;zero;one;add;mul;req;c;czero;cone;cadd;cmul;ceqb;phi|])
-        when eq_constr f (Lazy.force coq_semi_morph) ->
+        when eq_constr_nounivs f (Lazy.force coq_semi_morph) ->
         (c,czero,cone,cadd,cmul,None,None,ceqb,phi)
     | _ -> error "bad morphism structure"
 
@@ -885,18 +885,18 @@ let dest_field env sigma th_spec =
   let th_typ = Retyping.get_type_of env sigma th_spec in
   match kind_of_term th_typ with
     | App(f,[|r;zero;one;add;mul;sub;opp;div;inv;req|])
-        when eq_constr f (Lazy.force afield_theory) ->
+        when eq_constr_nounivs f (Lazy.force afield_theory) ->
         let rth = lapp af_ar
           [|r;zero;one;add;mul;sub;opp;div;inv;req;th_spec|] in
         (None,r,zero,one,add,mul,Some sub,Some opp,div,inv,req,rth)
     | App(f,[|r;zero;one;add;mul;sub;opp;div;inv;req|])
-        when eq_constr f (Lazy.force field_theory) ->
+        when eq_constr_nounivs f (Lazy.force field_theory) ->
         let rth =
           lapp f_r
             [|r;zero;one;add;mul;sub;opp;div;inv;req;th_spec|] in
         (Some false,r,zero,one,add,mul,Some sub,Some opp,div,inv,req,rth)
     | App(f,[|r;zero;one;add;mul;div;inv;req|])
-        when eq_constr f (Lazy.force sfield_theory) ->
+        when eq_constr_nounivs f (Lazy.force sfield_theory) ->
         let rth = lapp sf_sr
           [|r;zero;one;add;mul;div;inv;req;th_spec|] in
         (Some true,r,zero,one,add,mul,None,None,div,inv,req,rth)
@@ -1019,7 +1019,7 @@ let ftheory_to_obj : field_info -> obj =
 
 let field_equality r inv req =
   match kind_of_term req with
-    | App (f, [| _ |]) when eq_constr f (Lazy.force coq_eq) ->
+    | App (f, [| _ |]) when eq_constr_nounivs f (Lazy.force coq_eq) ->
         mkApp((Coqlib.build_coq_eq_data()).congr,[|r;r;inv|])
     | _ ->
 	let _setoid = setoid_of_relation (Global.env ()) r req in

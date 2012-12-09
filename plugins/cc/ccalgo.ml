@@ -104,7 +104,7 @@ type term=
 
 let rec term_equal t1 t2 =
   match t1, t2 with
-    | Symb c1, Symb c2 -> eq_constr c1 c2
+    | Symb c1, Symb c2 -> eq_constr_nounivs c1 c2
     | Product (s1, t1), Product (s2, t2) -> s1 = s2 && t1 = t2
     | Eps i1, Eps i2 -> Id.compare i1 i2 = 0
     | Appli (t1, u1), Appli (t2, u2) -> term_equal t1 t2 && term_equal u1 u2

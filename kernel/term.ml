@@ -633,8 +633,8 @@ let eq_constr_univs m n =
     let eq_univs l l' = 
       cstrs := Univ.enforce_eq_level l l' !cstrs; true
     in
-    let eq_universes = 
-      try List.for_all2 eq_univs
+    let eq_universes l l' = 
+      try List.for_all2 eq_univs l l'
       with Invalid_argument _ -> anomaly "Ill-formed universe instance"
     in
     let rec eq_constr' m n = 
