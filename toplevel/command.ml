@@ -295,7 +295,7 @@ let extract_level env evd tys =
 
 let inductive_levels env evdref paramlev arities inds =
   let destarities = List.map (Reduction.dest_arity env) arities in
-  let levels = List.map (fun (_,a) -> 
+  let levels = List.map (fun (ctx,a) ->   
     if a = Prop Null then None else Some (univ_of_sort a)) destarities in
   let cstrs_levels = List.map (fun (_,tys,_) -> extract_level env !evdref tys) inds in
   (* Take the transitive closure of the system of constructors *)
@@ -342,7 +342,9 @@ let interp_mutual_inductive (paramsl,indl) notations poly finite =
   let fullarities = List.map (fun (c, _) -> it_mkProd_or_LetIn c ctx_params) arities in
   let env_ar = push_types env0 indnames fullarities in
   let env_ar_params = push_rel_context ctx_params env_ar in
-  let paramlev = Univ.type0m_univ in
+  let paramlev = 
+    if Indtypes.is_parameters_matter () then params_level env0 ctx_params
+    else Univ.type0m_univ in
 
   (* Compute interpretation metadatas *)
   let indimpls = List.map (fun (_, impls) -> userimpls @ 
