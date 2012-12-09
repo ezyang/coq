@@ -19,6 +19,14 @@ open Typeops
 open Entries
 open Pp
 
+(* Tell if indices (aka real arguments) contribute to size of inductive type *)
+(* If yes, this is compatible with the univalent model *)
+
+let parameters_matter = ref false
+
+let enforce_parameters_matter () = parameters_matter := true
+let is_parameters_matter () = !parameters_matter
+
 (* Same as noccur_between but may perform reductions.
    Could be refined more...  *)
 let weaker_noccur_between env x nvars t =
@@ -121,10 +129,20 @@ let rec infos_and_sort env ctx t =
     | _ when is_constructor_head t -> []
     | _ -> (* don't fail if not positive, it is tested later *) []
 
-let small_unit constrsinfos =
-  let issmall = List.for_all is_small constrsinfos
-  and isunit = is_unit constrsinfos in
-  issmall, isunit
+let is_small_univ u =
+  (* Compatibility with homotopy model where we interpret only Prop
+     to have proof-irrelevant equality. *)
+  is_type0m_univ u
+
+let small_unit constrsinfos arsign_lev =
+  let issmall = List.for_all is_small constrsinfos in
+  let issmall' =
+    if constrsinfos <> [] && !parameters_matter then
+      issmall && is_small_univ arsign_lev
+    else
+      issmall in
+  let isunit = is_unit constrsinfos in
+  issmall', isunit
 
 (* Computing the levels of polymorphic inductive types
 
@@ -176,6 +194,17 @@ let infer_constructor_packet env_ar_par ctx params lc =
   let info = small_unit (List.map (infos_and_sort env_ar_par ctx) lc) in
   (info,lc'',level,univs)
 
+(* If parameters matter *)
+let cumulate_arity_large_levels env sign =
+  fst (List.fold_right
+    (fun (_,_,t as d) (lev,env) ->
+      let u, s = dest_prod_assum env t in
+	match kind_of_term s with
+	| Sort s -> let u = univ_of_sort s in
+		      ((if is_small_univ u then lev else sup u lev), push_rel d env)
+	| _ -> lev, push_rel d env)
+    sign (type0m_univ,env))
+
 (* Type-check an inductive definition. Does not check positivity
    conditions. *)
 (* TODO check that we don't overgeneralize construcors/inductive arities with
@@ -193,8 +222,10 @@ let typecheck_inductive env ctx mie =
   let (env_params, params), univs = infer_local_decls env' mie.mind_entry_params in
   let paramlev = 
     (* The level of the inductive includes levels of parameters if 
-       in relevant_equality mode *)
-    type0m_univ 
+       in parameters_matter mode *)
+    if !parameters_matter 
+    then cumulate_arity_large_levels env' params 
+    else type0m_univ 
   in
   (* We first type arity of each inductive definition *)
   (* This allows to build the environment of arities and to share *)
@@ -282,7 +313,7 @@ let typecheck_inductive env ctx mie =
 	    anomalylabstrm "check_inductive" (Pp.str"Incorrect universe " ++
 					      Universe.pr u ++ Pp.str " declared for inductive type, inferred level is " ++ Universe.pr lev)
       in
-	(id,cn,lc,(sign,(info,full_arity,s))), cst)
+	(id,cn,lc,(sign,(info u,full_arity,s))), cst)
     inds ind_min_levels (snd ctx)
   in
     
@@ -611,7 +642,12 @@ let allowed_sorts issmall isunit s =
   (* Unitary/empty Prop: elimination to all sorts are realizable *)
   (* unless the type is large. If it is large, forbids large elimination *)
   (* which otherwise allows to simulate the inconsistent system Type:Type *)
-  | InProp when isunit -> if issmall then all_sorts else small_sorts
+  (* If type is not small and additionally parameters matter, forbids any *)
+  (* informative elimination too *)
+  | InProp when isunit ->
+      if issmall then all_sorts
+      else if !parameters_matter then logical_sorts
+      else small_sorts
 
   (* Other propositions: elimination only to Prop *)
   | InProp -> logical_sorts
