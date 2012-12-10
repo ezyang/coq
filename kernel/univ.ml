@@ -102,6 +102,13 @@ module LMap = struct
       | Some _, _ -> l
       | _, _ -> r) l r
 
+  let subst_union l r = 
+    merge (fun k l r -> 
+      match l, r with
+      | Some (Some _), _ -> l
+      | Some None, None -> l
+      | _, _ -> r) l r
+
   let elements = bindings
   let of_set s d = 
     LSet.fold (fun u -> add u d) s

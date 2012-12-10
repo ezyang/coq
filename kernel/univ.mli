@@ -86,6 +86,8 @@ sig
 
   (** Favorizes the bindings in the first map. *)
   val union : 'a t -> 'a t -> 'a t
+  val subst_union : 'a option t -> 'a option t -> 'a option t
+
   val elements : 'a t -> (universe_level * 'a) list
   val of_list : (universe_level * 'a) list -> 'a t
   val of_set : universe_set -> 'a -> 'a t

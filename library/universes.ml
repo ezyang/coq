@@ -34,7 +34,7 @@ let fresh_universe_instance (ctx, _) =
 
 let fresh_instance_from_context (vars, cst as ctx) =
   let inst = fresh_universe_instance ctx in
-  let subst = make_universe_subst vars (inst, cst) in
+  let subst = make_universe_subst inst ctx in
   let constraints = instantiate_univ_context subst ctx in
     (inst, subst), constraints
 
@@ -44,7 +44,7 @@ let fresh_instance (ctx, _) =
 let fresh_instance_from (vars, cst as ctx) =
   let ctx' = fresh_instance ctx in
   let inst = LSet.elements ctx' in
-  let subst = make_universe_subst vars (inst, cst) in
+  let subst = make_universe_subst inst ctx in
   let constraints = instantiate_univ_context subst ctx in
     (inst, subst), (ctx', constraints)
 

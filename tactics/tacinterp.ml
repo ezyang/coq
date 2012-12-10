@@ -476,14 +476,12 @@ let interp_gen kind ist allow_patvar expand_evar fail_evar use_classes
     catch_error trace 
       (understand_ltac ~resolve_classes:use_classes expand_evar sigma env vars kind) c 
   in
-  let evdc = 
-    (* Resolve universe constraints right away.
-       FIXME: assumes the invariant that the proof is already normal w.r.t. universes.
-    *)
-    let (evd, c) = evdc in
-    let evd', f = Evarutil.nf_evars_and_universes evd in
-      evd, f c
-  in
+  (* let evdc =  *)
+  (*   (\* Resolve universe constraints right away. *\) *)
+  (*   let (evd, c) = evdc in *)
+  (*   let evd', f = Evarutil.nf_evars_and_universes evd in *)
+  (*     evd, f c *)
+  (* in *)
   let (evd,c) =
     if expand_evar then
       solve_remaining_evars fail_evar use_classes
@@ -902,7 +900,7 @@ type 'a extended_matching_result =
       e_sub : bound_ident_map * extended_patvar_map;
       e_nxt : unit -> 'a extended_matching_result }
 
-(* Tries to match one hypothesis pattern with a list of hypotheses *)
+(* Trieso to match one hypothesis pattern with a list of hypotheses *)
 let apply_one_mhyp_context ist env gl lmatch (hypname,patv,pat) lhyps =
   let get_id_couple id = function
     | Name idpat -> [idpat,VConstr ([],mkVar id)]
@@ -1095,7 +1093,7 @@ and interp_tacarg ist gl arg =
         let (sigma,fv) = interp_ltac_reference loc true ist gl f in
 	let (sigma,largs) =
 	  List.fold_right begin fun a (sigma',acc) ->
-	    let (sigma', a_interp) = interp_tacarg ist gl a in
+	    let (sigma', a_interp) = interp_tacarg ist { gl with sigma=sigma'} a in
 	    sigma' , a_interp::acc
 	  end l (sigma,[])
 	in
