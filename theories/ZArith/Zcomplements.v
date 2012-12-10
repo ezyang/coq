@@ -53,11 +53,11 @@ Theorem Z_lt_abs_rec :
     forall n:Z, P n.
 Proof.
   intros P HP p.
-  set (Q := fun z => 0 <= z -> P z * P (- z)).
+  set (Q := fun z => 0 <= z -> P z * P (- z) : Set).
   cut (Q (Z.abs p)); [ intros | apply (Z_lt_rec Q); auto with zarith ].
   elim (Zabs_dec p); intro eq; rewrite eq;
     elim H; auto with zarith.
-  unfold Q; clear Q; intros.
+  intros; subst Q.
   split; apply HP.
   rewrite Z.abs_eq; auto; intros.
   elim (H (Z.abs m)); intros; auto with zarith.
