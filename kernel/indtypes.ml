@@ -22,10 +22,10 @@ open Pp
 (* Tell if indices (aka real arguments) contribute to size of inductive type *)
 (* If yes, this is compatible with the univalent model *)
 
-let parameters_matter = ref false
+let indices_matter = ref false
 
-let enforce_parameters_matter () = parameters_matter := true
-let is_parameters_matter () = !parameters_matter
+let enforce_indices_matter () = indices_matter := true
+let is_indices_matter () = !indices_matter
 
 (* Same as noccur_between but may perform reductions.
    Could be refined more...  *)
@@ -137,7 +137,7 @@ let is_small_univ u =
 let small_unit constrsinfos arsign_lev =
   let issmall = List.for_all is_small constrsinfos in
   let issmall' =
-    if constrsinfos <> [] && !parameters_matter then
+    if constrsinfos <> [] && !indices_matter then
       issmall && is_small_univ arsign_lev
     else
       issmall in
@@ -194,15 +194,13 @@ let infer_constructor_packet env_ar_par ctx params lc =
   let info = small_unit (List.map (infos_and_sort env_ar_par ctx) lc) in
   (info,lc'',level,univs)
 
-(* If parameters matter *)
+(* If indices matter *)
 let cumulate_arity_large_levels env sign =
   fst (List.fold_right
     (fun (_,_,t as d) (lev,env) ->
-      let u, s = dest_prod_assum env t in
-	match kind_of_term s with
-	| Sort s -> let u = univ_of_sort s in
-		      ((if is_small_univ u then lev else sup u lev), push_rel d env)
-	| _ -> lev, push_rel d env)
+      let tj, _ = infer_type env t in
+      let u = univ_of_sort tj.utj_type in
+	((if is_small_univ u then lev else sup u lev), push_rel d env))
     sign (type0m_univ,env))
 
 (* Type-check an inductive definition. Does not check positivity
@@ -220,13 +218,6 @@ let typecheck_inductive env ctx mie =
   (* Params are typed-checked here *)
   let env' = push_constraints_to_env ctx env in
   let (env_params, params), univs = infer_local_decls env' mie.mind_entry_params in
-  let paramlev = 
-    (* The level of the inductive includes levels of parameters if 
-       in parameters_matter mode *)
-    if !parameters_matter 
-    then cumulate_arity_large_levels env' params 
-    else type0m_univ 
-  in
   (* We first type arity of each inductive definition *)
   (* This allows to build the environment of arities and to share *)
   (* the set of constraints *)
@@ -251,7 +242,15 @@ let typecheck_inductive env ctx mie =
 	   else let arity, ctx' = infer_type env_params ind.mind_entry_arity in
 		  arity.utj_val, ctx'
 	 in
-	 (* let arity, ctx' = infer_type env_params ind.mind_entry_arity in *)
+	 let lev = 
+	   (* The level of the inductive includes levels of indices if 
+	      in indices_matter mode *)
+	   if !indices_matter 
+	   then
+	     let (ctx, s) = dest_arity env_params arity in
+	       Some (sup (univ_of_sort s) (cumulate_arity_large_levels env_params ctx))
+	   else None
+	 in
 	 (* We do not need to generate the universe of full_arity; if
 	    later, after the validation of the inductive definition,
 	    full_arity is used as argument or subject to cast, an
@@ -264,10 +263,13 @@ let typecheck_inductive env ctx mie =
 	 let lev =
 	   (* Decide that if the conclusion is not explicitly Type *)
 	   (* then the inductive type is not polymorphic *)
-	   match kind_of_term ((strip_prod_assum arity)) with
-	   | Sort (Type u) -> Some u
-	   | _ -> None in
-         (env_ar',union_universe_context_set ctx ctx',(id,full_arity,lev)::l))
+	   match lev with
+	   | Some _ -> lev
+	   | None ->
+	     (match kind_of_term ((strip_prod_assum arity)) with
+	     | Sort (Type u) -> Some u
+	     | _ -> None)
+	 in (env_ar',union_universe_context_set ctx ctx',(id,full_arity,lev)::l))
       (env',univs,[])
       mie.mind_entry_inds in
 
@@ -299,7 +301,10 @@ let typecheck_inductive env ctx mie =
     Array.fold_map2' (fun ((id,full_arity,ar_level),cn,info,lc,_) lev cst ->
       let sign, s = dest_arity env full_arity in
       let u = Term.univ_of_sort s in
-      let lev = sup lev paramlev in
+      let lev = match ar_level with 
+	| Some alev -> sup lev alev
+	| None -> lev
+      in
       let _ = 
 	if is_type0m_univ u then () (* Impredicative prop + any universe is higher than prop *)
 	else if is_type0_univ u then 
@@ -316,28 +321,6 @@ let typecheck_inductive env ctx mie =
 	(id,cn,lc,(sign,(info u,full_arity,s))), cst)
     inds ind_min_levels (snd ctx)
   in
-    
-
-      (* let status,cst = match s with *)
-      (* | Type u when ar_level <> None (\* Explicitly polymorphic *\) *)
-      (*       && no_upper_constraints u cst -> *)
-      (* 	  (\* The polymorphic level is a function of the level of the *\) *)
-      (* 	  (\* conclusions of the parameters *\) *)
-      (*     (\* We enforce [u >= lev] in case [lev] has a strict upper *\) *)
-      (*     (\* constraints over [u] *\) *)
-      (*     let arity = mkArity (sign, Type lev) in *)
-      (*     (info,arity,Type lev), enforce_leq lev u cst *)
-      (* | Type u (\* Not an explicit occurrence of Type *\) -> *)
-      (* 	  (info,full_arity,s), enforce_leq lev u cst *)
-      (* | Prop Pos when engagement env <> Some ImpredicativeSet -> *)
-      (* 	  (\* Predicative set: check that the content is indeed predicative *\) *)
-      (* 	  if not (is_type0m_univ lev) & not (is_type0_univ lev) then *)
-      (* 	    raise (InductiveError LargeNonPropInductiveNotInType); *)
-      (* 	  (info,full_arity,s), cst *)
-      (* | Prop _ -> *)
-      (* 	  (info,full_arity,s), cst in *)
-      (* (id,cn,lc,(sign,status)),cst) *)
-      (* inds ind_min_levels (snd ctx) in *)
   let univs = (fst univs, cst) in
   (env_arities, params, inds, univs)
 
@@ -646,7 +629,7 @@ let allowed_sorts issmall isunit s =
   (* informative elimination too *)
   | InProp when isunit ->
       if issmall then all_sorts
-      else if !parameters_matter then logical_sorts
+      else if !indices_matter then logical_sorts
       else small_sorts
 
   (* Other propositions: elimination only to Prop *)
