@@ -99,7 +99,7 @@ let instance_hook k pri global imps ?hook cst =
   Typeclasses.declare_instance pri (not global) cst;
   (match hook with Some h -> h cst | None -> ())
 
-let declare_instance_constant k pri global imps ?hook id poly ctx term termtype =
+let declare_instance_constant k pri global imps ?hook id poly uctx term termtype =
   let cdecl =
     let kind = IsDefinition Instance in
     let entry =
@@ -107,7 +107,7 @@ let declare_instance_constant k pri global imps ?hook id poly ctx term termtype 
         const_entry_secctx = None;
 	const_entry_type   = Some termtype;
 	const_entry_polymorphic = poly;
-	const_entry_universes = ctx;
+	const_entry_universes = uctx;
 	const_entry_opaque = false }
     in DefinitionEntry entry, kind
   in
@@ -269,13 +269,13 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	  env !evars
       in
       let _ = evars := Evarutil.nf_evar_map_undefined !evars in
-      let nf = Evarutil.e_nf_evars_and_universes evars in
+      let evm, nf = Evarutil.nf_evar_map_universes !evars in
       let termtype = nf termtype in
       let _ = (* Check that the type is free of evars now. *)
-	Evarutil.check_evars env Evd.empty !evars termtype
+	Evarutil.check_evars env Evd.empty evm termtype
       in
       let term = Option.map nf term in
-      let evm = undefined_evars !evars in
+      let evm = undefined_evars evm in
 	if Evd.is_empty evm && not (Option.is_empty term) then
 	  let ctx = Evd.universe_context evm in
 	    declare_instance_constant k pri global imps ?hook
@@ -292,18 +292,18 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 		match term with 
 		| Some t -> 
 		  let obls, _, constr, typ = 
-		    Obligations.eterm_obligations env id !evars 0 t termtype
+		    Obligations.eterm_obligations env id evm 0 t termtype
 		  in obls, Some constr, typ
 		| None -> [||], None, termtype
 	      in
-	      let ctx = Evd.get_universe_context_set !evars in
+	      let ctx = Evd.get_universe_context_set evm in
 		ignore (Obligations.add_definition id ?term:constr
 			typ ctx ~kind:(Global,poly,Instance) ~hook obls);
 		id
 	    else
 	      (Flags.silently 
 	       (fun () ->
-		Lemmas.start_proof id kind (termtype, Univ.empty_universe_context_set)
+		Lemmas.start_proof id kind (termtype, Evd.get_universe_context_set evm)
 		(fun _ -> instance_hook k pri global imps ?hook);
 		if not (Option.is_empty term) then 
 		  Pfedit.by (!refine_ref (evm, Option.get term))

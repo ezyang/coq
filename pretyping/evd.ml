@@ -847,6 +847,16 @@ let normalize_evar_universe_context_variables uctx =
   let ctx_local = subst_univs_context_with_def def subst uctx.uctx_local in
     subst, { uctx with uctx_local = ctx_local; uctx_univ_variables = normalized_variables }
     
+let mark_undefs_as_rigid uctx =
+  let vars' = 
+    Univ.LMap.fold (fun u v acc ->
+      if v = None then acc else Univ.LMap.add u v acc)
+    uctx.uctx_univ_variables Univ.LMap.empty
+  in { uctx with uctx_univ_variables = vars' }
+
+let abstract_undefined_variables ({evars = (sigma, uctx)} as d) =
+  {d with evars = (sigma, mark_undefs_as_rigid uctx)}
+
 let normalize_evar_universe_context uctx subst = 
   let undef, _ = Univ.LMap.partition (fun i b -> b = None) uctx.uctx_univ_variables in
   let undef = Univ.LMap.universes undef in

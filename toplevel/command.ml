@@ -70,8 +70,12 @@ let red_constant_entry n ce = function
 
 let interp_definition bl p red_option c ctypopt =
   let env = Global.env() in
-  let evdref = ref (Evd.from_env ~ctx:(Univ.empty_universe_context_set) env) in
+  let evdref = ref (Evd.from_env env) in
   let impls, ((env_bl, ctx), imps1) = interp_context_evars evdref env bl in
+  let subst = evd_comb0 Evd.nf_univ_variables evdref in
+  let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
+  let env_bl = push_rel_context ctx env in
+  let _ = evdref := Evd.abstract_undefined_variables !evdref in
   let nb_args = List.length ctx in
   let imps,ce =
     match ctypopt with

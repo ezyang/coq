@@ -56,7 +56,7 @@ let evars_to_goals p evm =
 
 open Auto
 
-let e_give_exact flags c gl = 
+let e_give_exact flags (c,cl) gl = 
   let t1 = (pf_type_of gl c) in
     tclTHEN (Clenvtac.unify ~flags t1) (exact_no_check c) gl
 
@@ -165,7 +165,7 @@ and e_my_find_search db_list local_db hdc complete concl =
 	    (unify_resolve flags)
 	  | ERes_pf (term,cl) -> with_prods nprods (term,cl)
 	    (unify_e_resolve flags)
-	  | Give_exact (c, cl) -> e_give_exact flags (c)
+	  | Give_exact (c, cl) -> unify_resolve flags (c, cl)
 	  | Res_pf_THEN_trivial_fail (term,cl) ->
               tclTHEN (with_prods nprods (term,cl) 
 		       (unify_e_resolve flags))
