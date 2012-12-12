@@ -71,9 +71,9 @@ let e_nf_evars_and_universes evdref =
 
 let nf_evar_map_universes evm =
   let evm, subst = Evd.nf_constraints evm in
-    if Univ.LMap.is_empty subst then evm, fun c -> c
+    if Univ.LMap.is_empty subst then evm, nf_evar evm
     else
-      let f = Universes.subst_univs_full_constr subst in
+      let f = nf_evars_universes evm subst in
 	Evd.map (map_evar_info f) evm, f
 
 let nf_named_context_evar sigma ctx =

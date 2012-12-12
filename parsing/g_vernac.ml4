@@ -75,21 +75,33 @@ GEXTEND Gram
     [ [ IDENT "Time"; v = vernac -> VernacTime v
       | IDENT "Timeout"; n = natural; v = vernac -> VernacTimeout(n,v)
       | IDENT "Fail"; v = vernac -> VernacFail v
-      | locality; v = vernac_aux -> v ] ]
+      | locality; polymorphism; program; v = vernac_aux -> v ] ]
+  ;  
+  polymorphism:
+    [ [ IDENT "Polymorphic" -> Flags.make_polymorphic_flag true
+      | IDENT "Monomorphic" -> Flags.make_polymorphic_flag false
+      | -> () ] ]
+  ;
+  program: 
+    [ [ IDENT "Program" -> Flags.program_cmd := true
+      | -> () ] ]
   ;
   vernac_aux:
     (* Better to parse "." here: in case of failure (e.g. in coerce_to_var), *)
     (* "." is still in the stream and discard_to_dot works correctly         *)
-    [ [ IDENT "Program"; g = gallina; "." -> Flags.program_cmd := true; g
-      | IDENT "Program"; g = gallina_ext; "." -> Flags.program_cmd := true; g
-      | g = gallina; "." -> Flags.program_cmd := false; g
-      | g = gallina_ext; "." -> Flags.program_cmd := false; g
+    [ [ g = gallina_or_ext -> g
       | c = command; "." -> c
       | c = syntax; "." -> c
       | "["; l = LIST1 located_vernac; "]"; "." -> VernacList l
       | c = subprf -> c
     ] ]
   ;
+  gallina_or_ext:
+  [ [ g = gallina; "." -> g
+    | g = gallina_ext; "." -> g
+    ] ]
+  ;
+
   vernac_aux: LAST
     [ [ prfcom = default_command_entry -> prfcom ] ]
   ;
@@ -151,12 +163,6 @@ GEXTEND Gram
     record_field decl_notation rec_definition;
 
   gallina:
-    [ [ _ = [ "Polymorphic" -> Flags.make_polymorphic_flag true |
-	  | "Monomorphic" -> Flags.make_polymorphic_flag false ]; 
-	g = gallina_def -> g ] ]
-   ;
- 
-  gallina_def:
       (* Definition, Theorem, Variable, Axiom, ... *)
     [ [ thm = thm_token; id = identref; bl = binders; ":"; c = lconstr;
         l = LIST0
@@ -185,6 +191,7 @@ GEXTEND Gram
       | IDENT "Combined"; IDENT "Scheme"; id = identref; IDENT "from";
 	l = LIST1 identref SEP "," -> VernacCombinedScheme (id, l) ] ]
   ;
+
   gallina_ext:
     [ [ b = record_token; infer = infer_token; oc = opt_coercion; name = identref;
         ps = binders;
@@ -581,7 +588,7 @@ GEXTEND Gram
 	 pri = OPT [ "|"; i = natural -> i ] ;
 	 props = [ ":="; "{"; r = record_declaration; "}" -> Some r |
 	     ":="; c = lconstr -> Some c | -> None ] ->
-	   VernacInstance (false, not (use_section_locality ()), false,
+	   VernacInstance (false, not (use_section_locality ()), Flags.use_polymorphic_flag (),
 			   snd namesup, (fst namesup, expl, t), props, pri)
 
       | IDENT "Existing"; IDENT "Instance"; id = global ->
