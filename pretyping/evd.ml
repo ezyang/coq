@@ -834,6 +834,9 @@ let set_leq_sort ({evars = (sigma, uctx)} as d) s1 s2 =
 	 | Variable (LocalUniv u | GlobalUniv u) ->
 	   add_constraints d (Univ.enforce_leq u1 u2 Univ.empty_constraint))
 
+let check_leq {evars = (sigma,uctx)} s s' =
+  Univ.check_leq uctx.uctx_universes s s'
+
 let subst_univs_context_with_def def usubst (ctx, cst) =
   (Univ.LSet.diff ctx def, Univ.subst_univs_constraints usubst cst)
 
