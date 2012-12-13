@@ -355,7 +355,12 @@ let inductive_levels env evdref arities inds =
 	  else evd
 	in
         (** Constructors contribute. *)
-	let evd = Evd.set_leq_sort evd (Type cu) iu in
+	let evd = 
+	  let cs = Type cu in
+	    if not (is_small cs) && is_small iu then
+	      raise (Indtypes.InductiveError Indtypes.LargeNonPropInductiveNotInType)
+	    else Evd.set_leq_sort evd cs iu 
+	in
 	let evd = 
 	  if len >= 2 && Univ.is_type0m_univ cu then 
 	   (** "Polymorphic" type constraint and more than one constructor, 

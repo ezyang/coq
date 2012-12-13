@@ -130,21 +130,6 @@ let infos_and_sort env ctx t =
     | _ -> (* don't fail if not positive, it is tested later *) max
   in aux env ctx t type0m_univ
 
-let is_small_univ u =
-  (* Compatibility with homotopy model where we interpret only Prop
-     to have proof-irrelevant equality. *)
-  is_type0m_univ u
-
-(* let small_unit constrsinfos arsign_lev = *)
-(*   let issmall = List.for_all is_small constrsinfos in *)
-(*   let issmall' = *)
-(*     if constrsinfos <> [] && !indices_matter then *)
-(*       issmall && is_small_univ arsign_lev *)
-(*     else *)
-(*       issmall in *)
-(*   let isunit = is_unit constrsinfos in *)
-(*   issmall', isunit *)
-
 (* Computing the levels of polymorphic inductive types
 
    For each inductive type of a block that is of level u_i, we have
@@ -200,7 +185,7 @@ let cumulate_arity_large_levels env sign =
     (fun (_,_,t as d) (lev,env) ->
       let tj, _ = infer_type env t in
       let u = univ_of_sort tj.utj_type in
-	((if is_small_univ u then lev else sup u lev), push_rel d env))
+	(sup u lev, push_rel d env))
     sign (type0m_univ,env))
 
 let is_impredicative env u =
