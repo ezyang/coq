@@ -1061,7 +1061,7 @@ let bellman_ford bottom g =
     let node = Canonical {
       univ = bottom;
       lt = [];
-      le = LSet.elements vertices
+      le = LSet.elements vertices;
       rank = 0
     } in LMap.add bottom node g
   in
