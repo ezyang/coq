@@ -821,7 +821,7 @@ let trans_fconv pb reds env sigma x y =
 	  Evd.add_constraints sigma cst, true
     with NotConvertible -> sigma, false
     | Anomaly _ -> error "Conversion test raised an anomaly"
-
+    
 (********************************************************************)
 (*             Special-Purpose Reduction                            *)
 (********************************************************************)
