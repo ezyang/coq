@@ -2103,9 +2103,6 @@ let define_evar_as_sort evd (ev,args) =
 
 let judge_of_new_Type evd =
   let evd', s = new_univ_variable univ_rigid evd in
-  (* let evd', s' = new_univ_variable evd in *)
-  (* let ss = mkSort (Type s) and ss' = mkSort (Type s') in *)
-  (* let evd' = set_leq_sort evd' (Type (Univ.super s)) (Type s') in *)
     evd', { uj_val = mkSort (Type s); uj_type = mkSort (Type (Univ.super s)) }
 
 (* Propagation of constraints through application and abstraction:
