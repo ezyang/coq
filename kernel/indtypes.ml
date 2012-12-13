@@ -113,36 +113,37 @@ let is_logic_constr infos = List.for_all (fun (logic,small) -> logic) infos
 *)
 let is_unit constrsinfos =
   match constrsinfos with  (* One info = One constructor *)
-   | [constrinfos] -> is_logic_constr constrinfos
+   | [level] -> is_type0m_univ level
    | [] -> (* type without constructors *) true
    | _ -> false
 
-let rec infos_and_sort env ctx t =
-  let t = whd_betadeltaiota env t in
-  match kind_of_term t with
-    | Prod (name,c1,c2) ->
-        let varj, ctx = infer_type env c1 in
+let infos_and_sort env ctx t =
+  let rec aux env ctx t max =
+    let t = whd_betadeltaiota env t in
+      match kind_of_term t with
+      | Prod (name,c1,c2) ->
+        let varj, _ (* Forget universe context *) = infer_type env c1 in
 	let env1 = Environ.push_rel (name,None,varj.utj_val) env in
-	let logic = is_logic_type varj in
-	let small = Term.is_small varj.utj_type in
-	(logic,small) :: (infos_and_sort env1 ctx c2)
-    | _ when is_constructor_head t -> []
-    | _ -> (* don't fail if not positive, it is tested later *) []
+	let max = sup max (univ_of_sort varj.utj_type) in
+	  aux env1 ctx c2 max
+    | _ when is_constructor_head t -> max
+    | _ -> (* don't fail if not positive, it is tested later *) max
+  in aux env ctx t type0m_univ
 
 let is_small_univ u =
   (* Compatibility with homotopy model where we interpret only Prop
      to have proof-irrelevant equality. *)
   is_type0m_univ u
 
-let small_unit constrsinfos arsign_lev =
-  let issmall = List.for_all is_small constrsinfos in
-  let issmall' =
-    if constrsinfos <> [] && !indices_matter then
-      issmall && is_small_univ arsign_lev
-    else
-      issmall in
-  let isunit = is_unit constrsinfos in
-  issmall', isunit
+(* let small_unit constrsinfos arsign_lev = *)
+(*   let issmall = List.for_all is_small constrsinfos in *)
+(*   let issmall' = *)
+(*     if constrsinfos <> [] && !indices_matter then *)
+(*       issmall && is_small_univ arsign_lev *)
+(*     else *)
+(*       issmall in *)
+(*   let isunit = is_unit constrsinfos in *)
+(*   issmall', isunit *)
 
 (* Computing the levels of polymorphic inductive types
 
@@ -164,7 +165,7 @@ let small_unit constrsinfos arsign_lev =
    w1,w2,w3 <= u3
 *)
 
-let extract_level (_,_,_,lc,lev) =
+let extract_level (_,_,lc,(_,lev)) =
   (* Enforce that the level is not in Prop if more than one constructor *)
   (* if Array.length lc >= 2 then sup type0_univ lev else lev *)
   lev
@@ -189,10 +190,9 @@ let infer_constructor_packet env_ar_par ctx params lc =
   (* generalize the constructor over the parameters *)
   let lc'' = Array.map (fun j -> it_mkProd_or_LetIn j.utj_val params) jlc in
   (* compute the max of the sorts of the products of the constructors types *)
-  let level = max_inductive_sort (Array.map (fun j -> j.utj_type) jlc) in
-  (* compute *)
-  let info = small_unit (List.map (infos_and_sort env_ar_par ctx) lc) in
-  (info,lc'',level,univs)
+  let levels = List.map (infos_and_sort env_ar_par ctx) lc in
+  let level = List.fold_left (fun max l -> sup max l) type0m_univ levels in
+  (lc'',(is_unit levels,level),univs)
 
 (* If indices matter *)
 let cumulate_arity_large_levels env sign =
@@ -202,6 +202,9 @@ let cumulate_arity_large_levels env sign =
       let u = univ_of_sort tj.utj_type in
 	((if is_small_univ u then lev else sup u lev), push_rel d env))
     sign (type0m_univ,env))
+
+let is_impredicative env u =
+  is_type0m_univ u || (is_type0_univ u && engagement env = Some ImpredicativeSet)
 
 (* Type-check an inductive definition. Does not check positivity
    conditions. *)
@@ -242,14 +245,13 @@ let typecheck_inductive env ctx mie =
 	   else let arity, ctx' = infer_type env_params ind.mind_entry_arity in
 		  arity.utj_val, ctx'
 	 in
-	 let lev = 
+	 let (sign, deflev) = dest_arity env_params arity in
+	 let inflev = 
 	   (* The level of the inductive includes levels of indices if 
 	      in indices_matter mode *)
-	   if !indices_matter 
-	   then
-	     let (ctx, s) = dest_arity env_params arity in
-	       Some (sup (univ_of_sort s) (cumulate_arity_large_levels env_params ctx))
-	   else None
+	     if !indices_matter 
+	     then Some (cumulate_arity_large_levels env_params sign)
+	     else None
 	 in
 	 (* We do not need to generate the universe of full_arity; if
 	    later, after the validation of the inductive definition,
@@ -260,16 +262,7 @@ let typecheck_inductive env ctx mie =
 	 let env_ar' =
            push_rel (Name id, None, full_arity) env_ar in
              (* (add_constraints cst2 env_ar) in *)
-	 let lev =
-	   (* Decide that if the conclusion is not explicitly Type *)
-	   (* then the inductive type is not polymorphic *)
-	   match lev with
-	   | Some _ -> lev
-	   | None ->
-	     (match kind_of_term ((strip_prod_assum arity)) with
-	     | Sort (Type u) -> Some u
-	     | _ -> None)
-	 in (env_ar',union_universe_context_set ctx ctx',(id,full_arity,lev)::l))
+	   (env_ar',union_universe_context_set ctx ctx',(id,full_arity,sign @ params,deflev,inflev)::l))
       (env',univs,[])
       mie.mind_entry_inds in
 
@@ -282,44 +275,45 @@ let typecheck_inductive env ctx mie =
   let inds, univs =
     List.fold_right2
       (fun ind arity_data (inds,univs) ->
-	 let (info,lc',cstrs_univ,univs') =
+	 let (lc',cstrs_univ,univs') =
 	   infer_constructor_packet env_ar_par empty_universe_context_set
 	     params ind.mind_entry_lc in
 	 let consnames = ind.mind_entry_consnames in
-	 let ind' = (arity_data,consnames,info,lc',cstrs_univ) in
+	 let ind' = (arity_data,consnames,lc',cstrs_univ) in
 	 (ind'::inds, union_universe_context_set univs univs'))
       mie.mind_entry_inds
       arity_list
     ([],univs) in
 
   let inds = Array.of_list inds in
-  let arities = Array.of_list arity_list in
 
   (* Compute/check the sorts of the inductive types *)
-  let ind_min_levels = inductive_levels arities inds in
   let inds, cst =
-    Array.fold_map2' (fun ((id,full_arity,ar_level),cn,info,lc,_) lev cst ->
-      let sign, s = dest_arity env full_arity in
-      let u = Term.univ_of_sort s in
-      let lev = match ar_level with 
-	| Some alev -> sup lev alev
-	| None -> lev
+    Array.fold_map' (fun ((id,full_arity,sign,def_level,inf_level),cn,lc,(is_unit,clev)) cst ->
+      let defu = Term.univ_of_sort def_level in
+      let infu = 
+	(** Inferred level, with parameters and constructors. *)
+	match inf_level with
+	| Some alev -> sup clev alev
+	| None -> clev
       in
-      let _ = 
-	if is_type0m_univ u then () (* Impredicative prop + any universe is higher than prop *)
-	else if is_type0_univ u then 
-	  if engagement env <> Some ImpredicativeSet then 
-      	    (* Predicative set: check that the content is indeed predicative *)
-      	    (if not (is_type0m_univ lev) & not (is_type0_univ lev) then
-      	      raise (InductiveError LargeNonPropInductiveNotInType))
-	  else () (* Impredicative set, don't care if the constructors are in Prop *)
-	else
-	  if not (check_leq (universes env') lev u) then
-	    anomalylabstrm "check_inductive" (Pp.str"Incorrect universe " ++
-					      Universe.pr u ++ Pp.str " declared for inductive type, inferred level is " ++ Universe.pr lev)
+      let is_natural =
+	check_leq (universes env') infu defu && 
+	not (is_type0m_univ defu && not is_unit)
       in
-	(id,cn,lc,(sign,(info u,full_arity,s))), cst)
-    inds ind_min_levels (snd ctx)
+      let _ =
+	(** Impredicative sort, always allow *)
+	if is_impredicative env defu then ()
+	else (** Predicative case: the inferred level must be lower or equal to the
+		 declared level. *)
+	  if not is_natural then
+	    anomalylabstrm "check_inductive" 
+	    (Pp.str"Incorrect universe " ++
+	     Universe.pr defu ++ Pp.str " declared for inductive type, inferred level is "
+	     ++ Universe.pr infu)
+      in
+	(id,cn,lc,(sign,(not is_natural,full_arity,defu))),cst)
+    inds (snd ctx)
   in
   let univs = (fst univs, cst) in
   (env_arities, params, inds, univs)
@@ -611,29 +605,29 @@ let all_sorts = [InProp;InSet;InType]
 let small_sorts = [InProp;InSet]
 let logical_sorts = [InProp]
 
-let allowed_sorts issmall isunit s =
-  match family_of_sort s with
-  (* Type: all elimination allowed *)
-  | InType -> all_sorts
-
-  (* Small Set is predicative: all elimination allowed *)
-  | InSet when issmall -> all_sorts
-
-  (* Large Set is necessarily impredicative: forbids large elimination *)
-  | InSet -> small_sorts
-
-  (* Unitary/empty Prop: elimination to all sorts are realizable *)
-  (* unless the type is large. If it is large, forbids large elimination *)
-  (* which otherwise allows to simulate the inconsistent system Type:Type *)
-  (* If type is not small and additionally parameters matter, forbids any *)
-  (* informative elimination too *)
-  | InProp when isunit ->
-      if issmall then all_sorts
-      else if !indices_matter then logical_sorts
-      else small_sorts
-
-  (* Other propositions: elimination only to Prop *)
-  | InProp -> logical_sorts
+let allowed_sorts is_smashed s =
+  if not is_smashed 
+  then (** Naturally in the defined sort.
+	   If [s] is Prop, it must be small and unitary.
+	   Unsmashed, predicative Type and Set: all elimination allowed
+	   as well. *)
+      all_sorts
+  else 
+    match family_of_sort s with
+    (* Type: all elimination allowed: above and below *)
+    | InType -> all_sorts
+    (* Smashed Set is necessarily impredicative: forbids large elimination *)
+    | InSet -> small_sorts
+    (* Smashed to Prop, no informative eliminations allowed *)
+    | InProp -> logical_sorts
+    
+(* Previous comment: *)
+(* Unitary/empty Prop: elimination to all sorts are realizable *)
+(* unless the type is large. If it is large, forbids large elimination *)
+(* which otherwise allows to simulate the inconsistent system Type:Type. *)
+(* -> this is now handled by is_smashed: *)
+(* - all_sorts in case of small, unitary Prop (not smashed) *)
+(* - logical_sorts in case of large, unitary Prop (smashed) *)
 
 let fold_inductive_blocks f =
   Array.fold_left (fun acc (_,_,lc,(arsign,_)) ->
@@ -661,8 +655,9 @@ let build_inductive env p ctx env_ar params isrecord isfinite inds nmr recargs =
 	splayed_lc in
     (* Elimination sorts *)
     let arkind,kelim = 
-      let ((issmall,isunit),ar,s) = ar_kind in
-      let kelim = allowed_sorts issmall isunit s in
+      let (info,ar,defs) = ar_kind in
+      let s = sort_of_univ defs in
+      let kelim = allowed_sorts info s in
 	{ mind_user_arity = ar;
 	  mind_sort = s;
 	}, kelim in

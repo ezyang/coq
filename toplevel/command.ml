@@ -75,7 +75,7 @@ let interp_definition bl p red_option c ctypopt =
   let subst = evd_comb0 Evd.nf_univ_variables evdref in
   let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
   let env_bl = push_rel_context ctx env in
-  let _ = evdref := Evd.abstract_undefined_variables !evdref in
+  (* let _ = evdref := Evd.abstract_undefined_variables !evdref in *)
   let nb_args = List.length ctx in
   let imps,ce =
     match ctypopt with
@@ -280,9 +280,14 @@ let make_conclusion_flexible evdref ty =
       | _ -> ()
   else () 
 	
+let is_impredicative env u = 
+  u = Prop Null || 
+  (engagement env = Some Declarations.ImpredicativeSet && u = Prop Pos)
+
 (** Make the arity conclusion flexible to avoid generating an upper bound universe now. *)
 let interp_ind_arity evdref env ind =
   let (ty, impls) = interp_type_evars_impls ~evdref env ind.ind_arity in
+  (* let _ = evdref := Evd.abstract_undefined_variables !evdref in *)
     make_conclusion_flexible evdref ty; (ty, impls)
 
 let interp_cstrs evdref env impls mldata arity ind =
@@ -293,42 +298,67 @@ let interp_cstrs evdref env impls mldata arity ind =
   let ctyps'', cimpls = List.split (List.map (interp_type_evars_impls ~evdref env ~impls) ctyps') in
     (cnames, ctyps'', cimpls)
 
-let extract_level env evd tys = 
-  let sorts = List.map (fun ty -> destSort (Retyping.get_type_of env evd ty)) tys in
-    Inductive.max_inductive_sort (Array.of_list sorts)
-
-let indices_level env evd sign =
+let sign_level env evd sign =
   fst (List.fold_right
     (fun (_,_,t as d) (lev,env) ->
-      let s = destSort (Retyping.get_type_of env evd t) in
+      let s = destSort (nf_evar evd (Retyping.get_type_of env evd t)) in
       let u = univ_of_sort s in
 	(Univ.sup u lev, push_rel d env))
     sign (Univ.type0m_univ,env))
 
+let sup_list = List.fold_left Univ.sup Univ.type0m_univ
+
+let extract_level env evd tys = 
+  let sorts = List.map (fun ty -> 
+    let ctx, concl = Reduction.dest_prod_assum env ty in
+      sign_level env evd ctx) tys 
+  in sup_list sorts
+
 let inductive_levels env evdref arities inds =
   let destarities = List.map (Reduction.dest_arity env) arities in
-  let levels = List.map (fun (ctx,a) ->   
-    if a = Prop Null then None else Some (univ_of_sort a)) destarities
+  let levels = List.map (fun (ctx,a) -> 
+    if a = Prop Null then None
+    else Some (univ_of_sort a)) destarities
   in
-  let cstrs_levels = List.map (fun (_,tys,_) -> extract_level env !evdref tys) inds in
+  let cstrs_levels, sizes = 
+    List.split
+      (List.map (fun (_,tys,_) -> (extract_level env !evdref tys, List.length tys)) inds)
+  in
   (* Take the transitive closure of the system of constructors *)
   (* level constraints and remove the recursive dependencies *)
   let levels' = Univ.solve_constraints_system (Array.of_list levels)
-    (Array.of_list cstrs_levels) in
-    List.iter2 (fun cu (ctx,iu) ->
-      if iu = Prop Null then (assert (Univ.is_type0m_univ cu))
-      else
-	begin
+    (Array.of_list cstrs_levels) 
+  in
+  let evd =
+    CList.fold_left3 (fun evd cu (ctx,iu) len ->
+      if is_impredicative env iu then
+	(** Any product is allowed here. *)
+	evd
+      else (** If in a predicative sort, or asked to infer the type,
+	       we take the max of:
+	       - indices (if in indices-matter mode)
+	       - constructors
+	       - Type(1) if there is more than 1 constructor
+	   *)
+	let evd = 
+	  (** Indices contribute. *)
 	  if Indtypes.is_indices_matter () then (
-	    let ilev = indices_level env !evdref ctx in
-	      evdref := Evd.set_leq_sort !evdref (Type ilev) iu);
-	  if iu = Prop Pos then
-	    (if not (Univ.is_type0m_univ cu) then
-	      (evdref := Evd.set_leq_sort !evdref (Type cu) iu))
-	  else (evdref := Evd.set_leq_sort !evdref (Type cu) iu)
-	end)
-    (Array.to_list levels') destarities;
-    arities
+	    let ilev = sign_level env !evdref ctx in
+	      Evd.set_leq_sort evd (Type ilev) iu)
+	  else evd
+	in
+        (** Constructors contribute. *)
+	let evd = Evd.set_leq_sort evd (Type cu) iu in
+	let evd = 
+	  if len >= 2 && Univ.is_type0m_univ cu then 
+	   (** "Polymorphic" type constraint and more than one constructor, 
+	       should not land in Prop. Add constraint only if it would
+	       land in Prop directly (no informative arguments as well). *)
+	    Evd.set_leq_sort evd (Prop Pos) iu
+	  else evd
+	in evd)
+    !evdref (Array.to_list levels') destarities sizes
+  in evdref := evd; arities
 
 let interp_mutual_inductive (paramsl,indl) notations poly finite =
   check_all_names_different indl;
