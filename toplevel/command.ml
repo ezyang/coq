@@ -337,8 +337,8 @@ let inductive_levels env evdref arities inds =
     (Array.of_list cstrs_levels) 
   in
   let evd =
-    CList.fold_left3 (fun evd cu (ctx,iu) len ->
-      if is_impredicative env iu then
+    CList.fold_left3 (fun evd cu (ctx,du) len ->
+      if is_impredicative env du then
 	(** Any product is allowed here. *)
 	evd
       else (** If in a predicative sort, or asked to infer the type,
@@ -351,22 +351,23 @@ let inductive_levels env evdref arities inds =
 	  (** Indices contribute. *)
 	  if Indtypes.is_indices_matter () then (
 	    let ilev = sign_level env !evdref ctx in
-	      Evd.set_leq_sort evd (Type ilev) iu)
+	      Evd.set_leq_sort evd (Type ilev) du)
 	  else evd
 	in
         (** Constructors contribute. *)
 	let evd = 
-	  let cs = Type cu in
-	    if not (is_small cs) && is_small iu then
+	  if is_prop_sort du then
+	    if not (Evd.check_leq evd cu Univ.type0_univ) then 
 	      raise (Indtypes.InductiveError Indtypes.LargeNonPropInductiveNotInType)
-	    else Evd.set_leq_sort evd cs iu 
+	    else evd
+	  else Evd.set_leq_sort evd (Type cu) du 
 	in
 	let evd = 
 	  if len >= 2 && Univ.is_type0m_univ cu then 
 	   (** "Polymorphic" type constraint and more than one constructor, 
 	       should not land in Prop. Add constraint only if it would
 	       land in Prop directly (no informative arguments as well). *)
-	    Evd.set_leq_sort evd (Prop Pos) iu
+	    Evd.set_leq_sort evd (Prop Pos) du
 	  else evd
 	in evd)
     !evdref (Array.to_list levels') destarities sizes
