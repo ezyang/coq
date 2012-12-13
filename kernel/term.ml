@@ -333,7 +333,7 @@ let rec is_Type c = match kind_of_term c with
 
 let is_small = function
   | Prop _ -> true
-  | _ -> false
+  | Type u -> is_small_univ u
 
 let iskind c = isprop c or is_Type c
 
