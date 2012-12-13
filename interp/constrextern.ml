@@ -572,6 +572,10 @@ let extern_glob_sort = function
   | GType (Some _) as s when !print_universes -> s
   | GType _ -> GType None
 
+let extern_universes = function
+  | Some _ as l when !print_universes -> l
+  | _ -> None
+  
 let rec extern inctx scopes vars r =
   let r' = remove_coercions inctx r in
   try
@@ -585,7 +589,7 @@ let rec extern inctx scopes vars r =
   with No_match -> match r' with
   | GRef (loc,ref,us) ->
       extern_global loc (select_stronger_impargs (implicits_of_global ref))
-        (extern_reference loc vars ref) us
+        (extern_reference loc vars ref) (extern_universes us)
 
   | GVar (loc,id) -> CRef (Ident (loc,id),None)
 
@@ -645,7 +649,7 @@ let rec extern inctx scopes vars r =
 		 | Not_found | No_match | Exit ->
 		     extern_app loc inctx
 		       (select_stronger_impargs (implicits_of_global ref))
-		       (Some ref,extern_reference rloc vars ref) us args
+		       (Some ref,extern_reference rloc vars ref) (extern_universes us) args
 	     end
 	 | _       ->
 	     explicitize loc inctx [] (None,sub_extern false scopes vars f)

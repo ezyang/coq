@@ -119,6 +119,16 @@ let convert_concl   = Tacmach.convert_concl
 let convert_hyp     = Tacmach.convert_hyp
 let thin_body       = Tacmach.thin_body
 
+let convert_gen pb x y gl =
+  try tclEVARS (pf_apply Evd.conversion gl pb x y) gl
+  with Reduction.NotConvertible ->
+    let env = pf_env gl in
+      tclFAIL 0 (str"Not convertible: " ++ Printer.pr_constr_env env x ++ 
+		 str" and " ++ Printer.pr_constr_env env y) gl
+
+let convert = convert_gen Reduction.CONV
+let convert_leq = convert_gen Reduction.CUMUL
+
 let error_clear_dependency env id = function
   | Evarutil.OccurHypInSimpleClause None ->
       errorlabstrm "" (pr_id id ++ str " is used in conclusion.")
@@ -1095,10 +1105,8 @@ let cut_and_apply c gl =
 let exact_check c gl =
   let concl = (pf_concl gl) in
   let ct = pf_type_of gl c in
-  if pf_conv_x_leq gl ct concl then
-    refine_no_check c gl
-  else
-    error "Not an exact proof."
+    try tclTHEN (convert_leq ct concl) (refine_no_check c) gl
+    with _ -> error "Not an exact proof." (*FIXME error handling here not the best *)
 
 let exact_no_check = refine_no_check
 
