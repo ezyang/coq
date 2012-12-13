@@ -74,6 +74,10 @@ module Level = struct
     | Level (n,d) -> Names.Dir_path.to_string d^"."^string_of_int n
 
   let pr u = str (to_string u)
+
+  let is_small = function
+    | Prop | Set -> true
+    | _ -> false
 end
 
 let pr_universe_list l = 
@@ -214,10 +218,16 @@ struct
       let gtl' = CList.uniquize gtl in
 	if gel' == gel && gtl' == gtl then x
 	else normalize (Max (gel', gtl'))
+
+  let is_small u = 
+    match normalize u with
+    | Atom l -> Level.is_small l
+    | _ -> false
     
 end
 
 let pr_uni = Universe.pr
+let is_small_univ = Universe.is_small
 
 open Universe
 
