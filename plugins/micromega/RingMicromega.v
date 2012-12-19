@@ -49,7 +49,7 @@ Notation "x < y" := (rlt x y).
 
 (* Assume we have a type of coefficients C and a morphism from C to R *)
 
-Variable C : Set.
+Variable C : Type.
 Variables cO cI : C.
 Variables cplus ctimes cminus: C -> C -> C.
 Variable copp : C -> C.
@@ -57,7 +57,7 @@ Variables ceqb cleb : C -> C -> bool.
 Variable phi : C -> R.
 
 (* Power coefficients *)
-Variable E : Set. (* the type of exponents *)
+Variable E : Type. (* the type of exponents *)
 Variable pow_phi : N -> E.
 Variable rpow : R -> E -> R.
 
@@ -139,7 +139,7 @@ Qed.
 
 (* Begin Micromega *)
 
-Definition PolC := Pol C : Set. (* polynomials in generalized Horner form, defined in Ring_polynom or EnvRing *)
+Definition PolC := Pol C. (* polynomials in generalized Horner form, defined in Ring_polynom or EnvRing *)
 Definition PolEnv := Env R. (* For interpreting PolC *)
 Definition eval_pol (env : PolEnv) (p:PolC) : R :=
    Pphi rplus rtimes phi env p.
@@ -286,7 +286,7 @@ destruct o' ; rewrite H1 ; now rewrite  (Rplus_0_l sor).
  now apply (Rplus_nonneg_nonneg sor).
 Qed.
 
-Inductive Psatz : Set :=
+Inductive Psatz : Type :=
 | PsatzIn : nat -> Psatz
 | PsatzSquare : PolC -> Psatz
 | PsatzMulC : PolC -> Psatz -> Psatz
