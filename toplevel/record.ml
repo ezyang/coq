@@ -407,8 +407,7 @@ open Autoinstance
 (* [fs] corresponds to fields and [ps] to parameters; [coers] is a
    list telling if the corresponding fields must me declared as coercions 
    or subinstances *)
-let definition_structure (kind,finite,infer,(is_coe,(loc,idstruc)),ps,cfs,idbuild,s) =
-  let poly = Flags.use_polymorphic_flag () in
+let definition_structure (kind,poly,finite,infer,(is_coe,(loc,idstruc)),ps,cfs,idbuild,s) =
   let cfs,notations = List.split cfs in
   let cfs,priorities = List.split cfs in
   let coers,fs = List.split cfs in

@@ -525,7 +525,7 @@ let vernac_record k poly finite infer struc binders sort nameopt cfs =
 	match x with
 	| Vernacexpr.AssumExpr ((loc, Name id), _) -> Dumpglob.dump_definition (loc,id) false "proj"
 	| _ -> ()) cfs);
-    ignore(Record.definition_structure (k,finite,infer,struc,binders,cfs,const,sort))
+    ignore(Record.definition_structure (k,poly,finite,infer,struc,binders,cfs,const,sort))
 
 let vernac_inductive poly finite infer indl =
   if Dumpglob.dump () then
