@@ -343,9 +343,7 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
 	let cst = Declare.declare_constant (snd id)
 	  (DefinitionEntry class_entry, IsDefinition Definition)
 	in
-	let env = Global.env () in
-	let evd = ref (Evd.from_env env) in
-	let cstu = Evarutil.evd_comb1 (Evd.fresh_constant_instance env) evd cst in
+	let cstu = (cst, if poly then fst ctx else []) in
 	let inst_type = appvectc (mkConstU cstu) (Termops.rel_vect 0 (List.length params)) in
 	let proj_type = it_mkProd_or_LetIn (mkProd(Name (snd id), inst_type, lift 1 field)) params in
 	let proj_body = it_mkLambda_or_LetIn (mkLambda (Name (snd id), inst_type, mkRel 1)) params in
@@ -388,7 +386,7 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
   let ctx_context =
     List.map (fun (na, b, t) ->
       match Typeclasses.class_of_constr t with
-      | Some (_, (cl, _)) -> Some (cl.cl_impl, true) (*List.exists (fun (_, n) -> n = na) supnames)*)
+      | Some (_, ((cl,_), _)) -> Some (cl.cl_impl, true) (*FIXME: ignore universes?*)
       | None -> None)
       params, params
   in

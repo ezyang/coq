@@ -77,8 +77,12 @@ let sorts_ord s1 s2 =
   | Type _, Prop _ -> 1
 
 let is_prop_sort = function
-| Prop Null -> true
-| _ -> false
+  | Prop Null -> true
+  | _ -> false
+
+let is_set_sort = function
+  | Prop Pos -> true
+  | _ -> false
 
 type sorts_family = InProp | InSet | InType
 

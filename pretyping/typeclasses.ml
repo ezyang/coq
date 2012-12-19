@@ -115,12 +115,32 @@ let _ =
       Summary.unfreeze_function = unfreeze;
       Summary.init_function = init }
 
+open Declarations
+
+let typeclass_univ_instance (cl,u') =
+  let subst = 
+    let u = 
+      match cl.cl_impl with
+      | ConstRef c -> 
+        let cb = Global.lookup_constant c in
+	  if cb.const_polymorphic then fst cb.const_universes else []
+      | IndRef c ->
+         let mib,oib = Global.lookup_inductive c in
+	  if mib.mind_polymorphic then fst mib.mind_universes else []
+      | _ -> []
+    in List.fold_left2 (fun subst u u' -> Univ.LMap.add u u' subst) Univ.LMap.empty u u'
+  in
+  let subst_ctx = Sign.map_rel_context (subst_univs_constr subst) in
+    { cl with cl_context = fst cl.cl_context, subst_ctx (snd cl.cl_context);
+      cl_props = subst_ctx cl.cl_props}, u'
+
 let class_info c =
   try Gmap.find c !classes
   with _ -> not_a_class (Global.env()) (printable_constr_of_global c)
 
 let global_class_of_constr env c =
-  try class_info (global_of_constr c)
+  try let gr, u = Universes.global_of_constr c in
+	class_info gr, u
   with Not_found -> not_a_class env c
 
 let dest_class_app env c =
@@ -198,7 +218,7 @@ let discharge_class (_,cl) =
       let newgrs = List.map (fun (_, _, t) -> 
 	match class_of_constr t with
 	| None -> None
-	| Some (_, (tc, _)) -> Some (tc.cl_impl, true))
+	| Some (_, ((tc,_), _)) -> Some (tc.cl_impl, true))
 	ctx' 
       in
 	List.smartmap (Option.smartmap (fun (gr, b) -> Lib.discharge_global gr, b)) grs
@@ -255,7 +275,7 @@ let build_subclasses ~check env sigma glob pri =
     let ty = Evarutil.nf_evar sigma (Retyping.get_type_of env sigma c) in
       match class_of_constr ty with
       | None -> []
-      | Some (rels, (tc, args)) ->
+      | Some (rels, ((tc,u), args)) ->
 	let instapp = 
 	  Reductionops.whd_beta sigma (appvectc c (Termops.extended_rel_vect 0 rels)) 
 	in
@@ -267,7 +287,7 @@ let build_subclasses ~check env sigma glob pri =
 	   | Some (Backward, _) -> None
 	   | Some (Forward, pri') ->
 	     let proj = Option.get proj in
-	     let body = it_mkLambda_or_LetIn (mkApp (mkConst proj, projargs)) rels in
+	     let body = it_mkLambda_or_LetIn (mkApp (mkConstU (proj,u), projargs)) rels in
 	       if check && check_instance env sigma body then None
 	       else 
 		 let pri = 
@@ -368,7 +388,7 @@ let remove_instance i =
 let declare_instance pri local glob =
   let ty = Global.type_of_global_unsafe (*FIXME*) glob in
     match class_of_constr ty with
-    | Some (rels, (tc, args) as _cl) ->
+    | Some (rels, ((tc,_), args) as _cl) ->
       add_instance (new_instance tc pri (not local) (Flags.use_polymorphic_flag ()) glob)
 (*       let path, hints = build_subclasses (not local) (Global.env ()) Evd.empty glob in *)
 (*       let entries = List.map (fun (path, pri, c) -> (pri, local, path, c)) hints in *)
@@ -419,7 +439,7 @@ let add_inductive_class ind =
  * interface functions
  *)
 
-let instance_constructor cl args =
+let instance_constructor (cl,u) args =
   let filter (_, b, _) = match b with
   | None -> true
   | Some _ -> false
@@ -428,16 +448,16 @@ let instance_constructor cl args =
   let pars = fst (List.chop lenpars args) in
     match cl.cl_impl with
       | IndRef ind -> 
-      let ind, ctx = Universes.fresh_inductive_instance (Global.env ()) ind in
-        (Some (applistc (mkConstructUi (ind, 1)) args),
-	 applistc (mkIndU ind) pars), ctx
+        let ind = ind, u in
+          (Some (applistc (mkConstructUi (ind, 1)) args),
+	   applistc (mkIndU ind) pars)
       | ConstRef cst -> 
-      let cst, ctx = Universes.fresh_constant_instance (Global.env ()) cst in
-      let term = match args with
-	| [] -> None
-	| _ -> Some (List.last args)
-      in
-	(term, applistc (mkConstU cst) pars), ctx
+        let cst = cst, u in
+	let term = match args with
+	  | [] -> None
+	  | _ -> Some (List.last args)
+	in
+	  (term, applistc (mkConstU cst) pars)
       | _ -> assert false
 
 let typeclasses () = Gmap.fold (fun _ l c -> l :: c) !classes []
