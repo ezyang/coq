@@ -416,11 +416,16 @@ let interp_mutual_inductive (paramsl,indl) notations poly finite =
   let evd = consider_remaining_unif_problems env_params !evdref in
   evdref := Typeclasses.resolve_typeclasses ~filter:Typeclasses.no_goals ~fail:true env_params evd;
   (* Compute renewed arities *)
-  let arities = inductive_levels env_ar_params evdref arities constructors in
-  let nf = e_nf_evars_and_universes evdref in 
-  let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf cl,impsl)) constructors in
-  let ctx_params = Sign.map_rel_context nf ctx_params in
+  let nf = e_nf_evars_and_universes evdref in
   let arities = List.map nf arities in
+  let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf cl,impsl)) constructors in
+  let _ = List.iter (fun ty -> make_conclusion_flexible evdref ty) arities in
+  let arities = inductive_levels env_ar_params evdref arities constructors in
+  let nf' = e_nf_evars_and_universes evdref in
+  let nf x = nf' (nf x) in
+  let arities = List.map nf' arities in
+  let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf' cl,impsl)) constructors in
+  let ctx_params = Sign.map_rel_context nf ctx_params in
   let evd = !evdref in
   List.iter (check_evars env_params Evd.empty evd) arities;
   Sign.iter_rel_context (check_evars env0 Evd.empty evd) ctx_params;

@@ -830,7 +830,7 @@ End ListOps.
 (************)
 
 Section Map.
-  Variables A B : Type.
+  Variables (A : Type) (B : Type).
   Variable f : A -> B.
 
   Fixpoint map (l:list A) : list B :=
@@ -940,7 +940,7 @@ Qed.
 (************************************)
 
 Section Fold_Left_Recursor.
-  Variables A B : Type.
+  Variables (A : Type) (B : Type).
   Variable f : A -> B -> A.
 
   Fixpoint fold_left (l:list B) (a0:A) : A :=
@@ -978,7 +978,7 @@ Qed.
 (************************************)
 
 Section Fold_Right_Recursor.
-  Variables A B : Type.
+  Variables (A : Type) (B : Type).
   Variable f : B -> A -> A.
   Variable a0 : A.
 
@@ -1165,7 +1165,7 @@ End Fold_Right_Recursor.
   (******************************************************)
 
   Section ListPairs.
-    Variables A B : Type.
+    Variables (A : Type) (B : Type).
 
   (** [split] derives two lists from a list of pairs *)
 
