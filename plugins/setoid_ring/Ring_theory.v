@@ -152,7 +152,7 @@ Section DEFINITIONS.
 
  (** Interpretation morphisms definition*)
  Section MORPHISM.
- Variable C:Set.
+ Variable C:Type.
  Variable (cO cI : C) (cadd cmul csub : C->C->C) (copp : C->C).
  Variable ceqb : C->C->bool.
  (* [phi] est un morphisme de [C] dans [R] *)
@@ -214,7 +214,7 @@ Section DEFINITIONS.
 
  (** Specification of the power function *)
  Section POWER.
-  Variable Cpow : Set.
+  Variable Cpow : Type.
   Variable Cp_phi : N -> Cpow.
   Variable rpow : R -> Cpow -> R.
 
@@ -304,7 +304,7 @@ Section ALMOST_RING.
  (* a semi_morph can be extended to a ring_morph for the almost_ring derived
     from a semi_ring, provided the ring is a setoid (we only need
     reflexivity) *)
- Variable C : Set.
+ Variable C : Type.
  Variable (cO cI : C) (cadd cmul: C->C->C).
  Variable (ceqb : C -> C -> bool).
  Variable phi : C -> R.
@@ -381,7 +381,7 @@ Section ALMOST_RING.
     Ropp_mul_l Ropp_add (Rsub_def Rth)).
 
  (** Every semi morphism between two rings is a morphism*)
- Variable C : Set.
+ Variable C : Type.
  Variable (cO cI : C) (cadd cmul csub: C->C->C) (copp : C -> C).
  Variable (ceq : C -> C -> Prop) (ceqb : C -> C -> bool).
  Variable phi : C -> R.
@@ -521,7 +521,7 @@ Inductive ring_kind : Type :=
     (R : Type)
     (rO rI : R) (radd rmul rsub: R->R->R) (ropp : R -> R)
     (req : R -> R -> Prop)
-    (C : Set)
+    (C : Type)
     (cO cI : C) (cadd cmul csub : C->C->C) (copp : C->C)
     (ceqb : C->C->bool)
     phi

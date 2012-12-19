@@ -36,6 +36,12 @@ module Level = struct
     | Set
     | Level of int * Names.Dir_path.t
 
+  let set = Set
+  let prop = Prop
+  let is_small = function
+    | Level _ -> false
+    | _ -> true
+
   (* A specialized comparison function: we compare the [int] part first.
      This way, most of the time, the [Dir_path.t] part is not considered.
 

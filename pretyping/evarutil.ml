@@ -234,6 +234,7 @@ let push_duplicated_evars sigma emap c =
    Problem if an evar appears in the type of another one (pops anomaly) *)
 let evars_to_metas sigma (emap, c) =
   let emap = nf_evar_map_undefined emap in
+  let sigma = Evd.merge_universe_context sigma (Evd.evar_universe_context emap) in
   let sigma',emap' = push_dependent_evars sigma emap in
   let sigma',emap' = push_duplicated_evars sigma' emap' c in
   (* if an evar has been instantiated in [emap] (as part of typing [c])

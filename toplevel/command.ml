@@ -72,14 +72,13 @@ let interp_definition bl p red_option c ctypopt =
   let env = Global.env() in
   let evdref = ref (Evd.from_env env) in
   let impls, ((env_bl, ctx), imps1) = interp_context_evars evdref env bl in
-  let subst = evd_comb0 Evd.nf_univ_variables evdref in
-  let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
-  let env_bl = push_rel_context ctx env in
-  (* let _ = evdref := Evd.abstract_undefined_variables !evdref in *)
   let nb_args = List.length ctx in
   let imps,ce =
     match ctypopt with
       None ->
+        let subst = evd_comb0 Evd.nf_univ_variables evdref in
+	let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
+	let env_bl = push_rel_context ctx env in
 	let c, imps2 = interp_constr_evars_impls ~impls ~evdref ~fail_evar:false env_bl c in
 	let nf = e_nf_evars_and_universes evdref in
 	let body = nf (it_mkLambda_or_LetIn c ctx) in
@@ -92,6 +91,10 @@ let interp_definition bl p red_option c ctypopt =
           const_entry_opaque = false }
     | Some ctyp ->
 	let ty, impsty = interp_type_evars_impls ~impls ~evdref ~fail_evar:false env_bl ctyp in
+	let subst = evd_comb0 Evd.nf_univ_variables evdref in
+	let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
+	let env_bl = push_rel_context ctx env in
+	let _ = evdref := Evd.abstract_undefined_variables !evdref in
 	let c, imps2 = interp_casted_constr_evars_impls ~impls ~evdref
 	  ~fail_evar:false env_bl c ty in
 	let nf = e_nf_evars_and_universes evdref in 
@@ -356,7 +359,7 @@ let inductive_levels env evdref arities inds =
 	in
         (** Constructors contribute. *)
 	let evd = 
-	  if is_prop_sort du then
+	  if is_set_sort du then
 	    if not (Evd.check_leq evd cu Univ.type0_univ) then 
 	      raise (Indtypes.InductiveError Indtypes.LargeNonPropInductiveNotInType)
 	    else evd

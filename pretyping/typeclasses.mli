@@ -59,11 +59,16 @@ val remove_instance : instance -> unit
 val class_info : global_reference -> typeclass (** raises a UserError if not a class *)
 
 
-(** These raise a UserError if not a class. *)
-val dest_class_app : env -> constr -> typeclass * constr list
+(** These raise a UserError if not a class.
+    Caution: the typeclass structures is not instantiated w.r.t. the universe instance.
+    This is done separately by typeclass_univ_instance. *)
+val dest_class_app : env -> constr -> typeclass puniverses * constr list
+
+(** Get the instantiated typeclass structure for a given universe instance. *)
+val typeclass_univ_instance : typeclass puniverses -> typeclass puniverses
 
 (** Just return None if not a class *)
-val class_of_constr : constr -> (rel_context * (typeclass * constr list)) option
+val class_of_constr : constr -> (rel_context * (typeclass puniverses * constr list)) option
   
 val instance_impl : instance -> global_reference
 
@@ -75,8 +80,8 @@ val is_implicit_arg : Evar_kinds.t -> bool
 (** Returns the term and type for the given instance of the parameters and fields
    of the type class. *)
 
-val instance_constructor : typeclass -> constr list -> 
-  (constr option * types) Univ.in_universe_context_set
+val instance_constructor : typeclass puniverses -> constr list -> 
+  constr option * types
 
 (** Resolvability.
     Only undefined evars can be marked or checked for resolvability. *)

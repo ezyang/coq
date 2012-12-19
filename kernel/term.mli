@@ -31,6 +31,7 @@ val type1_sort  : sorts
 
 val sorts_ord : sorts -> sorts -> int
 val is_prop_sort : sorts -> bool
+val is_set_sort : sorts -> bool
 val univ_of_sort : sorts -> Univ.universe
 val sort_of_univ : Univ.universe -> sorts
 

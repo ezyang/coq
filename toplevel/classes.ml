@@ -56,7 +56,7 @@ let existing_instance glob g =
   let instance = Typing.type_of (Global.env ()) Evd.empty (Universes.constr_of_global c) in
   let _, r = decompose_prod_assum instance in
     match class_of_constr r with
-      | Some (_, (tc, _)) -> add_instance (new_instance tc None glob 
+      | Some (_, ((tc,u), _)) -> add_instance (new_instance tc None glob 
   (*FIXME*) (Flags.use_polymorphic_flag ()) c)
       | None -> user_err_loc (loc_of_reference g, "declare_instance",
 			     Pp.str "Constant does not build instances of a declared type class.")
@@ -134,15 +134,24 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	  cl
     | Explicit -> cl, Id.Set.empty
   in
-  let tclass = if generalize then CGeneralization (Loc.ghost, Implicit, Some AbsPi, tclass) else tclass in
-  let k, cty, ctx', ctx, len, imps, subst =
+  let tclass = 
+    if generalize then CGeneralization (Loc.ghost, Implicit, Some AbsPi, tclass) 
+    else tclass 
+  in
+  let k, u, cty, ctx', ctx, len, imps, subst =
     let impls, ((env', ctx), imps) = interp_context_evars evars env ctx in
     let c', imps' = interp_type_evars_impls ~impls ~evdref:evars ~fail_evar:false env' tclass in
+    (** Abstract undefined variables in the type. *)
+    let subst = Evarutil.evd_comb0 Evd.nf_univ_variables evars in
+    let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
+    let c' = Term.subst_univs_constr subst c' in
+    let _ = evars := abstract_undefined_variables !evars in
     let len = List.length ctx in
     let imps = imps @ Impargs.lift_implicits len imps' in
     let ctx', c = decompose_prod_assum c' in
     let ctx'' = ctx' @ ctx in
-    let cl, args = Typeclasses.dest_class_app (push_rel_context ctx'' env) c in
+    let k, args = Typeclasses.dest_class_app (push_rel_context ctx'' env) c in
+    let cl, u = Typeclasses.typeclass_univ_instance k in
     let _, args = 
       List.fold_right (fun (na, b, t) (args, args') ->
 	match b with
@@ -150,7 +159,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	| Some b -> (args, substl args' b :: args'))
 	(snd cl.cl_context) (args, [])
     in
-      cl, c', ctx', ctx, len, imps, args
+      cl, u, c', ctx', ctx, len, imps, args
   in
   let id =
     match snd instid with
@@ -171,8 +180,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
       begin
 	if not (Lib.is_modtype ()) then
 	  error "Declare Instance while not in Module Type.";
-	let (_, ty_constr),uctx = instance_constructor k (List.rev subst) in
-	  evars := Evd.merge_context_set Evd.univ_flexible !evars uctx;
+	let (_, ty_constr) = instance_constructor (k,u) (List.rev subst) in
 	let termtype =
 	  let t = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
 	    Evarutil.e_nf_evars_and_universes evars t
@@ -211,28 +219,28 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	    let props, rest =
 	      List.fold_left
 		(fun (props, rest) (id,b,_) ->
-		   if Option.is_empty b then
-		     try
-                      let is_id (id', _) = match id, get_id id' with
-                      | Name id, (_, id') -> Id.equal id id'
-                      | Anonymous, _ -> false
+		  if Option.is_empty b then 
+		    try
+		      let is_id (id', _) = match id, get_id id' with
+			| Name id, (_, id') -> Id.equal id id'
+			| Anonymous, _ -> false
                       in
-		       let (loc_mid, c) =
-			 List.find is_id rest 
-		       in
-		       let rest' = 
-			 List.filter (fun v -> not (is_id v)) rest 
-		       in
-		       let (loc, mid) = get_id loc_mid in
-			 List.iter (fun (n, _, x) -> 
-				      if Name.equal n (Name mid) then
-					Option.iter (fun x -> Dumpglob.add_glob loc (ConstRef x)) x)
-			   k.cl_projs;
-			 c :: props, rest'
-		     with Not_found ->
-		       (CHole (Loc.ghost, Some Evar_kinds.GoalEvar) :: props), rest
-		   else props, rest)
-		([], props) k.cl_props
+		      let (loc_mid, c) =
+			List.find is_id rest 
+		      in
+		      let rest' = 
+			List.filter (fun v -> not (is_id v)) rest 
+		      in
+		      let (loc, mid) = get_id loc_mid in
+			List.iter (fun (n, _, x) -> 
+			  if Name.equal n (Name mid) then
+			    Option.iter (fun x -> Dumpglob.add_glob loc (ConstRef x)) x)
+			k.cl_projs;
+			c :: props, rest'
+		    with Not_found ->
+		      (CHole (Loc.ghost, Some Evar_kinds.GoalEvar) :: props), rest
+		  else props, rest)
+	      ([], props) k.cl_props
 	    in
               match rest with
               | (n, _) :: _ ->
@@ -250,10 +258,9 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	    (fun subst' s (_, b, _) -> if Option.is_empty b then s :: subst' else subst')
 	    [] subst (k.cl_props @ snd k.cl_context)
 	  in
-	  let (app, ty_constr),uctx = instance_constructor k subst in
+	  let (app, ty_constr) = instance_constructor (k,u) subst in
 	  let termtype = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
 	  let term = Termops.it_mkLambda_or_LetIn (Option.get app) (ctx' @ ctx) in
-	    evars := Evd.merge_context_set Evd.univ_flexible !evars uctx;
 	    Some term, termtype
 	| Some (Inr (def, subst)) ->
 	  let termtype = it_mkProd_or_LetIn cty ctx in
@@ -340,7 +347,7 @@ let context l =
 	(ParameterEntry (None,(t,uctx),None), IsAssumption Logical)
       in
 	match class_of_constr t with
-	| Some (rels, (tc, args) as _cl) ->
+	| Some (rels, ((tc,_), args) as _cl) ->
 	    add_instance (Typeclasses.new_instance tc None false (*FIXME*)
 			  (Flags.use_polymorphic_flag ()) (ConstRef cst));
             status

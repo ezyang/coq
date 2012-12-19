@@ -93,6 +93,14 @@ let fresh_global_or_constr_instance env = function
   | IsConstr c -> c, Univ.empty_universe_context_set
   | IsGlobal gr -> fresh_global_instance env gr
 
+let global_of_constr c =
+  match kind_of_term c with
+  | Const (c, u) -> ConstRef c, u
+  | Ind (i, u) -> IndRef i, u
+  | Construct (c, u) -> ConstructRef c, u
+  | Var id -> VarRef id, []
+  | _ -> raise Not_found
+
 open Declarations
 
 let type_of_reference env r =

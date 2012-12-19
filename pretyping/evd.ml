@@ -265,7 +265,7 @@ let process_constraints vars local cstrs =
       let eql, undefl, l' = nf_univ_level vars l 
       and eqr, undefr, r' = nf_univ_level vars r in
       let eqs = Univ.LSet.union eql eqr in
-      let can, noncan = if undefl then r', l else l', r in
+      let can, noncan = if undefl then r', l' else l', r' in
 	if undefl || undefr then
 	  let eqs = 
 	    if Univ.Level.eq can noncan then eqs
@@ -279,7 +279,11 @@ let process_constraints vars local cstrs =
 	    if Univ.Level.eq l' r' then local 
 	    else Univ.Constraint.add (l',d,r') local
 	  in (vars', local')
-    else (vars, Univ.Constraint.add cstr local))
+    else
+      if Univ.Level.is_small r &&
+	not (Univ.Level.is_small l || Univ.LMap.mem l vars) then
+	anomaly ("Trying to lower a rigid Type universe to a small universe")
+      else (vars, Univ.Constraint.add cstr local))
   cstrs (vars, local)
 
 let add_constraints_context ctx cstrs =
