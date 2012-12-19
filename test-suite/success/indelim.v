@@ -14,9 +14,6 @@ Inductive Empty_set : Set :=.
 Fail Inductive Large_set : Set :=
   large_constr : forall A : Set, A -> Large_set.
 
-Fail Inductive Large_set : Set :=
-  large_constr : forall A : Set, A -> Large_set.
-
 Inductive smallunitProp : Prop :=
 | onlyProps : True -> smallunitProp.
 
