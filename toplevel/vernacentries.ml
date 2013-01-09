@@ -752,17 +752,17 @@ let vernac_require import qidl =
 let vernac_canonical r =
   Recordops.declare_canonical_structure (smart_global r)
 
-let vernac_coercion stre ref qids qidt =
+let vernac_coercion stre poly ref qids qidt =
   let target = cl_of_qualid qidt in
   let source = cl_of_qualid qids in
   let ref' = smart_global ref in
-  Class.try_add_new_coercion_with_target ref' stre ~source ~target;
+  Class.try_add_new_coercion_with_target ref' stre poly ~source ~target;
   if_verbose msg_info (pr_global ref' ++ str " is now a coercion")
 
-let vernac_identity_coercion stre id qids qidt =
+let vernac_identity_coercion stre poly id qids qidt =
   let target = cl_of_qualid qidt in
   let source = cl_of_qualid qids in
-  Class.try_add_new_identity_coercion id stre ~source ~target
+  Class.try_add_new_identity_coercion id stre poly ~source ~target
 
 (* Type classes *)
 
@@ -1704,8 +1704,8 @@ let interp c = match c with
   | VernacRequire (export, qidl) -> vernac_require export qidl
   | VernacImport (export,qidl) -> vernac_import export qidl
   | VernacCanonical qid -> vernac_canonical qid
-  | VernacCoercion (str,r,s,t) -> vernac_coercion str r s t
-  | VernacIdentityCoercion (str,(_,id),s,t) -> vernac_identity_coercion str id s t
+  | VernacCoercion (str,poly,r,s,t) -> vernac_coercion str poly r s t
+  | VernacIdentityCoercion (str,poly,(_,id),s,t) -> vernac_identity_coercion str poly id s t
 
   (* Type classes *)
   | VernacInstance (abst, glob, poly, sup, inst, props, pri) ->

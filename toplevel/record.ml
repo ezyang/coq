@@ -242,7 +242,7 @@ let declare_projections indsp ?(kind=StructureComponent) ?name coers fieldimpls 
 	      Impargs.maybe_declare_manual_implicits false refi impls;
 	      if coe then begin
 	        let cl = Class.class_of_global (IndRef indsp) in
-	        Class.try_add_new_coercion_with_source refi Global ~source:cl
+	        Class.try_add_new_coercion_with_source refi Global poly ~source:cl
 	      end;
 	      let proj_args = (*Rel 1 refers to "x"*) paramargs@[mkRel 1] in
 	      let constr_fip = applist (constr_fi,proj_args) in
@@ -304,7 +304,7 @@ let declare_structure finite infer poly ctx id idbuild paramimpls params arity f
   let cstr = (rsp,1) in
   let kinds,sp_projs = declare_projections rsp ~kind ?name coers fieldimpls fields in
   let build = ConstructRef cstr in
-  if is_coe then Class.try_add_new_coercion build Global;
+  if is_coe then Class.try_add_new_coercion build Global poly;
   Recordops.declare_structure(rsp,cstr,List.rev kinds,List.rev sp_projs);
   if infer then
     Evd.fold (fun ev evi () -> Recordops.declare_method (ConstructRef cstr) ev sign) sign ();

@@ -174,10 +174,10 @@ let error_not_transparent source =
   errorlabstrm "build_id_coercion"
     (pr_class source ++ str " must be a transparent constant.")
 
-let build_id_coercion idf_opt source =
+let build_id_coercion idf_opt source poly =
   let env = Global.env () in
-  let vs = match source with
-    | CL_CONST sp -> mkConst sp
+  let vs, ctx = match source with
+    | CL_CONST sp -> Universes.fresh_global_instance env (ConstRef sp)
     | _ -> error_not_transparent source in
   let c = match constant_opt_value_in env (destConst vs) with
     | Some c -> c
@@ -217,8 +217,8 @@ let build_id_coercion idf_opt source =
       { const_entry_body = mkCast (val_f, DEFAULTcast, typ_f);
         const_entry_secctx = None;
 	const_entry_type = Some typ_f;
-	const_entry_polymorphic = false;
-	const_entry_universes = Univ.empty_universe_context; (* FIXME *)
+	const_entry_polymorphic = poly;
+	const_entry_universes = Univ.context_of_universe_context_set ctx;
         const_entry_opaque = false } in
   let kn = declare_constant idf (constr_entry,IsDefinition IdentityCoercion) in
   ConstRef kn
@@ -238,7 +238,7 @@ booleen "coercion identite'?"
 lorque source est None alors target est None aussi.
 *)
 
-let add_new_coercion_core coef stre source target isid =
+let add_new_coercion_core coef stre poly source target isid =
   check_source source;
   let t = Global.type_of_global_unsafe coef in
   if coercion_exists coef then raise (CoercionError AlreadyExists);
@@ -266,34 +266,34 @@ let add_new_coercion_core coef stre source target isid =
   let stre' = get_strength stre coef cls clt in
   declare_coercion coef stre' ~isid ~src:cls ~target:clt ~params:(List.length lvs)
 
-let try_add_new_coercion_core ref b c d e =
-  try add_new_coercion_core ref b c d e
+let try_add_new_coercion_core ref b c d e f =
+  try add_new_coercion_core ref b c d e f
   with CoercionError e ->
       errorlabstrm "try_add_new_coercion_core"
         (explain_coercion_error ref e ++ str ".")
 
-let try_add_new_coercion ref stre =
-  try_add_new_coercion_core ref stre None None false
+let try_add_new_coercion ref stre poly =
+  try_add_new_coercion_core ref stre poly None None false
 
-let try_add_new_coercion_subclass cl stre =
-  let coe_ref = build_id_coercion None cl in
-  try_add_new_coercion_core coe_ref stre (Some cl) None true
+let try_add_new_coercion_subclass cl stre poly =
+  let coe_ref = build_id_coercion None cl poly in
+  try_add_new_coercion_core coe_ref stre poly (Some cl) None true
 
-let try_add_new_coercion_with_target ref stre ~source ~target =
-  try_add_new_coercion_core ref stre (Some source) (Some target) false
+let try_add_new_coercion_with_target ref stre poly ~source ~target =
+  try_add_new_coercion_core ref stre poly (Some source) (Some target) false
 
-let try_add_new_identity_coercion id stre ~source ~target =
-  let ref = build_id_coercion (Some id) source in
-  try_add_new_coercion_core ref stre (Some source) (Some target) true
+let try_add_new_identity_coercion id stre poly ~source ~target =
+  let ref = build_id_coercion (Some id) source poly in
+  try_add_new_coercion_core ref stre poly (Some source) (Some target) true
 
-let try_add_new_coercion_with_source ref stre ~source =
-  try_add_new_coercion_core ref stre (Some source) None false
+let try_add_new_coercion_with_source ref stre poly ~source =
+  try_add_new_coercion_core ref stre poly (Some source) None false
 
-let add_coercion_hook stre ref =
-  try_add_new_coercion ref stre;
+let add_coercion_hook poly stre ref =
+  try_add_new_coercion ref stre poly;
   Flags.if_verbose msg_info
     (pr_global_env Idset.empty ref ++ str " is now a coercion")
 
-let add_subclass_hook stre ref =
+let add_subclass_hook poly stre ref =
   let cl = class_of_global ref in
-  try_add_new_coercion_subclass cl stre
+  try_add_new_coercion_subclass cl stre poly
