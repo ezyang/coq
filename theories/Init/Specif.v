@@ -183,7 +183,7 @@ Section Dependent_choice_lemmas.
 
   Variables X : Set.
   Variable R : X -> X -> Prop.
-Unset Printing Notations. 
+
   Lemma dependent_choice :
     (forall x:X, {y | R x y}) ->
     forall x0, {f : nat -> X | f O = x0 /\ forall n, R (f n) (f (S n))}.
