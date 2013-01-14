@@ -90,6 +90,8 @@ End Subset_projections.
     [(projT1 x)] is the first projection and [(projT2 x)] is the
     second projection, the type of which depends on the [projT1]. *)
 
+
+
 Section Projections.
 
   Variable A : Type.

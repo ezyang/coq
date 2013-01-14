@@ -222,6 +222,7 @@ struct
     | Max (gel, gtl) -> 
       let gel' = CList.uniquize gel in
       let gtl' = CList.uniquize gtl in
+      let gel' = CList.smartfilter (fun u -> not (List.mem u gtl')) gel' in  
 	if gel' == gel && gtl' == gtl then x
 	else normalize (Max (gel', gtl'))
 
@@ -885,17 +886,32 @@ let subst_univs_full_level_fail subst l =
     | Max _ -> anomaly "Trying to substitute an algebraic universe where only levels are allowed")
   with Not_found -> l
 
+let subst_univs_full_level_max subst l = 
+  try 
+    (match LMap.find l subst with
+    | Atom u -> ([u],[])
+    | Max (gel, gtl) -> (gel, gtl))
+  with Not_found -> ([l],[])
+
 let subst_univs_full_universe subst u =
   match u with
   | Atom a -> 
     (match subst_univs_full_level_opt subst a with
     | Some a' -> a'
     | None -> u)
-  | Max (gel, gtl) -> 
-    let gel' = CList.smartmap (subst_univs_full_level_fail subst) gel in
-    let gtl' = CList.smartmap (subst_univs_full_level_fail subst) gtl in
-      if gel == gel' && gtl == gtl' then u
-      else Universe.normalize (Max (gel', gtl'))
+  | Max (gel, gtl) ->
+    let rec get_list accge accgt = function
+      | [] -> List.rev accge, List.rev accgt
+      | l :: rest -> 
+	let (ge, gt) = subst_univs_full_level_max subst l in
+	  get_list (ge @ accge) (gt @ accgt) rest
+    in
+    let gel', getl' = get_list [] [] gel in
+    let gtl', gttl' = get_list [] [] gtl in 
+      if gel' = gel && getl' == [] && gtl' = gtl && gttl' == [] then u
+      else
+	if gttl' <> [] then anomaly "Cannot take the successor of a successor"
+	else Universe.normalize (Max (gel', getl' @ gtl'))
 
 let subst_univs_constraint subst (u,d,v) =
   let u' = subst_univs_level subst u and v' = subst_univs_level subst v in

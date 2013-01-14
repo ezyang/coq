@@ -176,6 +176,9 @@ and e_my_find_search db_list local_db hdc complete concl =
 	      (conclPattern concl p tacast)
       in
       let tac = if complete then tclCOMPLETE tac else tac in
+      let tac gl = 
+	try tac gl with Univ.UniverseInconsistency _ -> tclFAIL 0 (str"Universe inconsistency") gl
+      in
 	match t with
 	| Extern _ -> (tac,b,true, name, lazy (pr_autotactic t))
 	| _ -> 

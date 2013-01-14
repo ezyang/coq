@@ -283,7 +283,10 @@ let process_constraints vars local cstrs =
       if Univ.Level.is_small r &&
 	not (Univ.Level.is_small l || Univ.LMap.mem l vars) then
 	anomaly ("Trying to lower a rigid Type universe to a small universe")
-      else (vars, Univ.Constraint.add cstr local))
+      else
+	if d = Univ.Le && Univ.Constraint.mem (l,Univ.Lt,r) local then
+	  (vars, local)
+	else (vars, Univ.Constraint.add cstr local))
   cstrs (vars, local)
 
 let add_constraints_context ctx cstrs =

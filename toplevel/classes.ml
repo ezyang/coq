@@ -334,7 +334,8 @@ let context l =
   let env = Global.env() in
   let evars = ref Evd.empty in
   let _, ((env', fullctx), impls) = interp_context_evars evars env l in
-  let fullctx = Evarutil.nf_rel_context_evar !evars fullctx in
+  let subst = Evarutil.evd_comb0 Evarutil.nf_evars_and_universes evars in
+  let fullctx = Sign.map_rel_context subst fullctx in
   let ce t = Evarutil.check_evars env Evd.empty !evars t in
   List.iter (fun (n, b, t) -> Option.iter ce b; ce t) fullctx;
   let ctx = try named_of_rel_context fullctx with _ ->
@@ -358,7 +359,7 @@ let context l =
 	(fun (x,_) ->
 	   match x with ExplByPos (_, Some id') -> id_eq id id' | _ -> false) impls
       in
-	Command.declare_assumption false (Local (* global *), (*FIXME*)false, Definitional) 
+	Command.declare_assumption false (Local (* global *), true, Definitional) 
 	  (t, uctx)
 	  [] impl (* implicit *) None (* inline *) (Loc.ghost, id) && status)
   in List.fold_left fn true (List.rev ctx)
