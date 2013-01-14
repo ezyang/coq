@@ -39,8 +39,8 @@ let interp_fields_evars evars env impls_env nots l =
   List.fold_left2
     (fun (env, uimpls, params, univ, impls) no ((loc, i), b, t) ->
       let impl, {utj_val = t'; utj_type = s} = interp_type_evars evars env impls t in
-      let univ = Univ.sup (univ_of_sort s) univ in
       let b' = Option.map (fun x -> snd (interp_evars evars env impls (Pretyping.OfType (Some t')) x)) b in
+      let univ = if b = None then Univ.sup (univ_of_sort s) univ else univ in
       let impls =
 	match i with
 	| Anonymous -> impls
@@ -93,7 +93,12 @@ let typecheck_params_and_fields def id t ps nots fs =
   let env2,impls,newfs,univ,data =
     interp_fields_evars evars env_ar impls_env nots (binders_of_decls fs)
   in
-  let evars = Evarconv.the_conv_x_leq env_ar (mkSort (Type univ)) t' !evars in
+  let evars = 
+    let ty = mkSort (Type univ) in
+      try Evarconv.the_conv_x_leq env_ar ty t' !evars 
+      with Reduction.NotConvertible ->
+        Pretype_errors.error_cannot_unify env_ar !evars (ty, t')
+  in
   let evars = Evarconv.consider_remaining_unif_problems env_ar evars in
   let evars = Typeclasses.resolve_typeclasses env_ar evars in
   let evars, nf = Evarutil.nf_evars_and_universes evars in
@@ -331,11 +336,11 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
     match fields with
     | [(Name proj_name, _, field)] when def ->
 	let class_body = it_mkLambda_or_LetIn field params in
-	let class_type = it_mkProd_or_LetIn arity params in
+	let _class_type = it_mkProd_or_LetIn arity params in
 	let class_entry =
 	  { const_entry_body = class_body;
             const_entry_secctx = None;
-	    const_entry_type = Some class_type;
+	    const_entry_type = None;
 	    const_entry_polymorphic = poly;
 	    const_entry_universes = ctx;
 	    const_entry_opaque = false }
