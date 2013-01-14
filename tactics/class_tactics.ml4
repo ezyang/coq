@@ -96,13 +96,21 @@ TACTIC EXTEND progress_evars
   [ "progress_evars" tactic(t) ] -> [ progress_evars (Tacinterp.eval_tactic t) ]
 END
 
+let refresh_undefined_univs clenv =
+  let evd', subst = Evd.refresh_undefined_universes clenv.evd in
+  let map_freelisted f = { f with rebus = subst_univs_constr subst f.rebus } in
+    { clenv with evd = evd'; templval = map_freelisted clenv.templval;
+      templtyp = map_freelisted clenv.templtyp }
+
 let unify_e_resolve flags (c,clenv) gls =
-  let clenv' = connect_clenv gls clenv in
+  let clenv' = refresh_undefined_univs clenv in
+  let clenv' = connect_clenv gls clenv' in
   let clenv' = clenv_unique_resolver ~flags clenv' gls in
     Clenvtac.clenv_refine true ~with_classes:false clenv' gls
 
 let unify_resolve flags (c,clenv) gls =
-  let clenv' = connect_clenv gls clenv in
+  let clenv' = refresh_undefined_univs clenv in
+  let clenv' = connect_clenv gls clenv' in
   let clenv' = clenv_unique_resolver ~flags clenv' gls in
     Clenvtac.clenv_refine false ~with_classes:false clenv' gls
 

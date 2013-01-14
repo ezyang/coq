@@ -867,6 +867,26 @@ let mark_undefs_as_rigid uctx =
 let abstract_undefined_variables ({evars = (sigma, uctx)} as d) =
   {d with evars = (sigma, mark_undefs_as_rigid uctx)}
 
+let refresh_undefined_univ_variables uctx =
+  let subst, ctx' = Universes.fresh_universe_context_set_instance uctx.uctx_local in
+  let alg = Univ.LSet.fold (fun u acc -> Univ.LSet.add (Univ.subst_univs_level subst u) acc) 
+    uctx.uctx_univ_algebraic Univ.LSet.empty 
+  in
+  let vars = 
+    Univ.LMap.fold
+      (fun u v acc ->
+       Univ.LMap.add (Univ.subst_univs_level subst u) (Option.map (Univ.subst_univs_level subst) v) acc)
+    uctx.uctx_univ_variables Univ.LMap.empty
+  in 
+  let uctx' = {uctx_local = ctx'; uctx_univ_variables = vars; uctx_univ_algebraic = alg;
+	       uctx_universes = Univ.initial_universes} in
+    uctx', subst
+
+let refresh_undefined_universes ({evars = (sigma, uctx)} as d) =
+  let uctx', subst = refresh_undefined_univ_variables uctx in
+  let metas' = Metamap.map (map_clb (subst_univs_constr subst)) d.metas in
+    {d with evars = (sigma, uctx'); metas = metas'}, subst
+
 let normalize_evar_universe_context uctx subst = 
   let undef, _ = Univ.LMap.partition (fun i b -> b = None) uctx.uctx_univ_variables in
   let undef = Univ.LMap.universes undef in
