@@ -343,8 +343,12 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	let f1 i = 
 	  let b,univs = eq_constr_univs term1 term2 in
 	  if b then
-	    let i = Evd.add_constraints i univs in
-	      exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
+	    let i, b =
+	      try Evd.add_constraints i univs, true
+	      with Univ.UniverseInconsistency _ -> (i,false)
+	    in
+	      if b then exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
+	      else (i, false)
 	  else
 	     (i,false)
 	and f2 i =

@@ -222,7 +222,7 @@ struct
     | Max (gel, gtl) -> 
       let gel' = CList.uniquize gel in
       let gtl' = CList.uniquize gtl in
-      let gel' = CList.smartfilter (fun u -> not (List.mem u gtl')) gel' in  
+      let gel' = CList.smartfilter (fun u -> not (List.mem u gtl') && u != Level.Prop) gel' in  
 	if gel' == gel && gtl' == gtl then x
 	else normalize (Max (gel', gtl'))
 

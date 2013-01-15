@@ -94,7 +94,7 @@ let interp_definition bl p red_option c ctypopt =
 	let subst = evd_comb0 Evd.nf_univ_variables evdref in
 	let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
 	let env_bl = push_rel_context ctx env in
-	let _ = evdref := Evd.abstract_undefined_variables !evdref in
+	(* let _ = evdref := Evd.abstract_undefined_variables !evdref in *)
 	let c, imps2 = interp_casted_constr_evars_impls ~impls ~evdref
 	  ~fail_evar:false env_bl c ty in
 	let nf = e_nf_evars_and_universes evdref in 
