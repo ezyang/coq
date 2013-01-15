@@ -20,7 +20,7 @@ open Libobject
 (*i*)
 
 
-let add_instance_hint_ref = ref (fun id path local pri -> assert false)
+let add_instance_hint_ref = ref (fun id path local pri poly -> assert false)
 let register_add_instance_hint =
   (:=) add_instance_hint_ref
 let add_instance_hint id = !add_instance_hint_ref id
@@ -349,9 +349,11 @@ let discharge_instance (_, (action, inst)) =
 let is_local i = Int.equal i.is_global (-1)
 
 let add_instance check inst =
-  add_instance_hint (IsGlobal inst.is_impl) [inst.is_impl] (is_local inst) inst.is_pri;
+  let poly = Global.is_polymorphic inst.is_impl in
+  add_instance_hint (IsGlobal inst.is_impl) [inst.is_impl] (is_local inst) 
+    inst.is_pri poly;
   List.iter (fun (path, pri, c) -> add_instance_hint (IsConstr c) path
-    (is_local inst) pri) 
+    (is_local inst) pri poly)
     (build_subclasses ~check:(check && not (isVarRef inst.is_impl))
        (Global.env ()) Evd.empty inst.is_impl inst.is_pri)
 

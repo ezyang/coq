@@ -152,6 +152,7 @@ val fold : (evar -> evar_info -> 'a -> 'a) -> evar_map -> 'a -> 'a
 val fold_undefined : (evar -> evar_info -> 'a -> 'a) -> evar_map -> 'a -> 'a
 val merge : evar_map -> evar_map -> evar_map
 val define : evar -> constr -> evar_map -> evar_map
+val cmap : (constr -> constr) -> evar_map -> evar_map
 
 val is_evar : evar_map -> evar -> bool
 

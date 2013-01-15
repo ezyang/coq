@@ -173,6 +173,20 @@ let type_of_global_unsafe r =
      let inst = fst mib.Declarations.mind_universes in
        Inductive.type_of_constructor (cstr,inst) specif
 
+
+let is_polymorphic r = 
+  let env = env() in
+  match r with
+  | VarRef id -> false
+  | ConstRef c -> 
+     let cb = Environ.lookup_constant c env in cb.Declarations.const_polymorphic
+  | IndRef ind ->
+     let (mib, oib) = Inductive.lookup_mind_specif env ind in
+       mib.Declarations.mind_polymorphic
+  | ConstructRef cstr ->
+     let (mib,oib as specif) = Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
+       mib.Declarations.mind_polymorphic
+
 (* spiwack: register/unregister functions for retroknowledge *)
 let register field value by_clause =
   let entry = kind_of_term value in

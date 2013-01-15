@@ -97,19 +97,23 @@ TACTIC EXTEND progress_evars
 END
 
 let refresh_undefined_univs clenv =
-  let evd', subst = Evd.refresh_undefined_universes clenv.evd in
-  let map_freelisted f = { f with rebus = subst_univs_constr subst f.rebus } in
-    { clenv with evd = evd'; templval = map_freelisted clenv.templval;
-      templtyp = map_freelisted clenv.templtyp }
+  match kind_of_term clenv.templval.rebus with
+  | Var _ -> clenv
+  | App (f, args) when isVar f -> clenv
+  | _ ->  
+    let evd', subst = Evd.refresh_undefined_universes clenv.evd in
+    let map_freelisted f = { f with rebus = subst_univs_constr subst f.rebus } in
+      { clenv with evd = evd'; templval = map_freelisted clenv.templval;
+	templtyp = map_freelisted clenv.templtyp }
 
-let unify_e_resolve flags (c,clenv) gls =
-  let clenv' = refresh_undefined_univs clenv in
+let unify_e_resolve poly flags (c,clenv) gls =
+  let clenv' = if poly then refresh_undefined_univs clenv else clenv in
   let clenv' = connect_clenv gls clenv' in
   let clenv' = clenv_unique_resolver ~flags clenv' gls in
     Clenvtac.clenv_refine true ~with_classes:false clenv' gls
 
-let unify_resolve flags (c,clenv) gls =
-  let clenv' = refresh_undefined_univs clenv in
+let unify_resolve poly flags (c,clenv) gls =
+  let clenv' = if poly then refresh_undefined_univs clenv else clenv in
   let clenv' = connect_clenv gls clenv' in
   let clenv' = clenv_unique_resolver ~flags clenv' gls in
     Clenvtac.clenv_refine false ~with_classes:false clenv' gls
@@ -165,23 +169,23 @@ and e_my_find_search db_list local_db hdc complete concl =
       (local_db::db_list)
   in
   let tac_of_hint =
-    fun (flags, {pri = b; pat = p; code = t; name = name}) ->
+    fun (flags, {pri = b; poly = poly; pat = pat; code = t; name = name}) ->
       let tac =
 	match t with
 	  | Res_pf (term,cl) -> with_prods nprods (term,cl)
-	    (unify_resolve flags)
+	    (unify_resolve poly flags)
 	  | ERes_pf (term,cl) -> with_prods nprods (term,cl)
-	    (unify_e_resolve flags)
-	  | Give_exact (c, cl) -> unify_resolve flags (c, cl)
+	    (unify_e_resolve poly flags)
+	  | Give_exact (c, cl) -> unify_resolve poly flags (c, cl)
 	  | Res_pf_THEN_trivial_fail (term,cl) ->
               tclTHEN (with_prods nprods (term,cl) 
-		       (unify_e_resolve flags))
+		       (unify_e_resolve poly flags))
 	      (if complete then tclIDTAC else e_trivial_fail_db db_list local_db)
 	  | Unfold_nth c -> tclWEAK_PROGRESS (unfold_in_concl [AllOccurrences,c])
 	  | Extern tacast -> 
 (* 	    tclTHEN *)
 (* 	      (fun gl -> Refiner.tclEVARS (mark_unresolvables (project gl)) gl) *)
-	      (conclPattern concl p tacast)
+	      (conclPattern concl pat tacast)
       in
       let tac = if complete then tclCOMPLETE tac else tac in
       let tac gl = 
@@ -263,14 +267,14 @@ let make_resolve_hyp env sigma st flags only_classes pri (id, _, cty) =
 	  let hints = build_subclasses ~check:false env sigma (VarRef id) None in
 	    (List.map_append
 	       (fun (path, pri, c) -> make_resolves env sigma ~name:(PathHints path)
-		  (true,false,Flags.is_verbose()) pri (IsConstr c))
+		  (true,false,Flags.is_verbose()) pri false (IsConstr c))
 	       hints)
 	else []
       in
         (hints @ List.map_filter
 	 (fun f -> try Some (f (mkVar id, cty, Univ.empty_universe_context_set))
 	           with Failure _ | UserError _ -> None) 
-	 [make_exact_entry ~name sigma pri; make_apply_entry ~name env sigma flags pri])
+	 [make_exact_entry ~name sigma pri false; make_apply_entry ~name env sigma flags pri false])
     else []
 
 let pf_filtered_hyps gls = 
@@ -841,5 +845,5 @@ TACTIC EXTEND autoapply
     let flags = flags_of_state (Auto.Hint_db.transparent_state (Auto.searchtable_map i)) in
     let cty = pf_type_of gl c in
     let ce = mk_clenv_from gl (c,cty) in
-      unify_e_resolve flags (c,ce) gl ]
+      unify_e_resolve false flags (c,ce) gl ]
 END

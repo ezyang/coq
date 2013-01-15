@@ -505,6 +505,12 @@ let subst_evar_defs_light sub evd =
 
 let subst_evar_map = subst_evar_defs_light
 
+let cmap f evd = 
+  { evd with
+      metas = Metamap.map (map_clb f) evd.metas;
+      evars = EvarInfoMap.map (fst evd.evars) (map_evar_info f), (snd evd.evars)
+  }
+
 (* spiwack: deprecated *)
 let create_evar_defs sigma = { sigma with
   conv_pbs=[]; last_mods=ExistentialSet.empty; metas=Metamap.empty }
