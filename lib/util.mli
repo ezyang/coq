@@ -42,9 +42,6 @@ module String : CString.ExtS
 val subst_command_placeholder : string -> string -> string
 val parse_loadpath : string -> string list
 
-module Stringset : Set.S with type elt = string
-module Stringmap : Map.S with type key = string
-
 (** {6 Lists. } *)
 
 module List : CList.ExtS
@@ -83,10 +80,6 @@ val delayed_force : 'a delayed -> 'a
 (** {6 Misc. } *)
 
 type ('a, 'b) union = Inl of 'a | Inr of 'b
-
-module Intset : Set.S with type elt = int
-
-module Intmap : Map.S with type key = int
 
 (** {6 ... } *)
 (** Coq interruption: set the following boolean reference to interrupt Coq

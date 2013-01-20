@@ -64,7 +64,7 @@ let existing_instance glob g =
 let mismatched_params env n m = mismatched_ctx_inst env Parameters n m
 let mismatched_props env n m = mismatched_ctx_inst env Properties n m
 
-type binder_list = (identifier Loc.located * bool * constr_expr) list
+type binder_list = (Id.t Loc.located * bool * constr_expr) list
 
 (* Declare everything in the parameters as implicit, and the class instance as well *)
 
@@ -86,7 +86,7 @@ let refine_ref = ref (fun _ -> assert(false))
 
 let id_of_class cl =
   match cl.cl_impl with
-    | ConstRef kn -> let _,_,l = repr_con kn in id_of_label l
+    | ConstRef kn -> let _,_,l = repr_con kn in Label.to_id l
     | IndRef (kn,i) ->
 	let mip = (Environ.lookup_mind kn (Global.env ())).Declarations.mind_packets in
 	  mip.(0).Declarations.mind_typename
@@ -124,7 +124,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
   let tclass, ids =
     match bk with
     | Implicit ->
-	Implicit_quantifiers.implicit_application Idset.empty ~allow_partial:false
+	Implicit_quantifiers.implicit_application Id.Set.empty ~allow_partial:false
 	  (fun avoid (clname, (id, _, t)) ->
 	    match clname with
 	    | Some (cl, b) ->
@@ -132,7 +132,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 		  t, avoid
 	    | None -> failwith ("new instance: under-applied typeclass"))
 	  cl
-    | Explicit -> cl, Idset.empty
+    | Explicit -> cl, Id.Set.empty
   in
   let tclass = 
     if generalize then CGeneralization (Loc.ghost, Implicit, Some AbsPi, tclass) 
@@ -222,7 +222,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 		  if Option.is_empty b then 
 		    try
 		      let is_id (id', _) = match id, get_id id' with
-			| Name id, (_, id') -> id_eq id id'
+			| Name id, (_, id') -> Id.equal id id'
 			| Anonymous, _ -> false
                       in
 		      let (loc_mid, c) =
@@ -233,7 +233,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 		      in
 		      let (loc, mid) = get_id loc_mid in
 			List.iter (fun (n, _, x) -> 
-			  if name_eq n (Name mid) then
+			  if Name.equal n (Name mid) then
 			    Option.iter (fun x -> Dumpglob.add_glob loc (ConstRef x)) x)
 			k.cl_projs;
 			c :: props, rest'
@@ -357,7 +357,7 @@ let context l =
     else (
       let impl = List.exists 
 	(fun (x,_) ->
-	   match x with ExplByPos (_, Some id') -> id_eq id id' | _ -> false) impls
+	   match x with ExplByPos (_, Some id') -> Id.equal id id' | _ -> false) impls
       in
 	Command.declare_assumption false (Local (* global *), true, Definitional) 
 	  (t, uctx)

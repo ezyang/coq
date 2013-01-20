@@ -102,7 +102,7 @@ type types = constr
 val mkRel : int -> constr
 
 (** Constructs a Variable *)
-val mkVar : identifier -> constr
+val mkVar : Id.t -> constr
 
 (** Constructs an patvar named "?n" *)
 val mkMeta : metavariable -> constr
@@ -126,8 +126,8 @@ type cast_kind = VMcast | DEFAULTcast | REVERTcast
 val mkCast : constr * cast_kind * constr -> constr
 
 (** Constructs the product [(x:t1)t2] *)
-val mkProd : name * types * types -> types
-val mkNamedProd : identifier -> types -> types -> types
+val mkProd : Name.t * types * types -> types
+val mkNamedProd : Id.t -> types -> types -> types
 
 (** non-dependent product [t1 -> t2], an alias for
    [forall (_:t1), t2]. Beware [t_2] is NOT lifted.
@@ -136,12 +136,12 @@ val mkNamedProd : identifier -> types -> types -> types
 val mkArrow : types -> types -> constr
 
 (** Constructs the abstraction \[x:t{_ 1}\]t{_ 2} *)
-val mkLambda : name * types * constr -> constr
-val mkNamedLambda : identifier -> types -> constr -> constr
+val mkLambda : Name.t * types * constr -> constr
+val mkNamedLambda : Id.t -> types -> constr -> constr
 
 (** Constructs the product [let x = t1 : t2 in t3] *)
-val mkLetIn : name * constr * types * constr -> constr
-val mkNamedLetIn : identifier -> constr -> types -> constr -> constr
+val mkLetIn : Name.t * constr * types * constr -> constr
+val mkNamedLetIn : Id.t -> constr -> types -> constr -> constr
 
 (** [mkApp (f,[| t_1; ...; t_n |]] constructs the application
    {% $(f~t_1~\dots~t_n)$ %}. *)
@@ -191,7 +191,7 @@ val mkCase : case_info * constr * constr * constr array -> constr
 
    where the length of the {% $ %}j{% $ %}th context is {% $ %}ij{% $ %}.
 *)
-type rec_declaration = name array * types array * constr array
+type rec_declaration = Name.t array * types array * constr array
 type fixpoint = (int array * int) * rec_declaration
 val mkFix : fixpoint -> constr
 
@@ -216,7 +216,7 @@ val mkCoFix : cofixpoint -> constr
    the same order (i.e. last argument first) *)
 type 'constr pexistential = existential_key * 'constr array
 type ('constr, 'types) prec_declaration =
-    name array * 'types array * 'constr array
+    Name.t array * 'types array * 'constr array
 type ('constr, 'types) pfixpoint =
     (int array * int) * ('constr, 'types) prec_declaration
 type ('constr, 'types) pcofixpoint =
@@ -224,14 +224,14 @@ type ('constr, 'types) pcofixpoint =
 
 type ('constr, 'types) kind_of_term =
   | Rel       of int
-  | Var       of identifier
+  | Var       of Id.t
   | Meta      of metavariable
   | Evar      of 'constr pexistential
   | Sort      of sorts
   | Cast      of 'constr * cast_kind * 'types
-  | Prod      of name * 'types * 'types
-  | Lambda    of name * 'types * 'constr
-  | LetIn     of name * 'constr * 'types * 'constr
+  | Prod      of Name.t * 'types * 'types
+  | Lambda    of Name.t * 'types * 'constr
+  | LetIn     of Name.t * 'constr * 'types * 'constr
   | App       of 'constr * 'constr array
   | Const     of constant puniverses
   | Ind       of inductive puniverses
@@ -250,8 +250,8 @@ val kind_of_term : constr -> (constr, types) kind_of_term
 type ('constr, 'types) kind_of_type =
   | SortType   of sorts
   | CastType   of 'types * 'types
-  | ProdType   of name * 'types * 'types
-  | LetInType  of name * 'constr * 'types * 'types
+  | ProdType   of Name.t * 'types * 'types
+  | LetInType  of Name.t * 'constr * 'types * 'types
   | AtomicType of 'constr * 'constr array
 
 val kind_of_type : types -> (constr, types) kind_of_type
@@ -261,7 +261,7 @@ val kind_of_type : types -> (constr, types) kind_of_type
 val isRel  : constr -> bool
 val isRelN : int -> constr -> bool
 val isVar  : constr -> bool
-val isVarId : identifier -> constr -> bool
+val isVarId : Id.t -> constr -> bool
 val isInd  : constr -> bool
 val isEvar : constr -> bool
 val isMeta : constr -> bool
@@ -298,7 +298,7 @@ val destRel : constr -> int
 val destMeta : constr -> metavariable
 
 (** Destructs a variable *)
-val destVar : constr -> identifier
+val destVar : constr -> Id.t
 
 (** Destructs a sort. [is_Prop] recognizes the sort {% \textsf{%}Prop{% }%}, whether
    [isprop] recognizes both {% \textsf{%}Prop{% }%} and {% \textsf{%}Set{% }%}. *)
@@ -308,13 +308,13 @@ val destSort : constr -> sorts
 val destCast : constr -> constr * cast_kind * constr
 
 (** Destructs the product {% $ %}(x:t_1)t_2{% $ %} *)
-val destProd : types -> name * types * types
+val destProd : types -> Name.t * types * types
 
 (** Destructs the abstraction {% $ %}[x:t_1]t_2{% $ %} *)
-val destLambda : constr -> name * types * constr
+val destLambda : constr -> Name.t * types * constr
 
 (** Destructs the let {% $ %}[x:=b:t_1]t_2{% $ %} *)
-val destLetIn : constr -> name * constr * types * constr
+val destLetIn : constr -> Name.t * constr * types * constr
 
 (** Destructs an application *)
 val destApp : constr -> constr * constr array
@@ -364,8 +364,8 @@ val destCoFix : constr -> cofixpoint
     (in the latter case, [na] is of type [name] but just for printing
     purpose) *)
 
-type named_declaration = identifier * constr option * types
-type rel_declaration = name * constr option * types
+type named_declaration = Id.t * constr option * types
+type rel_declaration = Name.t * constr option * types
 
 val map_named_declaration :
   (constr -> constr) -> named_declaration -> named_declaration
@@ -426,24 +426,24 @@ val appvectc : constr -> constr array -> constr
 
 (** [prodn n l b] = [forall (x_1:T_1)...(x_n:T_n), b]
    where [l] is [(x_n,T_n)...(x_1,T_1)...]. *)
-val prodn : int -> (name * constr) list -> constr -> constr
+val prodn : int -> (Name.t * constr) list -> constr -> constr
 
 (** [compose_prod l b]
    @return [forall (x_1:T_1)...(x_n:T_n), b]
    where [l] is [(x_n,T_n)...(x_1,T_1)].
    Inverse of [decompose_prod]. *)
-val compose_prod : (name * constr) list -> constr -> constr
+val compose_prod : (Name.t * constr) list -> constr -> constr
 
 (** [lamn n l b]
     @return [fun (x_1:T_1)...(x_n:T_n) => b]
    where [l] is [(x_n,T_n)...(x_1,T_1)...]. *)
-val lamn : int -> (name * constr) list -> constr -> constr
+val lamn : int -> (Name.t * constr) list -> constr -> constr
 
 (** [compose_lam l b]
    @return [fun (x_1:T_1)...(x_n:T_n) => b]
    where [l] is [(x_n,T_n)...(x_1,T_1)].
    Inverse of [it_destLam] *)
-val compose_lam : (name * constr) list -> constr -> constr
+val compose_lam : (Name.t * constr) list -> constr -> constr
 
 (** [to_lambda n l]
    @return [fun (x_1:T_1)...(x_n:T_n) => T]
@@ -468,20 +468,20 @@ val it_mkProd_or_LetIn : types -> rel_context -> types
 
 (** Transforms a product term {% $ %}(x_1:T_1)..(x_n:T_n)T{% $ %} into the pair
    {% $ %}([(x_n,T_n);...;(x_1,T_1)],T){% $ %}, where {% $ %}T{% $ %} is not a product. *)
-val decompose_prod : constr -> (name*constr) list * constr
+val decompose_prod : constr -> (Name.t*constr) list * constr
 
 (** Transforms a lambda term {% $ %}[x_1:T_1]..[x_n:T_n]T{% $ %} into the pair
    {% $ %}([(x_n,T_n);...;(x_1,T_1)],T){% $ %}, where {% $ %}T{% $ %} is not a lambda. *)
-val decompose_lam : constr -> (name*constr) list * constr
+val decompose_lam : constr -> (Name.t*constr) list * constr
 
 (** Given a positive integer n, transforms a product term
    {% $ %}(x_1:T_1)..(x_n:T_n)T{% $ %}
    into the pair {% $ %}([(xn,Tn);...;(x1,T1)],T){% $ %}. *)
-val decompose_prod_n : int -> constr -> (name * constr) list * constr
+val decompose_prod_n : int -> constr -> (Name.t * constr) list * constr
 
 (** Given a positive integer {% $ %}n{% $ %}, transforms a lambda term
    {% $ %}[x_1:T_1]..[x_n:T_n]T{% $ %} into the pair {% $ %}([(x_n,T_n);...;(x_1,T_1)],T){% $ %} *)
-val decompose_lam_n : int -> constr -> (name * constr) list * constr
+val decompose_lam_n : int -> constr -> (Name.t * constr) list * constr
 
 (** Extract the premisses and the conclusion of a term of the form
    "(xi:Ti) ... (xj:=cj:Tj) ..., T" where T is not a product nor a let *)
@@ -597,16 +597,16 @@ val subst1_decl : constr -> rel_declaration -> rel_declaration
 val subst1_named_decl : constr -> named_declaration -> named_declaration
 val substl_named_decl : constr list -> named_declaration -> named_declaration
 
-val replace_vars : (identifier * constr) list -> constr -> constr
-val subst_var : identifier -> constr -> constr
+val replace_vars : (Id.t * constr) list -> constr -> constr
+val subst_var : Id.t -> constr -> constr
 
 (** [subst_vars [id1;...;idn] t] substitute [VAR idj] by [Rel j] in [t]
    if two names are identical, the one of least indice is kept *)
-val subst_vars : identifier list -> constr -> constr
+val subst_vars : Id.t list -> constr -> constr
 
 (** [substn_vars n [id1;...;idn] t] substitute [VAR idj] by [Rel j+n-1] in [t]
    if two names are identical, the one of least indice is kept *)
-val substn_vars : int -> identifier list -> constr -> constr
+val substn_vars : int -> Id.t list -> constr -> constr
 
 
 (** {6 Functionals working on the immediate subterm of a construction } *)

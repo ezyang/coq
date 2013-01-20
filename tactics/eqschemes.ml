@@ -57,8 +57,8 @@ open Inductiveops
 open Ind_tables
 open Indrec
 
-let hid = id_of_string "H"
-let xid = id_of_string "X"
+let hid = Id.of_string "H"
+let xid = Id.of_string "X"
 let default_id_of_sort = function InProp | InSet -> hid | InType -> xid
 let fresh env id = next_global_ident_away id []
 let with_context_set ctx (b, ctx') = 
@@ -335,8 +335,8 @@ let build_l2r_rew_scheme dep env ind kind =
       Array.concat [extended_rel_vect n paramsctxt1;
                     rel_vect p nrealargs]) in
   let varH = fresh env (default_id_of_sort (snd (mind_arity mip))) in
-  let varHC = fresh env (id_of_string "HC") in
-  let varP = fresh env (id_of_string "P") in
+  let varHC = fresh env (Id.of_string "HC") in
+  let varP = fresh env (Id.of_string "P") in
   let applied_ind = build_dependent_inductive indu specif in
   let applied_ind_P =
     mkApp (mkIndU indu, Array.concat
@@ -447,8 +447,8 @@ let build_l2r_forward_rew_scheme dep env ind kind =
       Array.concat [extended_rel_vect n paramsctxt1;
                     rel_vect p nrealargs]) in
   let varH = fresh env (default_id_of_sort (snd (mind_arity mip))) in
-  let varHC = fresh env (id_of_string "HC") in
-  let varP = fresh env (id_of_string "P") in
+  let varHC = fresh env (Id.of_string "HC") in
+  let varP = fresh env (Id.of_string "P") in
   let applied_ind = build_dependent_inductive indu specif in
   let applied_ind_P =
     mkApp (mkIndU indu, Array.concat
@@ -538,8 +538,8 @@ let build_r2l_forward_rew_scheme dep env ind kind =
     mkApp (mkConstructUi(indu,1),extended_rel_vect n mib.mind_params_ctxt) in
   let constrargs_cstr = constrargs@[cstr 0] in
   let varH = fresh env (default_id_of_sort (snd (mind_arity mip))) in
-  let varHC = fresh env (id_of_string "HC") in
-  let varP = fresh env (id_of_string "P") in
+  let varHC = fresh env (Id.of_string "HC") in
+  let varP = fresh env (Id.of_string "P") in
   let applied_ind = build_dependent_inductive indu specif in
   let realsign_ind =
     name_context env ((Name varH,None,applied_ind)::realsign) in
@@ -743,9 +743,9 @@ let build_congr env (eq,refl,ctx) ind =
   if Int.equal (rel_context_length constrsign) (rel_context_length mib.mind_params_ctxt) then
     error "Constructor must have no arguments";
   let b = List.nth constrargs (i + mib.mind_nparams - 1) in
-  let varB = fresh env (id_of_string "B") in
-  let varH = fresh env (id_of_string "H") in
-  let varf = fresh env (id_of_string "f") in
+  let varB = fresh env (Id.of_string "B") in
+  let varH = fresh env (Id.of_string "H") in
+  let varf = fresh env (Id.of_string "f") in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let uni, ctx = Universes.extend_context (Universes.new_global_univ ()) ctx in
   let c = 

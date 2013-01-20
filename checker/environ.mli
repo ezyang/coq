@@ -27,8 +27,8 @@ val engagement : env -> Declarations.engagement option
 val set_engagement : Declarations.engagement -> env -> env
 
 (* Digests *)
-val add_digest : env -> dir_path -> Digest.t -> env
-val lookup_digest : env -> dir_path -> Digest.t
+val add_digest : env -> Dir_path.t -> Digest.t -> env
+val lookup_digest : env -> Dir_path.t -> Digest.t
 
 (* de Bruijn variables *)
 val rel_context : env -> rel_context
@@ -40,8 +40,8 @@ val push_rec_types : name array * constr array * 'a -> env -> env
 (* Named variables *)
 val named_context : env -> named_context
 val push_named : named_declaration -> env -> env
-val lookup_named : identifier -> env -> named_declaration
-val named_type : identifier -> env -> constr
+val lookup_named : Id.t -> env -> named_declaration
+val named_type : Id.t -> env -> constr
 
 (* Universes *)
 val universes : env -> Univ.universes

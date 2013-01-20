@@ -28,27 +28,27 @@ val proof_instr: Decl_expr.raw_proof_instr -> unit
 val tcl_change_info : Decl_mode.pm_info -> tactic
 
 val execute_cases :
-    Names.name ->
+    Name.t ->
     Decl_mode.per_info ->
     (Term.constr -> Proof_type.tactic) ->
-    (Names.Idset.elt * (Term.constr option * Term.constr list) list) list ->
+    (Id.Set.elt * (Term.constr option * Term.constr list) list) list ->
     Term.constr list -> int -> Decl_mode.split_tree -> Proof_type.tactic
 
 val tree_of_pats : 
-  identifier * (int * int) -> (Glob_term.cases_pattern*recpath) list list ->
+  Id.t * (int * int) -> (Glob_term.cases_pattern*recpath) list list ->
   split_tree
 
 val add_branch : 
-  identifier * (int * int) -> (Glob_term.cases_pattern*recpath) list list ->
+  Id.t * (int * int) -> (Glob_term.cases_pattern*recpath) list list ->
   split_tree -> split_tree
 
 val append_branch :
-  identifier *(int * int) -> int -> (Glob_term.cases_pattern*recpath) list list ->
-  (Names.Idset.t * Decl_mode.split_tree) option ->
-  (Names.Idset.t * Decl_mode.split_tree) option
+  Id.t *(int * int) -> int -> (Glob_term.cases_pattern*recpath) list list ->
+  (Id.Set.t * Decl_mode.split_tree) option ->
+  (Id.Set.t * Decl_mode.split_tree) option
 
 val append_tree :
-  identifier * (int * int) -> int -> (Glob_term.cases_pattern*recpath) list list ->
+  Id.t * (int * int) -> int -> (Glob_term.cases_pattern*recpath) list list ->
   split_tree -> split_tree
 
 val build_dep_clause :   Term.types Decl_expr.statement list ->
@@ -58,7 +58,7 @@ val build_dep_clause :   Term.types Decl_expr.statement list ->
     Decl_expr.hyp list -> Proof_type.goal Tacmach.sigma -> Term.types
 
 val register_dep_subcase :    
-    Names.identifier * (int * int) ->
+    Id.t * (int * int) ->
     Environ.env ->
     Decl_mode.per_info ->
     Glob_term.cases_pattern -> Decl_mode.elim_kind -> Decl_mode.elim_kind
@@ -69,41 +69,41 @@ val thesis_for :     Term.constr ->
 val close_previous_case : Proof.proof -> unit
 
 val pop_stacks :
-  (Names.identifier *
+  (Id.t *
      (Term.constr option * Term.constr list) list) list ->
-  (Names.identifier *
+  (Id.t *
      (Term.constr option * Term.constr list) list) list
 
 val push_head :   Term.constr ->
-  Names.Idset.t ->
-  (Names.identifier *
+  Id.Set.t ->
+  (Id.t *
      (Term.constr option * Term.constr list) list) list ->
-  (Names.identifier *
+  (Id.t *
      (Term.constr option * Term.constr list) list) list
 
 val push_arg : Term.constr ->
-  (Names.identifier *
+  (Id.t *
      (Term.constr option * Term.constr list) list) list ->
-  (Names.identifier *
+  (Id.t *
      (Term.constr option * Term.constr list) list) list
 
 val hrec_for:
-    Names.identifier ->
+    Id.t ->
     Decl_mode.per_info -> Proof_type.goal Tacmach.sigma ->
-    Names.identifier -> Term.constr
+    Id.t -> Term.constr
 
 val consider_match :
    bool ->
-    (Names.Idset.elt*bool) list ->
-    Names.Idset.elt list ->
+    (Id.Set.elt*bool) list ->
+    Id.Set.elt list ->
     (Term.types Decl_expr.statement, Term.types) Decl_expr.hyp list ->
     Proof_type.tactic
 
 val init_tree:
-    Names.Idset.t ->
-    Names.inductive ->
+    Id.Set.t ->
+    inductive ->
     int option * Declarations.wf_paths ->
     (int ->
      (int option * Declarations.recarg Rtree.t) array ->
-     (Names.Idset.t * Decl_mode.split_tree) option) ->
+     (Id.Set.t * Decl_mode.split_tree) option) ->
     Decl_mode.split_tree

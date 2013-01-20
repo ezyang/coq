@@ -24,7 +24,7 @@ val glob_sort_eq : glob_sort -> glob_sort -> bool
 
 val cases_pattern_loc : cases_pattern -> Loc.t
 
-val cases_predicate_names : tomatch_tuples -> name list
+val cases_predicate_names : tomatch_tuples -> Name.t list
 
 (** Apply one argument to a glob_constr *)
 val mkGApp : Loc.t -> glob_constr -> glob_constr -> glob_constr
@@ -38,14 +38,14 @@ val map_glob_constr_left_to_right :
 
 val fold_glob_constr : ('a -> glob_constr -> 'a) -> 'a -> glob_constr -> 'a
 val iter_glob_constr : (glob_constr -> unit) -> glob_constr -> unit
-val occur_glob_constr : identifier -> glob_constr -> bool
-val free_glob_vars : glob_constr -> identifier list
+val occur_glob_constr : Id.t -> glob_constr -> bool
+val free_glob_vars : glob_constr -> Id.t list
 val loc_of_glob_constr : glob_constr -> Loc.t
 
 (** Conversion from glob_constr to cases pattern, if possible
 
     Take the current alias as parameter,
     @raise Not_found if translation is impossible *)
-val cases_pattern_of_glob_constr : name -> glob_constr -> cases_pattern
+val cases_pattern_of_glob_constr : Name.t -> glob_constr -> cases_pattern
 
-val glob_constr_of_closed_cases_pattern : cases_pattern -> name * glob_constr
+val glob_constr_of_closed_cases_pattern : cases_pattern -> Name.t * glob_constr

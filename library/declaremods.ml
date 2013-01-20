@@ -27,19 +27,19 @@ type 'a module_signature =
 
 type scope_subst = (string * string) list
 
-let scope_subst = ref (Stringmap.empty : string Stringmap.t)
+let scope_subst = ref (String.Map.empty : string String.Map.t)
 
 let add_scope_subst sc sc' =
-  scope_subst := Stringmap.add sc sc' !scope_subst
+  scope_subst := String.Map.add sc sc' !scope_subst
 
 let register_scope_subst scl =
   List.iter (fun (sc1,sc2) -> add_scope_subst sc1 sc2) scl
 
 let subst_scope sc =
- try Stringmap.find sc !scope_subst with Not_found -> sc
+ try String.Map.find sc !scope_subst with Not_found -> sc
 
 let reset_scope_subst () =
-  scope_subst := Stringmap.empty
+  scope_subst := String.Map.empty
 
 (** Which inline annotations should we honor, either None or the ones
     whose level is less or equal to the given integer *)
@@ -86,7 +86,7 @@ type 'a annotated = ('a * funct_app_annot)
 
 *)
 type substitutive_objects =
-     mod_bound_id list * module_path * lib_objects
+     MBId.t list * module_path * lib_objects
 
 
 (* For each module, we store the following things:
@@ -123,8 +123,8 @@ let modtab_objects =
 (* currently started interactive module (if any) - its arguments (if it
    is a functor) and declared output type *)
 let openmod_info =
-  ref ((MPfile(initial_dir),[],None,[])
-	 : module_path *  mod_bound_id list *
+  ref ((MPfile(Dir_path.initial),[],None,[])
+	 : module_path *  MBId.t list *
            (module_struct_entry * int option) option *
 	   module_type_body list)
 
@@ -146,16 +146,16 @@ let _ = Summary.declare_summary "MODULE-INFO"
 	    Summary.init_function = (fun () ->
 				       modtab_substobjs := MPmap.empty;
 				       modtab_objects := MPmap.empty;
-				       openmod_info := ((MPfile(initial_dir),
+				       openmod_info := ((MPfile(Dir_path.initial),
 							 [],None,[]));
 				       library_cache := Dirmap.empty) }
 
 (* auxiliary functions to transform full_path and kernel_name given
-   by Lib into module_path and dir_path needed for modules *)
+   by Lib into module_path and Dir_path.t needed for modules *)
 
 let mp_of_kn kn =
   let mp,sec,l = repr_kn kn in
-    if dir_path_eq sec empty_dirpath then
+    if Dir_path.equal sec Dir_path.empty then
       MPdot (mp,l)
     else
       anomaly ("Non-empty section in module name!" ^ string_of_kn kn)
@@ -246,8 +246,8 @@ let compute_visibility exists what i dir dirinfo =
       Nametab.Until i
 (*
 let do_load_and_subst_module i dir mp substobjs keep =
-  let prefix = (dir,(mp,empty_dirpath)) in
-  let dirinfo = DirModule (dir,(mp,empty_dirpath)) in
+  let prefix = (dir,(mp,Dir_path.empty)) in
+  let dirinfo = DirModule (dir,(mp,Dir_path.empty)) in
   let vis = compute_visibility false "load_and_subst" i dir dirinfo in
   let objects = compute_subst_objects mp substobjs resolver in
   Nametab.push_dir vis dir dirinfo;
@@ -263,8 +263,8 @@ let do_load_and_subst_module i dir mp substobjs keep =
 *)
 
 let do_module exists what iter_objects i dir mp substobjs keep=
-  let prefix = (dir,(mp,empty_dirpath)) in
-  let dirinfo = DirModule (dir,(mp,empty_dirpath)) in
+  let prefix = (dir,(mp,Dir_path.empty)) in
+  let dirinfo = DirModule (dir,(mp,Dir_path.empty)) in
   let vis = compute_visibility exists what i dir dirinfo in
     Nametab.push_dir vis dir dirinfo;
     modtab_substobjs := MPmap.add mp substobjs !modtab_substobjs;
@@ -314,7 +314,7 @@ let cache_keep _ = anomaly "This module should not be cached!"
 
 let load_keep i ((sp,kn),seg) =
   let mp = mp_of_kn kn in
-  let prefix = dir_of_sp sp, (mp,empty_dirpath) in
+  let prefix = dir_of_sp sp, (mp,Dir_path.empty) in
     begin
       try
 	let prefix',objects = MPmap.find mp !modtab_objects in
@@ -328,7 +328,7 @@ let load_keep i ((sp,kn),seg) =
 
 let open_keep i ((sp,kn),seg) =
   let dirpath,mp = dir_of_sp sp, mp_of_kn kn in
-    open_objects i (dirpath,(mp,empty_dirpath)) seg
+    open_objects i (dirpath,(mp,Dir_path.empty)) seg
 
 let in_modkeep : lib_objects -> obj =
   declare_object {(default_object "MODULE KEEP OBJECTS") with
@@ -346,7 +346,7 @@ let modtypetab =
 (* currently started interactive module type. We remember its arguments
    if it is a functor type *)
 let openmodtype_info =
-  ref ([],[] : mod_bound_id list * module_type_body list)
+  ref ([],[] : MBId.t list * module_type_body list)
 
 let _ = Summary.declare_summary "MODTYPE-INFO"
 	  { Summary.freeze_function = (fun () ->
@@ -436,11 +436,11 @@ let rec replace_module_object idl (mbids,mp,lib_stack) (mbids2,mp2,objs) mp1 =
   | [] -> () | _ -> anomaly "Unexpected functor objects" in
   let rec replace_idl = function
     | _,[] -> []
-    | id::idl,(id',obj)::tail when id_eq id id' ->
+    | id::idl,(id',obj)::tail when Id.equal id id' ->
       if not (String.equal (object_tag obj) "MODULE") then anomaly "MODULE expected!";
       let substobjs = match idl with
       | [] ->
-        let mp' = MPdot(mp, label_of_id id) in
+        let mp' = MPdot(mp, Label.of_id id) in
         mbids, mp', subst_objects (map_mp mp1 mp' empty_delta_resolver) objs
       | _ ->
         replace_module_object idl (out_module obj) (mbids2,mp2,objs) mp
@@ -506,7 +506,7 @@ let rec get_modtype_substobjs env mp_from inline = function
 (* add objects associated to them *)
 let process_module_bindings argids args =
   let process_arg id (mbid,(mty,ann)) =
-    let dir = make_dirpath [id] in
+    let dir = Dir_path.make [id] in
     let mp = MPbound mbid in
     let (mbids,mp_from,objs) =
       get_modtype_substobjs (Global.env()) mp (inline_annot ann) mty in
@@ -529,7 +529,7 @@ let rec seb2mse = function
   | _ -> failwith "seb2mse: received a non-atomic seb"
 
 let process_module_seb_binding mbid seb =
-  process_module_bindings [id_of_mbid mbid]
+  process_module_bindings [MBId.to_id mbid]
     [mbid,
      (seb2mse seb,
       { ann_inline = DefaultInline; ann_scope_subst = [] })]
@@ -537,9 +537,9 @@ let process_module_seb_binding mbid seb =
 let intern_args interp_modtype (idl,(arg,ann)) =
   let inl = inline_annot ann in
   let lib_dir = Lib.library_dp() in
-  let mbids = List.map (fun (_,id) -> make_mbid lib_dir id) idl in
+  let mbids = List.map (fun (_,id) -> MBId.make lib_dir id) idl in
   let mty = interp_modtype (Global.env()) arg in
-  let dirs = List.map (fun (_,id) -> make_dirpath [id]) idl in
+  let dirs = List.map (fun (_,id) -> Dir_path.make [id]) idl in
   let (mbi,mp_from,objs) = get_modtype_substobjs (Global.env())
     (MPbound (List.hd mbids)) inl mty in
   List.map2
@@ -643,7 +643,7 @@ let module_objects mp =
 (************************************************************************)
 (* libraries *)
 
-type library_name = dir_path
+type library_name = Dir_path.t
 
 (* The first two will form substitutive_objects, the last one is keep *)
 type library_objects =
@@ -885,18 +885,18 @@ let lift_oname (sp,kn) =
 
 let cache_include (oname,(me,(mbis,mp1,objs))) =
   let dir,mp1 = lift_oname oname in
-  let prefix = (dir,(mp1,empty_dirpath)) in
+  let prefix = (dir,(mp1,Dir_path.empty)) in
     load_objects 1 prefix objs;
     open_objects 1 prefix objs
 
 let load_include  i (oname,(me,(mbis,mp1,objs))) =
   let dir,mp1 = lift_oname oname in
-  let prefix = (dir,(mp1,empty_dirpath)) in
+  let prefix = (dir,(mp1,Dir_path.empty)) in
     load_objects i prefix objs
 
 let open_include i (oname,(me,(mbis,mp1,objs))) =
   let dir,mp1 = lift_oname oname in
-  let prefix = (dir,(mp1,empty_dirpath)) in
+  let prefix = (dir,(mp1,Dir_path.empty)) in
     open_objects i prefix objs
 
 let subst_include (subst,(me,substobj)) =

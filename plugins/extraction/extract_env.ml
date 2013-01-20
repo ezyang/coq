@@ -208,7 +208,7 @@ let env_for_mtb_with_def env mp seb idl =
     | SEBstruct(sig_b) -> sig_b
     | _ -> assert false
   in
-  let l = label_of_id (List.hd idl) in
+  let l = Label.of_id (List.hd idl) in
   let spot = function (l',SFBconst _) -> l = l' | _ -> false in
   let before = fst (List.split_when spot sig_b) in
   Modops.add_signature mp before empty_delta_resolver env
@@ -219,13 +219,13 @@ let env_for_mtb_with_def env mp seb idl =
 let rec extract_sfb_spec env mp = function
   | [] -> []
   | (l,SFBconst cb) :: msig ->
-      let kn = make_con mp empty_dirpath l in
+      let kn = make_con mp Dir_path.empty l in
       let s = extract_constant_spec env kn cb in
       let specs = extract_sfb_spec env mp msig in
       if logical_spec s then specs
       else begin Visit.add_spec_deps s; (l,Spec s) :: specs end
   | (l,SFBmind _) :: msig ->
-      let mind = make_mind mp empty_dirpath l in
+      let mind = make_mind mp Dir_path.empty l in
       let s = Sind (mind, extract_inductive env mind) in
       let specs = extract_sfb_spec env mp msig in
       if logical_spec s then specs
@@ -288,7 +288,7 @@ let rec extract_sfb env mp all = function
   | (l,SFBconst cb) :: msb ->
       (try
 	 let vl,recd,msb = factor_fix env l cb msb in
-	 let vc = Array.map (make_con mp empty_dirpath) vl in
+	 let vc = Array.map (make_con mp Dir_path.empty) vl in
 	 let ms = extract_sfb env mp all msb in
 	 let b = Array.exists Visit.needed_con vc in
 	 if all || b then
@@ -298,7 +298,7 @@ let rec extract_sfb env mp all = function
 	 else ms
        with Impossible ->
 	 let ms = extract_sfb env mp all msb in
-	 let c = make_con mp empty_dirpath l in
+	 let c = make_con mp Dir_path.empty l in
 	 let b = Visit.needed_con c in
 	 if all || b then
 	   let d = extract_constant env c cb in
@@ -307,7 +307,7 @@ let rec extract_sfb env mp all = function
 	 else ms)
   | (l,SFBmind mib) :: msb ->
       let ms = extract_sfb env mp all msb in
-      let mind = make_mind mp empty_dirpath l in
+      let mind = make_mind mp Dir_path.empty l in
       let b = Visit.needed_ind mind in
       if all || b then
 	let d = Dind (mind, extract_inductive env mind) in
@@ -388,7 +388,7 @@ let descr () = match lang () with
 (* From a filename string "foo.ml" or "foo", builds "foo.ml" and "foo.mli"
    Works similarly for the other languages. *)
 
-let default_id = id_of_string "Main"
+let default_id = Id.of_string "Main"
 
 let mono_filename f =
   let d = descr () in
@@ -402,7 +402,7 @@ let mono_filename f =
 	in
 	let id =
 	  if lang () <> Haskell then default_id
-	  else try id_of_string (Filename.basename f)
+	  else try Id.of_string (Filename.basename f)
 	  with _ -> error "Extraction: provided filename is not a valid identifier"
 	in
 	Some (f^d.file_suffix), Option.map ((^) f) d.sig_suffix, id
@@ -412,7 +412,7 @@ let mono_filename f =
 let module_filename mp =
   let f = file_of_modfile mp in
   let d = descr () in
-  Some (f^d.file_suffix), Option.map ((^) f) d.sig_suffix, id_of_string f
+  Some (f^d.file_suffix), Option.map ((^) f) d.sig_suffix, Id.of_string f
 
 (*s Extraction of one decl to stdout. *)
 

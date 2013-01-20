@@ -55,9 +55,6 @@ let subst_command_placeholder s t =
   done;
   Buffer.contents buff
 
-module Stringset = Set.Make(String)
-module Stringmap = Map.Make(String)
-
 (* Lists *)
 
 module List : CList.ExtS = CList
@@ -118,9 +115,6 @@ let delayed_force f = f ()
 (* Misc *)
 
 type ('a,'b) union = Inl of 'a | Inr of 'b
-
-module Intset = Set.Make(Int)
-module Intmap = Map.Make(Int)
 
 (*s interruption *)
 

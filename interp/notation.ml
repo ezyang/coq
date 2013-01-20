@@ -44,14 +44,14 @@ open Ppextend
 
 type level = precedence * tolerability list
 type delimiters = string
-type notation_location = (dir_path * dir_path) * string
+type notation_location = (Dir_path.t * Dir_path.t) * string
 
 type scope = {
   notations: (string, interpretation * notation_location) Gmap.t;
   delimiters: delimiters option
 }
 
-(* Uninterpreted notation map: notation -> level * dir_path *)
+(* Uninterpreted notation map: notation -> level * Dir_path.t *)
 let notation_level_map = ref Gmap.empty
 
 (* Scopes table: scope_name -> symbol_interpretation *)
@@ -397,7 +397,7 @@ let find_prim_token g loc p sc =
   (* Try for a primitive numerical notation *)
   let (spdir,interp) = Hashtbl.find prim_token_interpreter_tab sc loc p in
   check_required_module loc sc spdir;
-  g (interp ()), ((dirpath (fst spdir),empty_dirpath),"")
+  g (interp ()), ((dirpath (fst spdir),Dir_path.empty),"")
 
 let interp_prim_token_gen g loc p local_scopes =
   let scopes = make_current_scopes local_scopes in
@@ -643,15 +643,15 @@ let declare_ref_arguments_scope ref =
 
 type symbol =
   | Terminal of string
-  | NonTerminal of identifier
-  | SProdList of identifier * symbol list
+  | NonTerminal of Id.t
+  | SProdList of Id.t * symbol list
   | Break of int
 
 let rec symbol_eq s1 s2 = match s1, s2 with
 | Terminal s1, Terminal s2 -> String.equal s1 s2
-| NonTerminal id1, NonTerminal id2 -> id_eq id1 id2
+| NonTerminal id1, NonTerminal id2 -> Id.equal id1 id2
 | SProdList (id1, l1), SProdList (id2, l2) ->
-  id_eq id1 id2 && List.equal symbol_eq l1 l2
+  Id.equal id1 id2 && List.equal symbol_eq l1 l2
 | Break i1, Break i2 -> Int.equal i1 i2
 | _ -> false
 
@@ -677,7 +677,7 @@ let decompose_notation_key s =
     in
     let tok =
       match String.sub s n (pos-n) with
-      | "_" -> NonTerminal (id_of_string "_")
+      | "_" -> NonTerminal (Id.of_string "_")
       | s -> Terminal (String.drop_simple_quotes s) in
     decomp_ntn (tok::dirs) (pos+1)
   in
@@ -695,7 +695,7 @@ let classes_of_scope sc =
 
 let pr_scope_class = function
   | ScopeSort -> str "Sort"
-  | ScopeRef t -> pr_global_env Idset.empty t
+  | ScopeRef t -> pr_global_env Id.Set.empty t
 
 let pr_scope_classes sc =
   let l = classes_of_scope sc in
@@ -820,7 +820,7 @@ let locate_notation prglob ntn scope =
 	    pr_notation_info prglob df r ++ tbrk (1,2) ++
 	    (if String.equal sc default_scope then mt () else (str ": " ++ str sc)) ++
 	    tbrk (1,2) ++
-	    (if Option.Misc.compare String.equal (Some sc) scope then str "(default interpretation)" else mt ())
+	    (if Option.equal String.equal (Some sc) scope then str "(default interpretation)" else mt ())
 	    ++ fnl ()))
 	l) ntns)
 

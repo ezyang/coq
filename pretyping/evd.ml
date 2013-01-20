@@ -92,8 +92,8 @@ let map_evar_info f evi =
    - evar_map (exported)
 *)
 
-module ExistentialMap = Intmap
-module ExistentialSet = Intset
+module ExistentialMap = Int.Map
+module ExistentialSet = Int.Set
 
 (* This exception is raised by *.existential_value *)
 exception NotInstantiatedEvar
@@ -350,16 +350,16 @@ end
 
 type 'a freelisted = {
   rebus : 'a;
-  freemetas : Intset.t }
+  freemetas : Int.Set.t }
 
 (* Collects all metavars appearing in a constr *)
 let metavars_of c =
   let rec collrec acc c =
     match kind_of_term c with
-      | Meta mv -> Intset.add mv acc
+      | Meta mv -> Int.Set.add mv acc
       | _         -> fold_constr collrec acc c
   in
-  collrec Intset.empty c
+  collrec Int.Set.empty c
 
 let mk_freelisted c =
   { rebus = c; freemetas = metavars_of c }
@@ -400,8 +400,8 @@ type instance_status = instance_constraint * instance_typing_status
 (* Clausal environments *)
 
 type clbinding =
-  | Cltyp of name * constr freelisted
-  | Clval of name * (constr freelisted * instance_status) * constr freelisted
+  | Cltyp of Name.t * constr freelisted
+  | Clval of Name.t * (constr freelisted * instance_status) * constr freelisted
 
 let map_clb f = function
   | Cltyp (na,cfl) -> Cltyp (na,map_fl f cfl)
@@ -414,11 +414,11 @@ let clb_name = function
 
 (***********************)
 
-module Metaset = Intset
+module Metaset = Int.Set
 
 let meta_exists p s = Metaset.fold (fun x b -> b || (p x)) s false
 
-module Metamap = Intmap
+module Metamap = Int.Map
 
 let metamap_to_list m =
   Metamap.fold (fun n v l -> (n,v)::l) m []
@@ -1013,7 +1013,7 @@ let meta_with_name evd id =
     Metamap.fold
       (fun n clb (l1,l2 as l) ->
         let (na',def) = clb_name clb in
-        if name_eq na na' then if def then (n::l1,l2) else (n::l1,n::l2)
+        if Name.equal na na' then if def then (n::l1,l2) else (n::l1,n::l2)
         else l)
       evd.metas ([],[]) in
   match mvnodef, mvl with

@@ -36,7 +36,7 @@ type recursion_scheme_error =
 exception RecursionSchemeError of recursion_scheme_error
 
 let make_prod_dep dep env = if dep then mkProd_name env else mkProd
-let mkLambda_string s t c = mkLambda (Name (id_of_string s), t, c)
+let mkLambda_string s t c = mkLambda (Name (Id.of_string s), t, c)
 
 (*******************************************)
 (* Building curryfied elimination          *)
@@ -274,7 +274,7 @@ let mis_make_indrec env sigma listdepkind mib u =
     context_chop (nparams-nparrec) (Sign.subst_univs_context usubst mib.mind_params_ctxt) in
   let nrec = List.length listdepkind in
   let depPvec =
-    Array.create mib.mind_ntypes (None : (bool * constr) option) in
+    Array.make mib.mind_ntypes (None : (bool * constr) option) in
   let _ =
     let rec
 	assign k = function
@@ -384,7 +384,7 @@ let mis_make_indrec env sigma listdepkind mib u =
 	    let fixn = Array.of_list (List.rev ln) in
             let fixtyi = Array.of_list (List.rev ltyp) in
             let fixdef = Array.of_list (List.rev ldef) in
-            let names = Array.create nrec (Name(id_of_string "F")) in
+            let names = Array.make nrec (Name(Id.of_string "F")) in
 	      mkFix ((fixn,p),(names,fixtyi,fixdef))
       in
 	mrec 0 [] [] []
@@ -574,7 +574,7 @@ let lookup_eliminator ind_sp s =
   (* Try first to get an eliminator defined in the same section as the *)
   (* inductive type *)
   try
-    let cst =Global.constant_of_delta_kn (make_kn mp dp (label_of_id id)) in
+    let cst =Global.constant_of_delta_kn (make_kn mp dp (Label.of_id id)) in
     let _ = Global.lookup_constant cst in
       ConstRef cst
   with Not_found ->
@@ -585,6 +585,6 @@ let lookup_eliminator ind_sp s =
     errorlabstrm "default_elim"
       (strbrk "Cannot find the elimination combinator " ++
        pr_id id ++ strbrk ", the elimination of the inductive definition " ++
-       pr_global_env Idset.empty (IndRef ind_sp) ++
+       pr_global_env Id.Set.empty (IndRef ind_sp) ++
        strbrk " on sort " ++ Termops.pr_sort_family s ++
        strbrk " is probably not allowed.")

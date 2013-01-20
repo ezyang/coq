@@ -29,7 +29,7 @@ let eq_gr gr1 gr2 =
     | ConstRef con1, ConstRef con2 -> eq_constant con1 con2
     | IndRef kn1, IndRef kn2 -> eq_ind kn1 kn2
     | ConstructRef kn1, ConstructRef kn2 -> eq_constructor kn1 kn2
-    | VarRef v1, VarRef v2 -> id_eq v1 v2
+    | VarRef v1, VarRef v2 -> Id.equal v1 v2
     | _ -> false
 
 let destVarRef = function VarRef ind -> ind | _ -> failwith "destVarRef"
@@ -106,7 +106,7 @@ let global_ord_gen fc fmi x y =
     | ConstructRef (indx,jx), ConstructRef (indy,jy) ->
       let c = Int.compare jx jy in
       if Int.equal c 0 then ind_ord indx indy else c
-    | VarRef v1, VarRef v2 -> id_ord v1 v2
+    | VarRef v1, VarRef v2 -> Id.compare v1 v2
     | _, _ -> Pervasives.compare x y
 
 let global_ord_can = global_ord_gen canonical_con canonical_mind
@@ -153,29 +153,29 @@ type global_reference_or_constr =
 
 (** {6 Temporary function to brutally form kernel names from section paths } *)
 
-let encode_mind dir id = make_mind (MPfile dir) empty_dirpath (label_of_id id)
+let encode_mind dir id = make_mind (MPfile dir) Dir_path.empty (Label.of_id id)
 
-let encode_con dir id = make_con (MPfile dir) empty_dirpath (label_of_id id)
+let encode_con dir id = make_con (MPfile dir) Dir_path.empty (Label.of_id id)
 
 let decode_mind kn =
   let rec dir_of_mp = function
-    | MPfile dir -> repr_dirpath dir
+    | MPfile dir -> Dir_path.repr dir
     | MPbound mbid ->
-	let _,_,dp = repr_mbid mbid in
-	let id = id_of_mbid mbid in
-	  id::(repr_dirpath dp)
-    | MPdot(mp,l) -> (id_of_label l)::(dir_of_mp mp)
+	let _,_,dp = MBId.repr mbid in
+	let id = MBId.to_id mbid in
+	  id::(Dir_path.repr dp)
+    | MPdot(mp,l) -> (Label.to_id l)::(dir_of_mp mp)
   in
   let mp,sec_dir,l = repr_mind kn in
-    if (repr_dirpath sec_dir) = [] then
-     (make_dirpath (dir_of_mp mp)),id_of_label l
+    if (Dir_path.repr sec_dir) = [] then
+     (Dir_path.make (dir_of_mp mp)),Label.to_id l
     else
       anomaly "Section part should be empty!"
 
 let decode_con kn =
   let mp,sec_dir,l = repr_con kn in
-    match mp,(repr_dirpath sec_dir) with
-	MPfile dir,[] -> (dir,id_of_label l)
+    match mp,(Dir_path.repr sec_dir) with
+	MPfile dir,[] -> (dir,Label.to_id l)
       | _ , [] -> anomaly "MPfile expected!"
       | _ -> anomaly "Section part should be empty!"
 

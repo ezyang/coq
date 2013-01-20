@@ -78,7 +78,7 @@ val pr_universe_ctx        : Univ.universe_context -> std_ppcmds
 
 (** Printing global references using names as short as possible *)
 
-val pr_global_env          : Idset.t -> global_reference -> std_ppcmds
+val pr_global_env          : Id.Set.t -> global_reference -> std_ppcmds
 val pr_global              : global_reference -> std_ppcmds
 
 val pr_constant            : env -> constant -> std_ppcmds
@@ -109,7 +109,7 @@ val pr_context_of          : env -> std_ppcmds
 
 val pr_predicate           : ('a -> std_ppcmds) -> (bool * 'a list) -> std_ppcmds
 val pr_cpred               : Cpred.t -> std_ppcmds
-val pr_idpred              : Idpred.t -> std_ppcmds
+val pr_idpred              : Id.Pred.t -> std_ppcmds
 val pr_transparent_state   : transparent_state -> std_ppcmds
 
 (** Proofs *)

@@ -126,7 +126,7 @@ let eq_constr_or_reference x y =
   | _, _ -> false
 
 let eq_pri_auto_tactic (_, x) (_, y) =
-  if Int.equal x.pri y.pri && Option.Misc.compare constr_pattern_eq x.pat y.pat then
+  if Int.equal x.pri y.pri && Option.equal constr_pattern_eq x.pat y.pat then
     match x.code,y.code with
       | Res_pf (cstr,_),Res_pf (cstr1,_) -> 
 	   eq_constr cstr cstr1
@@ -161,7 +161,7 @@ let lookup_tacs (hdc,c) st (l,l',dn) =
 module Constr_map = Map.Make(RefOrdered)
 
 let is_transparent_gr (ids, csts) = function
-  | VarRef id -> Idpred.mem id ids
+  | VarRef id -> Id.Pred.mem id ids
   | ConstRef cst -> Cpred.mem cst csts
   | IndRef _ | ConstructRef _ -> false
 
@@ -323,7 +323,7 @@ module Hint_db = struct
   type t = {
     hintdb_state : Names.transparent_state;
     hintdb_cut : hints_path;
-    hintdb_unfolds : Idset.t * Cset.t;
+    hintdb_unfolds : Id.Set.t * Cset.t;
     mutable hintdb_max_id : int;
     use_dn : bool;
     hintdb_map : search_entry Constr_map.t;
@@ -337,7 +337,7 @@ module Hint_db = struct
 
   let empty st use_dn = { hintdb_state = st;
 			  hintdb_cut = PathEmpty;
-			  hintdb_unfolds = (Idset.empty, Cset.empty);
+			  hintdb_unfolds = (Id.Set.empty, Cset.empty);
 			  hintdb_max_id = 0;
 			  use_dn = use_dn;
 			  hintdb_map = Constr_map.empty;
@@ -402,7 +402,7 @@ module Hint_db = struct
       | Unfold_nth egr ->
 	  let addunf (ids,csts) (ids',csts') =
 	    match egr with
-	    | EvalVarRef id -> (Idpred.add id ids, csts), (Idset.add id ids', csts')
+	    | EvalVarRef id -> (Id.Pred.add id ids, csts), (Id.Set.add id ids', csts')
 	    | EvalConstRef cst -> (ids, Cpred.add cst csts), (ids', Cset.add cst csts')
 	  in 
 	  let state, unfs = addunf db.hintdb_state db.hintdb_unfolds in
@@ -637,7 +637,7 @@ let add_transparency dbname grs b =
     List.fold_left (fun (ids, csts) gr ->
       match gr with
       | EvalConstRef c -> (ids, (if b then Cpred.add else Cpred.remove) c csts)
-      | EvalVarRef v -> (if b then Idpred.add else Idpred.remove) v ids, csts)
+      | EvalVarRef v -> (if b then Id.Pred.add else Id.Pred.remove) v ids, csts)
       st grs
   in searchtable_add (dbname, Hint_db.set_transparent_state db st')
 
@@ -841,7 +841,7 @@ type hints_entry =
   | HintsExternEntry of
       int * (patvar list * constr_pattern) option * glob_tactic_expr
 
-let h = id_of_string "H"
+let h = Id.of_string "H"
 
 exception Found of constr * types
 
@@ -858,7 +858,7 @@ let prepare_hint env (sigma,c) =
       (* We skip the test whether args is the identity or not *)
       let t = Evarutil.nf_evar sigma (existential_type sigma ev) in
       let t = List.fold_right (fun (e,id) c -> replace_term e id c) !subst t in
-      if not (Intset.is_empty (free_rels t)) then
+      if not (Int.Set.is_empty (free_rels t)) then
 	error "Hints with holes dependent on a bound variable not supported.";
       if occur_existential t then
 	(* Not clever enough to construct dependency graph of evars *)
@@ -868,8 +868,8 @@ let prepare_hint env (sigma,c) =
   let rec iter c =
     try find_next_evar c; c
     with Found (evar,t) ->
-      let id = next_ident_away_from h (fun id -> Idset.mem id !vars) in
-      vars := Idset.add id !vars;
+      let id = next_ident_away_from h (fun id -> Id.Set.mem id !vars) in
+      vars := Id.Set.add id !vars;
       subst := (evar,mkVar id)::!subst;
       mkNamedLambda id t (iter (replace_term evar (mkVar id) c)) in
   iter c
@@ -1075,6 +1075,7 @@ let auto_unif_flags = {
   use_metas_eagerly_in_conv_on_closed_terms = false;
   modulo_delta = empty_transparent_state;
   modulo_delta_types = full_transparent_state;
+  modulo_delta_in_merge = None;
   check_applied_meta_types = false;
   resolve_evars = true;
   use_pattern_unification = false;
@@ -1352,7 +1353,7 @@ and my_find_search_delta db_list local_db hdc concl =
 	    let l =
 	      match hdc with None -> Hint_db.map_none db
 	      | Some hdc ->
-		  if (Idpred.is_empty ids && Cpred.is_empty csts)
+		  if (Id.Pred.is_empty ids && Cpred.is_empty csts)
 		  then Hint_db.map_auto (hdc,concl) db
 		  else Hint_db.map_all hdc db
 	    in {flags with modulo_delta = st}, l

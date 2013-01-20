@@ -74,13 +74,13 @@ open Mod_subst
 
 type modvariant =
   | NONE
-  | SIG of (* funsig params *) (mod_bound_id * module_type_body) list
-  | STRUCT of (* functor params *) (mod_bound_id * module_type_body) list
-  | LIBRARY of dir_path
+  | SIG of (* funsig params *) (MBId.t * module_type_body) list
+  | STRUCT of (* functor params *) (MBId.t * module_type_body) list
+  | LIBRARY of Dir_path.t
 
 type module_info =
     {modpath : module_path;
-     label : label;
+     label : Label.t;
      variant : modvariant;
      resolver : delta_resolver;
      resolver_of_param : delta_resolver;}
@@ -90,14 +90,14 @@ let set_engagement_opt oeng env =
       Some eng -> set_engagement eng env
     | _ -> env
 
-type library_info = dir_path * Digest.t
+type library_info = Dir_path.t * Digest.t
 
 type safe_environment =
     { old : safe_environment;
       env : env;
       modinfo : module_info;
-      modlabels : Labset.t;
-      objlabels : Labset.t;
+      modlabels : Label.Set.t;
+      objlabels : Label.Set.t;
       revstruct : structure_body;
       univ : Univ.constraints;
       engagement : engagement option;
@@ -105,8 +105,8 @@ type safe_environment =
       loads : (module_path * module_body) list;
       local_retroknowledge : Retroknowledge.action list}
 
-let exists_modlabel l senv = Labset.mem l senv.modlabels
-let exists_objlabel l senv = Labset.mem l senv.objlabels
+let exists_modlabel l senv = Label.Set.mem l senv.modlabels
+let exists_objlabel l senv = Label.Set.mem l senv.objlabels
 
 let check_modlabel l senv =
   if exists_modlabel l senv then error_existing_label l
@@ -114,12 +114,12 @@ let check_objlabel l senv =
   if exists_objlabel l senv then error_existing_label l
 
 let check_objlabels ls senv =
-  Labset.iter (fun l -> check_objlabel l senv) ls
+  Label.Set.iter (fun l -> check_objlabel l senv) ls
 
 let labels_of_mib mib =
   let add,get =
-    let labels = ref Labset.empty in
-    (fun id -> labels := Labset.add (label_of_id id) !labels),
+    let labels = ref Label.Set.empty in
+    (fun id -> labels := Label.Set.add (Label.of_id id) !labels),
     (fun () -> !labels)
   in
   let visit_mip mip =
@@ -135,12 +135,12 @@ let rec empty_environment =
     env = empty_env;
     modinfo = {
       modpath = initial_path;
-      label = mk_label "_";
+      label = Label.make "_";
       variant = NONE;
       resolver = empty_delta_resolver;
       resolver_of_param = empty_delta_resolver};
-    modlabels = Labset.empty;
-    objlabels = Labset.empty;
+    modlabels = Label.Set.empty;
+    objlabels = Label.Set.empty;
     revstruct = [];
     univ = Univ.empty_constraint;
     engagement = None;
@@ -192,11 +192,11 @@ let add_field ((l,sfb) as _field) gn senv =
   let mlabs,olabs = match sfb with
     | SFBmind mib ->
       let l = labels_of_mib mib in
-      check_objlabels l senv; (Labset.empty,l)
+      check_objlabels l senv; (Label.Set.empty,l)
     | SFBconst _ ->
-      check_objlabel l senv; (Labset.empty, Labset.singleton l)
+      check_objlabel l senv; (Label.Set.empty, Label.Set.singleton l)
     | SFBmodule _ | SFBmodtype _ ->
-      check_modlabel l senv; (Labset.singleton l, Labset.empty)
+      check_modlabel l senv; (Label.Set.singleton l, Label.Set.empty)
   in
   let cst, sfb = constraints_of_sfb sfb in
   let senv = add_constraints cst senv in
@@ -209,8 +209,8 @@ let add_field ((l,sfb) as _field) gn senv =
   in
   { senv with
     env = env';
-    modlabels = Labset.union mlabs senv.modlabels;
-    objlabels = Labset.union olabs senv.objlabels;
+    modlabels = Label.Set.union mlabs senv.modlabels;
+    objlabels = Label.Set.union olabs senv.objlabels;
     revstruct = (l, sfb) :: senv.revstruct }
 
 (* Applying a certain function to the resolver of a safe environment *)
@@ -260,7 +260,7 @@ let safe_push_named (id,_,_ as d) env =
   let _ =
     try
       let _ = lookup_named id env in
-      error ("Identifier "^string_of_id id^" already defined.")
+      error ("Identifier "^Id.to_string id^" already defined.")
     with Not_found -> () in
   Environ.push_named d env
 
@@ -292,7 +292,7 @@ let add_constant dir l decl senv =
     | ConstantEntry ce -> translate_constant senv.env kn ce
     | GlobalRecipe r ->
       let cb = translate_recipe senv.env kn r in
-      if is_empty_dirpath dir then hcons_const_body cb else cb
+      if Dir_path.is_empty dir then hcons_const_body cb else cb
   in
   let senv' = add_field (l,SFBconst cb) (C kn) senv in
   let senv'' = match cb.const_body with
@@ -312,7 +312,7 @@ let add_mind dir l mie senv =
   | _ -> ()
   in
   let id = (List.nth mie.mind_entry_inds 0).mind_entry_typename in
-  if not (eq_label l (label_of_id id)) then
+  if not (Label.equal l (Label.of_id id)) then
     anomaly ("the label of inductive packet and its first inductive"^
 	     " type do not match");
   let kn = make_mind senv.modinfo.modpath dir l in
@@ -360,8 +360,8 @@ let start_module l senv =
    mp, { old = senv;
 	 env = senv.env;
 	 modinfo = modinfo;
-	 modlabels = Labset.empty;
-	 objlabels = Labset.empty;
+	 modlabels = Label.Set.empty;
+	 objlabels = Label.Set.empty;
 	 revstruct = [];
          univ = Univ.empty_constraint;
          engagement = None;
@@ -382,7 +382,7 @@ let end_module l restype senv =
       | NONE | LIBRARY _ | SIG _ -> error_no_module_to_end ()
       | STRUCT params -> params, (List.length params > 0)
   in
-  if not (eq_label l modinfo.label) then error_incompatible_labels l modinfo.label;
+  if not (Label.equal l modinfo.label) then error_incompatible_labels l modinfo.label;
   if not (empty_context senv.env) then error_non_empty_local_context None;
   let functorize_struct tb =
     List.fold_left
@@ -445,7 +445,7 @@ let end_module l restype senv =
     mp,resolver,{ old = oldsenv.old;
 		  env = newenv;
 		  modinfo = modinfo;
-		  modlabels = Labset.add l oldsenv.modlabels;
+		  modlabels = Label.Set.add l oldsenv.modlabels;
 		  objlabels = oldsenv.objlabels;
 		  revstruct = (l,SFBmodule mb)::oldsenv.revstruct;
 		  univ = Univ.union_constraints senv'.univ oldsenv.univ;
@@ -503,10 +503,10 @@ let end_module l restype senv =
    let add senv ((l,elem) as field) =
      let new_name = match elem with
        | SFBconst _ ->
-	   let kn = make_kn mp_sup empty_dirpath l in
+	   let kn = make_kn mp_sup Dir_path.empty l in
 	   C (constant_of_delta_kn resolver kn)
        | SFBmind _ ->
-	   let kn = make_kn mp_sup empty_dirpath l in
+	   let kn = make_kn mp_sup Dir_path.empty l in
 	   I (mind_of_delta_kn resolver kn)
        | SFBmodule _ -> M
        | SFBmodtype _ -> MT (MPdot(senv.modinfo.modpath, l))
@@ -568,8 +568,8 @@ let start_modtype l senv =
   mp, { old = senv;
 	env = senv.env;
 	modinfo = modinfo;
-	modlabels = Labset.empty;
-	objlabels = Labset.empty;
+	modlabels = Label.Set.empty;
+	objlabels = Label.Set.empty;
 	revstruct = [];
         univ = Univ.empty_constraint;
         engagement = None;
@@ -586,7 +586,7 @@ let end_modtype l senv =
       | LIBRARY _ | NONE | STRUCT _ -> error_no_modtype_to_end ()
       | SIG params -> params
   in
-  if not (eq_label l modinfo.label) then error_incompatible_labels l modinfo.label;
+  if not (Label.equal l modinfo.label) then error_incompatible_labels l modinfo.label;
   if not (empty_context senv.env) then error_non_empty_local_context None;
   let auto_tb =
      SEBstruct (List.rev senv.revstruct)
@@ -620,7 +620,7 @@ let end_modtype l senv =
     mp, { old = oldsenv.old;
 	  env = newenv;
 	  modinfo = oldsenv.modinfo;
-	  modlabels = Labset.add l oldsenv.modlabels;
+	  modlabels = Label.Set.add l oldsenv.modlabels;
 	  objlabels = oldsenv.objlabels;
 	  revstruct = (l,SFBmodtype mtb)::oldsenv.revstruct;
           univ = Univ.union_constraints senv.univ oldsenv.univ;
@@ -652,7 +652,7 @@ let set_engagement c senv =
 (* Libraries = Compiled modules *)
 
 type compiled_library =
-    dir_path * module_body * library_info list * engagement option
+    Dir_path.t * module_body * library_info list * engagement option
 
 (* We check that only initial state Require's were performed before
    [start_library] was called *)
@@ -665,10 +665,10 @@ let start_library dir senv =
   if not (is_empty senv) then
     anomaly "Safe_typing.start_library: environment should be empty";
   let dir_path,l =
-    match (repr_dirpath dir) with
+    match (Dir_path.repr dir) with
 	[] -> anomaly "Empty dirpath in Safe_typing.start_library"
       | hd::tl ->
-	  make_dirpath tl, label_of_id hd
+	  Dir_path.make tl, Label.of_id hd
   in
   let mp = MPfile dir in
   let modinfo = {modpath = mp;
@@ -680,8 +680,8 @@ let start_library dir senv =
   mp, { old = senv;
 	env = senv.env;
 	modinfo = modinfo;
-	modlabels = Labset.empty;
-	objlabels = Labset.empty;
+	modlabels = Label.Set.empty;
+	objlabels = Label.Set.empty;
 	revstruct = [];
         univ = Univ.empty_constraint;
         engagement = None;
@@ -704,7 +704,7 @@ let export senv dir =
   begin
     match modinfo.variant with
       | LIBRARY dp ->
-	  if not (dir_path_eq dir dp) then
+	  if not (Dir_path.equal dir dp) then
 	    anomaly "We are not exporting the right library!"
       | _ ->
 	  anomaly "We are not exporting the library"
@@ -732,9 +732,9 @@ let check_imports senv needed =
       let actual_stamp = List.assoc id imports in
       if not (String.equal stamp actual_stamp) then
 	error
-	  ("Inconsistent assumptions over module "^(string_of_dirpath id)^".")
+	  ("Inconsistent assumptions over module "^(Dir_path.to_string id)^".")
     with Not_found ->
-      error ("Reference to unknown module "^(string_of_dirpath id)^".")
+      error ("Reference to unknown module "^(Dir_path.to_string id)^".")
   in
   List.iter check needed
 

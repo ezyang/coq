@@ -22,24 +22,24 @@ open Glob_term
 type notation_constr =
   (** Part common to [glob_constr] and [cases_pattern] *)
   | NRef of global_reference
-  | NVar of identifier
+  | NVar of Id.t
   | NApp of notation_constr * notation_constr list
   | NHole of Evar_kinds.t
-  | NList of identifier * identifier * notation_constr * notation_constr * bool
+  | NList of Id.t * Id.t * notation_constr * notation_constr * bool
   (** Part only in [glob_constr] *)
-  | NLambda of name * notation_constr * notation_constr
-  | NProd of name * notation_constr * notation_constr
-  | NBinderList of identifier * identifier * notation_constr * notation_constr
-  | NLetIn of name * notation_constr * notation_constr
+  | NLambda of Name.t * notation_constr * notation_constr
+  | NProd of Name.t * notation_constr * notation_constr
+  | NBinderList of Id.t * Id.t * notation_constr * notation_constr
+  | NLetIn of Name.t * notation_constr * notation_constr
   | NCases of case_style * notation_constr option *
-      (notation_constr * (name * (inductive * name list) option)) list *
+      (notation_constr * (Name.t * (inductive * Name.t list) option)) list *
       (cases_pattern list * notation_constr) list
-  | NLetTuple of name list * (name * notation_constr option) *
+  | NLetTuple of Name.t list * (Name.t * notation_constr option) *
       notation_constr * notation_constr
-  | NIf of notation_constr * (name * notation_constr option) *
+  | NIf of notation_constr * (Name.t * notation_constr option) *
       notation_constr * notation_constr
-  | NRec of fix_kind * identifier array *
-      (name * notation_constr option * notation_constr) list array *
+  | NRec of fix_kind * Id.t array *
+      (Name.t * notation_constr option * notation_constr) list array *
       notation_constr array * notation_constr array
   | NSort of glob_sort
   | NPatVar of patvar
@@ -71,5 +71,5 @@ type notation_var_internalization_type =
 
 (** This characterizes to what a notation is interpreted to *)
 type interpretation =
-    (identifier * (subscopes * notation_var_instance_type)) list *
+    (Id.t * (subscopes * notation_var_instance_type)) list *
     notation_constr

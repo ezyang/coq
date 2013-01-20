@@ -11,22 +11,22 @@ open Errors
 open Util
 open Names
 
-let pr_dirpath dp = str (string_of_dirpath dp)
-let default_root_prefix = make_dirpath []
+let pr_dirpath dp = str (Dir_path.to_string dp)
+let default_root_prefix = Dir_path.make []
 let split_dirpath d =
-  let l = repr_dirpath d in (make_dirpath (List.tl l), List.hd l)
-let extend_dirpath p id = make_dirpath (id :: repr_dirpath p)
+  let l = Dir_path.repr d in (Dir_path.make (List.tl l), List.hd l)
+let extend_dirpath p id = Dir_path.make (id :: Dir_path.repr p)
 
 type section_path = {
   dirpath : string list ;
   basename : string }
 let dir_of_path p =
-  make_dirpath (List.map id_of_string p.dirpath)
+  Dir_path.make (List.map Id.of_string p.dirpath)
 let path_of_dirpath dir =
-  match repr_dirpath dir with
+  match Dir_path.repr dir with
       [] -> failwith "path_of_dirpath"
     | l::dir ->
-        {dirpath=List.map string_of_id dir;basename=string_of_id l}
+        {dirpath=List.map Id.to_string dir;basename=Id.to_string l}
 let pr_dirlist dp =
   prlist_with_sep (fun _ -> str".") str (List.rev dp)
 let pr_path sp =
@@ -36,7 +36,7 @@ let pr_path sp =
 
 type library_objects
 
-type compilation_unit_name = dir_path
+type compilation_unit_name = Dir_path.t
 
 type library_disk = {
   md_name : compilation_unit_name;
@@ -61,10 +61,10 @@ type library_t = {
 
 module LibraryOrdered =
   struct
-    type t = dir_path
+    type t = Dir_path.t
     let compare d1 d2 =
       Pervasives.compare
-        (List.rev (repr_dirpath d1)) (List.rev (repr_dirpath d2))
+        (List.rev (Dir_path.repr d1)) (List.rev (Dir_path.repr d2))
   end
 
 module LibrarySet = Set.Make(LibraryOrdered)
@@ -81,7 +81,7 @@ let find_library dir =
 let try_find_library dir =
   try find_library dir
   with Not_found ->
-    error ("Unknown library " ^ (string_of_dirpath dir))
+    error ("Unknown library " ^ (Dir_path.to_string dir))
 
 let library_full_filename dir = (find_library dir).library_filename
 
@@ -113,7 +113,7 @@ let check_one_lib admit (dir,m) =
 (*************************************************************************)
 (*s Load path. Mapping from physical to logical paths etc.*)
 
-type logical_path = dir_path
+type logical_path = Dir_path.t
 
 let load_paths = ref ([],[] : CUnix.physical_path list * logical_path list)
 
@@ -203,7 +203,7 @@ let locate_absolute_library dir =
   let loadpath = load_paths_of_dir_path pref in
   if loadpath = [] then raise LibUnmappedDir;
   try
-    let name = string_of_id base^".vo" in
+    let name = Id.to_string base^".vo" in
     let _, file = System.where_in_path ~warn:false loadpath name in
     (dir, file)
   with Not_found ->
@@ -226,7 +226,7 @@ let locate_qualified_library qid =
     let name =  qid.basename^".vo" in
     let path, file = System.where_in_path loadpath name in
     let dir =
-      extend_dirpath (find_logical_path path) (id_of_string qid.basename) in
+      extend_dirpath (find_logical_path path) (Id.of_string qid.basename) in
     (* Look if loaded *)
     try
       (dir, library_full_filename dir)

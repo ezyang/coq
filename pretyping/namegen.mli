@@ -13,18 +13,18 @@ open Environ
 (*********************************************************************
    Generating "intuitive" names from their type *)
 
-val lowercase_first_char : identifier -> string
+val lowercase_first_char : Id.t -> string
 val sort_hdchar : sorts -> string
 val hdchar : env -> types -> string
-val id_of_name_using_hdchar : env -> types -> name -> identifier
-val named_hd : env -> types -> name -> name
+val id_of_name_using_hdchar : env -> types -> Name.t -> Id.t
+val named_hd : env -> types -> Name.t -> Name.t
 
-val mkProd_name : env -> name * types * types -> types
-val mkLambda_name : env -> name * types * constr -> constr
+val mkProd_name : env -> Name.t * types * types -> types
+val mkLambda_name : env -> Name.t * types * constr -> constr
 
 (** Deprecated synonyms of [mkProd_name] and [mkLambda_name] *)
-val prod_name : env -> name * types * types -> types
-val lambda_name : env -> name * types * constr -> constr
+val prod_name : env -> Name.t * types * types -> types
+val lambda_name : env -> Name.t * types * constr -> constr
 
 val prod_create : env -> types * types -> constr
 val lambda_create : env -> types * constr -> constr
@@ -40,29 +40,29 @@ val it_mkLambda_or_LetIn_name : env -> constr -> rel_context -> constr
    Fresh names *)
 
 (** Avoid clashing with a name satisfying some predicate *)
-val next_ident_away_from : identifier -> (identifier -> bool) -> identifier
+val next_ident_away_from : Id.t -> (Id.t -> bool) -> Id.t
 
 (** Avoid clashing with a name of the given list *)
-val next_ident_away : identifier -> identifier list -> identifier
+val next_ident_away : Id.t -> Id.t list -> Id.t
 
 (** Avoid clashing with a name already used in current module *)
-val next_ident_away_in_goal : identifier -> identifier list -> identifier
+val next_ident_away_in_goal : Id.t -> Id.t list -> Id.t
 
 (** Avoid clashing with a name already used in current module 
    but tolerate overwriting section variables, as in goals *)
-val next_global_ident_away : identifier -> identifier list -> identifier
+val next_global_ident_away : Id.t -> Id.t list -> Id.t
 
 (** Avoid clashing with a constructor name already used in current module *)
-val next_name_away_in_cases_pattern : name -> identifier list -> identifier
+val next_name_away_in_cases_pattern : Name.t -> Id.t list -> Id.t
 
-val next_name_away  : name -> identifier list -> identifier (** default is "H" *)
-val next_name_away_with_default : string -> name -> identifier list ->
-  identifier
+val next_name_away  : Name.t -> Id.t list -> Id.t (** default is "H" *)
+val next_name_away_with_default : string -> Name.t -> Id.t list ->
+  Id.t
 
-val next_name_away_with_default_using_types : string -> name ->
-  identifier list -> types -> identifier
+val next_name_away_with_default_using_types : string -> Name.t ->
+  Id.t list -> types -> Id.t
 
-val set_reserved_typed_name : (types -> name) -> unit
+val set_reserved_typed_name : (types -> Name.t) -> unit
 
 (*********************************************************************
    Making name distinct for displaying *)
@@ -70,15 +70,15 @@ val set_reserved_typed_name : (types -> name) -> unit
 type renaming_flags =
   | RenamingForCasesPattern (** avoid only global constructors *)
   | RenamingForGoal (** avoid all globals (as in intro) *)
-  | RenamingElsewhereFor of (name list * constr)
+  | RenamingElsewhereFor of (Name.t list * constr)
 
 val make_all_name_different : env -> env
 
 val compute_displayed_name_in :
-  renaming_flags -> identifier list -> name -> constr -> name * identifier list
+  renaming_flags -> Id.t list -> Name.t -> constr -> Name.t * Id.t list
 val compute_and_force_displayed_name_in :
-  renaming_flags -> identifier list -> name -> constr -> name * identifier list
+  renaming_flags -> Id.t list -> Name.t -> constr -> Name.t * Id.t list
 val compute_displayed_let_name_in :
-  renaming_flags -> identifier list -> name -> constr -> name * identifier list
+  renaming_flags -> Id.t list -> Name.t -> constr -> Name.t * Id.t list
 val rename_bound_vars_as_displayed :
-  identifier list -> name list -> types -> types
+  Id.t list -> Name.t list -> types -> types

@@ -152,7 +152,7 @@ and check_with_def env mtb (idl,c) mp =
     | [] -> assert false
     | id::idl -> id,idl
   in
-  let l = label_of_id id in
+  let l = Label.of_id id in
     try
       let rev_before,spec,after = list_split_assoc (l,(idl<>[])) [] sig_b in
       let before = List.rev rev_before in
@@ -189,7 +189,7 @@ and check_with_mod env mtb (idl,mp1) mp =
     | [] -> assert false
     | id::idl -> id,idl
   in
-  let l = label_of_id id in
+  let l = Label.of_id id in
     try
       let rev_before,spec,after = list_split_assoc (l,false) [] sig_b in
       let before = List.rev rev_before in
@@ -253,10 +253,10 @@ and check_module env mp mb =
 
 and check_structure_field env mp lab res = function
   | SFBconst cb ->
-      let c = make_con mp empty_dirpath lab in
+      let c = make_con mp Dir_path.empty lab in
 	check_constant_declaration env c cb
   | SFBmind mib ->
-      let kn = make_mind mp empty_dirpath lab in
+      let kn = make_mind mp Dir_path.empty lab in
       let kn = mind_of_delta res kn in
 	Indtypes.check_inductive env kn mib
   | SFBmodule msb ->

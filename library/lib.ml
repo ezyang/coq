@@ -31,7 +31,7 @@ and library_entry = object_name * node
 
 and library_segment = library_entry list
 
-type lib_objects =  (Names.identifier * obj) list
+type lib_objects =  (Names.Id.t * obj) list
 
 let module_kind is_type =
   if is_type then "module type" else "module"
@@ -61,7 +61,7 @@ let classify_segment seg =
   let rec clean ((substl,keepl,anticipl) as acc) = function
     | (_,CompilingLibrary _) :: _ | [] -> acc
     | ((sp,kn),Leaf o) :: stk ->
-	let id = Names.id_of_label (Names.label kn) in
+	let id = Names.Label.to_id (Names.label kn) in
 	  (match classify_object o with
 	     | Dispose -> clean acc stk
 	     | Keep o' ->
@@ -92,7 +92,7 @@ let segment_of_objects prefix =
    sections, but on the contrary there are many constructions of section
    paths based on the library path. *)
 
-let initial_prefix = default_library,(Names.initial_path,Names.empty_dirpath)
+let initial_prefix = default_library,(Names.initial_path,Names.Dir_path.empty)
 
 let lib_stk = ref ([] : library_segment)
 
@@ -106,10 +106,10 @@ let library_dp () =
 let path_prefix = ref initial_prefix
 
 let sections_depth () =
-  List.length (Names.repr_dirpath (snd (snd !path_prefix)))
+  List.length (Names.Dir_path.repr (snd (snd !path_prefix)))
 
 let sections_are_opened () =
-  match Names.repr_dirpath (snd (snd !path_prefix)) with
+  match Names.Dir_path.repr (snd (snd !path_prefix)) with
       [] -> false
     | _ -> true
 
@@ -127,20 +127,20 @@ let make_path id = Libnames.make_path (cwd ()) id
 let make_path_except_section id = Libnames.make_path (cwd_except_section ()) id
 
 let path_of_include () =
-  let dir = Names.repr_dirpath (cwd ()) in
+  let dir = Names.Dir_path.repr (cwd ()) in
   let new_dir = List.tl dir in
   let id = List.hd dir in
-    Libnames.make_path (Names.make_dirpath new_dir) id
+    Libnames.make_path (Names.Dir_path.make new_dir) id
 
 let current_prefix () = snd !path_prefix
 
 let make_kn id =
   let mp,dir = current_prefix () in
-    Names.make_kn mp dir (Names.label_of_id id)
+    Names.make_kn mp dir (Names.Label.of_id id)
 
 let make_con id =
   let mp,dir = current_prefix () in
-    Names.make_con mp dir (Names.label_of_id id)
+    Names.make_con mp dir (Names.Label.of_id id)
 
 
 let make_oname id = make_path id, make_kn id
@@ -214,7 +214,7 @@ let add_entry sp node =
 
 let anonymous_id =
   let n = ref 0 in
-  fun () -> incr n; Names.id_of_string ("_" ^ (string_of_int !n))
+  fun () -> incr n; Names.Id.of_string ("_" ^ (string_of_int !n))
 
 let add_anonymous_entry node =
   let id = anonymous_id () in
@@ -275,7 +275,7 @@ let current_mod_id () =
 
 let start_mod is_type export id mp fs =
   let dir = add_dirpath_suffix (fst !path_prefix) id in
-  let prefix = dir,(mp,Names.empty_dirpath) in
+  let prefix = dir,(mp,Names.Dir_path.empty) in
   let sp = make_path id in
   let oname = sp, make_kn id in
   let exists =
@@ -328,9 +328,9 @@ let contents_after = function
 let start_compilation s mp =
   if !comp_name != None then
     error "compilation unit is already started";
-  if not (Names.dir_path_eq (snd (snd (!path_prefix))) Names.empty_dirpath) then
+  if not (Names.Dir_path.equal (snd (snd (!path_prefix))) Names.Dir_path.empty) then
     error "some sections are already opened";
-  let prefix = s, (mp, Names.empty_dirpath) in
+  let prefix = s, (mp, Names.Dir_path.empty) in
   let _ = add_anonymous_entry (CompilingLibrary prefix) in
   comp_name := Some s;
   path_prefix := prefix
@@ -356,9 +356,9 @@ let end_compilation dir =
     match !comp_name with
       | None -> anomaly "There should be a module name..."
       | Some m ->
-	  if not (Names.dir_path_eq m dir) then anomaly
-	    ("The current open module has name "^ (Names.string_of_dirpath m) ^
-	       " and not " ^ (Names.string_of_dirpath m));
+	  if not (Names.Dir_path.equal m dir) then anomaly
+	    ("The current open module has name "^ (Names.Dir_path.to_string m) ^
+	       " and not " ^ (Names.Dir_path.to_string m));
   in
   let (after,mark,before) = split_lib_at_opening oname in
   comp_name := None;
@@ -387,8 +387,8 @@ let find_opening_node id =
   try
     let oname,entry = find_entry_p is_opening_node in
     let id' = basename (fst oname) in
-    if not (Names.id_eq id id') then
-      error ("Last block to end has name "^(Names.string_of_id id')^".");
+    if not (Names.Id.equal id id') then
+      error ("Last block to end has name "^(Names.Id.to_string id')^".");
     entry
   with Not_found -> error "There is nothing to end."
 
@@ -401,14 +401,14 @@ let find_opening_node id =
    - the list of substitution to do at section closing
 *)
 
-type variable_info = Names.identifier * Decl_kinds.binding_kind * Term.constr option * Term.types
+type variable_info = Names.Id.t * Decl_kinds.binding_kind * Term.constr option * Term.types
 
 type variable_context = variable_info list
 type abstr_list = variable_context Univ.in_universe_context Names.Cmap.t *
   variable_context Univ.in_universe_context Names.Mindmap.t
 
 let sectab =
-  ref ([] : ((Names.identifier * Decl_kinds.binding_kind * Univ.universe_context_set) list *
+  ref ([] : ((Names.Id.t * Decl_kinds.binding_kind * Univ.universe_context_set) list *
 		Cooking.work_list * abstr_list) list)
 
 let add_section () =
@@ -435,7 +435,7 @@ let univ_variables_of c acc =
 
 let extract_hyps poly (secs,ohyps) =
   let rec aux = function
-    | ((id,impl,ctx)::idl,(id',b,t)::hyps) when Names.id_eq id id' ->
+    | ((id,impl,ctx)::idl,(id',b,t)::hyps) when Names.Id.equal id id' ->
       let l, r = aux (idl,hyps) in 
 	(id',impl,b,t) :: l, if poly then Univ.union_universe_context_set r ctx else r
     | (id::idl,hyps) -> aux (idl,hyps)
@@ -478,7 +478,7 @@ let section_segment_of_mutual_inductive kn =
 
 let rec list_mem_assoc x = function
   | [] -> raise Not_found
-  | (a, _) :: l -> Int.equal (Names.id_ord a x) 0 || list_mem_assoc x l
+  | (a, _) :: l -> Int.equal (Names.Id.compare a x) 0 || list_mem_assoc x l
 
 let section_instance = function
   | VarRef id ->
@@ -629,7 +629,7 @@ let label_before_name (loc,id) =
     | (_, Leaf o) when !found && String.equal (object_tag o) "DOT" -> true
     | ((fp, _),_) ->
       let (_, name) = repr_path fp in
-      let () = if Names.id_eq id name then found := true in
+      let () = if Names.Id.equal id name then found := true in
       false
   in
   match find_entry_p search with
@@ -638,7 +638,7 @@ let label_before_name (loc,id) =
 
 (* State and initialization. *)
 
-type frozen = Names.dir_path option * library_segment
+type frozen = Names.Dir_path.t option * library_segment
 
 let freeze () = (!comp_name, !lib_stk)
 
@@ -671,19 +671,19 @@ let rec dp_of_mp modp =
 
 let rec split_mp mp =
   match mp with
-    | Names.MPfile dp -> dp,  Names.empty_dirpath
+    | Names.MPfile dp -> dp,  Names.Dir_path.empty
     | Names.MPdot (prfx, lbl) ->
 	let mprec, dprec = split_mp prfx in
-	  mprec, Names.make_dirpath (Names.id_of_string (Names.string_of_label lbl) :: (Names.repr_dirpath dprec))
-    | Names.MPbound mbid -> let (_, id, dp) = Names.repr_mbid mbid in  library_dp(), Names.make_dirpath [id]
+	  mprec, Names.Dir_path.make (Names.Id.of_string (Names.Label.to_string lbl) :: (Names.Dir_path.repr dprec))
+    | Names.MPbound mbid -> let (_, id, dp) = Names.MBId.repr mbid in  library_dp(), Names.Dir_path.make [id]
 
 let split_modpath mp =
   let rec aux = function
     | Names.MPfile dp -> dp, []
     | Names.MPbound mbid ->
-	library_dp (), [Names.id_of_mbid mbid]
+	library_dp (), [Names.MBId.to_id mbid]
     | Names.MPdot (mp,l) -> let (mp', lab) = aux mp in
-			      (mp', Names.id_of_label l :: lab)
+			      (mp', Names.Label.to_id l :: lab)
   in
   let (mp, l) = aux mp in
     mp, l
@@ -720,13 +720,13 @@ let pop_con con =
 
 let con_defined_in_sec kn =
   let _,dir,_ = Names.repr_con kn in
-  not (Names.dir_path_eq dir Names.empty_dirpath) &&
-  Names.dir_path_eq (fst (split_dirpath dir)) (snd (current_prefix ()))
+  not (Names.Dir_path.equal dir Names.Dir_path.empty) &&
+  Names.Dir_path.equal (fst (split_dirpath dir)) (snd (current_prefix ()))
 
 let defined_in_sec kn =
   let _,dir,_ = Names.repr_mind kn in
-  not (Names.dir_path_eq dir Names.empty_dirpath) &&
-  Names.dir_path_eq (fst (split_dirpath dir)) (snd (current_prefix ()))
+  not (Names.Dir_path.equal dir Names.Dir_path.empty) &&
+  Names.Dir_path.equal (fst (split_dirpath dir)) (snd (current_prefix ()))
 
 let discharge_global = function
   | ConstRef kn when con_defined_in_sec kn ->

@@ -100,7 +100,7 @@ val check_cofix : env -> cofixpoint -> unit
     parameter instantiation. This is used by the Ocaml extraction,
     which cannot handle (yet?) Prop-polymorphism. *)
 
-exception SingletonInductiveBecomesProp of identifier
+exception SingletonInductiveBecomesProp of Id.t
 
 val max_inductive_sort : sorts array -> universe
 

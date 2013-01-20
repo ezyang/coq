@@ -18,10 +18,10 @@ open Decl_kinds
 (** Registration and access to the table of variable *)
 
 type variable_data =
-    dir_path * bool (** opacity *) * Univ.universe_context_set * Univ.constraints * logical_kind
+  Dir_path.t * bool (** opacity *) * Univ.universe_context_set * Univ.constraints * logical_kind
 
 val add_variable_data : variable -> variable_data -> unit
-val variable_path : variable -> dir_path
+val variable_path : variable -> Dir_path.t
 val variable_secpath : variable -> qualid
 val variable_kind : variable -> logical_kind
 val variable_opacity : variable -> bool
@@ -41,4 +41,4 @@ val initialize_named_context_for_proof : unit -> Environ.named_context_val
 
 (** Miscellaneous functions *)
 
-val last_section_hyps : dir_path -> identifier list
+val last_section_hyps : Dir_path.t -> Id.t list

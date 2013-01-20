@@ -38,7 +38,7 @@ open Decl_kinds
 (** Typeclass-based generalized rewriting. *)
 
 let classes_dirpath =
-  make_dirpath (List.map id_of_string ["Classes";"Coq"])
+  Dir_path.make (List.map Id.of_string ["Classes";"Coq"])
 
 let init_setoid () =
   if is_dirpath_prefix_of classes_dirpath (Lib.cwd ()) then ()
@@ -52,10 +52,10 @@ let proper_proxy_class =
 
 let proper_proj = lazy (mkConst (Option.get (pi3 (List.hd (Lazy.force proper_class).cl_projs))))
 
-let make_dir l = make_dirpath (List.map id_of_string (List.rev l))
+let make_dir l = Dir_path.make (List.map Id.of_string (List.rev l))
 
 let try_find_global_reference dir s =
-  let sp = Libnames.make_path (make_dir ("Coq"::dir)) (id_of_string s) in
+  let sp = Libnames.make_path (make_dir ("Coq"::dir)) (Id.of_string s) in
     Nametab.global_of_path sp
 
 let try_find_reference dir s =
@@ -230,8 +230,8 @@ let rec decompose_app_rel env evd t =
       else 
 	let (f', args) = decompose_app_rel env evd args.(0) in
 	let ty = Typing.type_of env evd args.(0) in
-	let f'' = mkLambda (Name (id_of_string "x"), ty,
-	  mkLambda (Name (id_of_string "y"), lift 1 ty,
+	let f'' = mkLambda (Name (Id.of_string "x"), ty,
+	  mkLambda (Name (Id.of_string "y"), lift 1 ty,
 	    mkApp (lift 2 f, [| mkApp (lift 2 f', [| mkRel 2; mkRel 1 |]) |])))
 	in (f'', args)
   | _ -> error "The term provided is not an applied relation."
@@ -271,7 +271,7 @@ let decompose_applied_relation_expr env sigma flags (is, (c,l)) left2right =
 
 let rewrite_db = "rewrite"
 
-let conv_transparent_state = (Idpred.empty, Cpred.full)
+let conv_transparent_state = (Id.Pred.empty, Cpred.full)
 
 let _ = 
   Auto.add_auto_init
@@ -286,6 +286,7 @@ let rewrite_unif_flags = {
   Unification.use_metas_eagerly_in_conv_on_closed_terms = true;
   Unification.modulo_delta = empty_transparent_state;
   Unification.modulo_delta_types = full_transparent_state;
+  Unification.modulo_delta_in_merge = None;
   Unification.check_applied_meta_types = true;
   Unification.resolve_evars = true;
   Unification.use_pattern_unification = true;
@@ -297,11 +298,12 @@ let rewrite_unif_flags = {
   Unification.allow_K_in_toplevel_higher_order_unification = true
 }
 
-let rewrite2_unif_flags = 
+let rewrite2_unif_flags =
   {  Unification.modulo_conv_on_closed_terms = Some conv_transparent_state;
      Unification.use_metas_eagerly_in_conv_on_closed_terms = true;
      Unification.modulo_delta = empty_transparent_state;
      Unification.modulo_delta_types = conv_transparent_state;
+     Unification.modulo_delta_in_merge = None;
      Unification.check_applied_meta_types = true;
      Unification.resolve_evars = true;
      Unification.use_pattern_unification = true;
@@ -319,6 +321,7 @@ let general_rewrite_unif_flags () =
        Unification.use_metas_eagerly_in_conv_on_closed_terms = true;
        Unification.modulo_delta = ts;
        Unification.modulo_delta_types = ts;
+       Unification.modulo_delta_in_merge = None;
        Unification.check_applied_meta_types = true;
        Unification.resolve_evars = true;
        Unification.use_pattern_unification = true;
@@ -544,7 +547,7 @@ type rewrite_result_info = {
 
 type rewrite_result = rewrite_result_info option
 
-type strategy = Environ.env -> identifier list -> constr -> types ->
+type strategy = Environ.env -> Id.t list -> constr -> types ->
   constr option -> evars -> rewrite_result option
 
 let get_rew_rel r = match r.rew_prf with
@@ -589,7 +592,7 @@ let resolve_morphism env avoid oldt m ?(fnewt=fun x -> x) args args' cstr evars 
     let cl_args = [| appmtype' ; signature ; appm |] in
     let app = mkApp (Lazy.force proper_type, cl_args) in
     let env' = Environ.push_named
-      (id_of_string "do_subrelation", Some (Lazy.force do_subrelation), Lazy.force apply_subrelation)
+      (Id.of_string "do_subrelation", Some (Lazy.force do_subrelation), Lazy.force apply_subrelation)
       env
     in
     let evars, morph = new_cstr_evar evars env' app in
@@ -1179,7 +1182,7 @@ let cl_rewrite_clause_aux ?(abs=None) strat env avoid sigma concl is_hyp : resul
 		     match abs with
 		     | None -> p
 		     | Some (t, ty) ->
-			 mkApp (mkLambda (Name (id_of_string "lemma"), ty, p), [| t |])
+			 mkApp (mkLambda (Name (Id.of_string "lemma"), ty, p), [| t |])
 		   in
 		     Some (evars, Some (mkApp (term, [| mkVar id |])), newt)
 	       | RewCast c ->
@@ -1191,7 +1194,7 @@ let cl_rewrite_clause_aux ?(abs=None) strat env avoid sigma concl is_hyp : resul
 		   (match abs with
 		    | None -> Some (evars, Some p, newt)
 		    | Some (t, ty) ->
-			let proof = mkApp (mkLambda (Name (id_of_string "lemma"), ty, p), [| t |]) in
+			let proof = mkApp (mkLambda (Name (Id.of_string "lemma"), ty, p), [| t |]) in
 			  Some (evars, Some proof, newt))
 	       | RewCast c -> Some (evars, None, newt))
 	in Some res
@@ -1261,7 +1264,7 @@ let assert_replacing id newt tac =
        let nc' = 
 	 Environ.fold_named_context
 	   (fun _ (n, b, t as decl) nc' ->
-	      if id_eq n id then (n, b, newt) :: nc'
+	      if Id.equal n id then (n, b, newt) :: nc'
 	      else decl :: nc')
 	   env ~init:[]
        in
@@ -1275,7 +1278,7 @@ let assert_replacing id newt tac =
 		      let inst = 
 			fold_named_context
 			  (fun _ (n, b, t) inst ->
-			     if id_eq n id then ev' :: inst
+			     if Id.equal n id then ev' :: inst
 			     else if Option.is_empty b then mkVar n :: inst else inst)
 			  env ~init:[]
 		      in
@@ -1553,7 +1556,7 @@ TACTIC EXTEND rewrite_strat
 END
 
 let clsubstitute o c =
-  let is_tac id = match fst (fst (snd c)) with GVar (_, id') when id_eq id' id -> true | _ -> false in
+  let is_tac id = match fst (fst (snd c)) with GVar (_, id') when Id.equal id' id -> true | _ -> false in
     Tacticals.onAllHypsAndConcl
       (fun cl ->
 	match cl with
@@ -1599,7 +1602,7 @@ TACTIC EXTEND GenRew
     [ cl_rewrite_clause_newtac_tac c o AllOccurrences None ]
 END
 
-let mkappc s l = CAppExpl (Loc.ghost,(None,(Libnames.Ident (Loc.ghost,id_of_string s)),None),l)
+let mkappc s l = CAppExpl (Loc.ghost,(None,(Libnames.Ident (Loc.ghost,Id.of_string s)),None),l)
 
 let declare_an_instance n s args =
   ((Loc.ghost,Name n), Explicit,
@@ -1616,17 +1619,17 @@ let anew_instance global binders instance fields =
 let declare_instance_refl global binders a aeq n lemma =
   let instance = declare_instance a aeq (add_suffix n "_Reflexive") "Coq.Classes.RelationClasses.Reflexive"
   in anew_instance global binders instance
-       [(Ident (Loc.ghost,id_of_string "reflexivity"),lemma)]
+       [(Ident (Loc.ghost,Id.of_string "reflexivity"),lemma)]
 
 let declare_instance_sym global binders a aeq n lemma =
   let instance = declare_instance a aeq (add_suffix n "_Symmetric") "Coq.Classes.RelationClasses.Symmetric"
   in anew_instance global binders instance
-       [(Ident (Loc.ghost,id_of_string "symmetry"),lemma)]
+       [(Ident (Loc.ghost,Id.of_string "symmetry"),lemma)]
 
 let declare_instance_trans global binders a aeq n lemma =
   let instance = declare_instance a aeq (add_suffix n "_Transitive") "Coq.Classes.RelationClasses.Transitive"
   in anew_instance global binders instance
-       [(Ident (Loc.ghost,id_of_string "transitivity"),lemma)]
+       [(Ident (Loc.ghost,Id.of_string "transitivity"),lemma)]
 
 let declare_relation ?(binders=[]) a aeq n refl symm trans =
   init_setoid ();
@@ -1650,16 +1653,16 @@ let declare_relation ?(binders=[]) a aeq n refl symm trans =
 	let instance = declare_instance a aeq n "Coq.Classes.RelationClasses.PreOrder"
 	in ignore(
 	    anew_instance global binders instance
-	      [(Ident (Loc.ghost,id_of_string "PreOrder_Reflexive"), lemma1);
-	       (Ident (Loc.ghost,id_of_string "PreOrder_Transitive"),lemma3)])
+	      [(Ident (Loc.ghost,Id.of_string "PreOrder_Reflexive"), lemma1);
+	       (Ident (Loc.ghost,Id.of_string "PreOrder_Transitive"),lemma3)])
     | (None, Some lemma2, Some lemma3) ->
 	let _lemma_sym = declare_instance_sym global binders a aeq n lemma2 in
 	let _lemma_trans = declare_instance_trans global binders a aeq n lemma3 in
 	let instance = declare_instance a aeq n "Coq.Classes.RelationClasses.PER"
 	in ignore(
 	    anew_instance global binders instance
-	      [(Ident (Loc.ghost,id_of_string "PER_Symmetric"), lemma2);
-	       (Ident (Loc.ghost,id_of_string "PER_Transitive"),lemma3)])
+	      [(Ident (Loc.ghost,Id.of_string "PER_Symmetric"), lemma2);
+	       (Ident (Loc.ghost,Id.of_string "PER_Transitive"),lemma3)])
      | (Some lemma1, Some lemma2, Some lemma3) ->
 	let _lemma_refl = declare_instance_refl global binders a aeq n lemma1 in
 	let _lemma_sym = declare_instance_sym global binders a aeq n lemma2 in
@@ -1667,9 +1670,9 @@ let declare_relation ?(binders=[]) a aeq n refl symm trans =
 	let instance = declare_instance a aeq n "Coq.Classes.RelationClasses.Equivalence"
 	in ignore(
 	  anew_instance global binders instance
-	    [(Ident (Loc.ghost,id_of_string "Equivalence_Reflexive"), lemma1);
-	     (Ident (Loc.ghost,id_of_string "Equivalence_Symmetric"), lemma2);
-	     (Ident (Loc.ghost,id_of_string "Equivalence_Transitive"), lemma3)])
+	    [(Ident (Loc.ghost,Id.of_string "Equivalence_Reflexive"), lemma1);
+	     (Ident (Loc.ghost,Id.of_string "Equivalence_Symmetric"), lemma2);
+	     (Ident (Loc.ghost,Id.of_string "Equivalence_Transitive"), lemma3)])
 
 type 'a binders_argtype = (local_binder list, 'a) Genarg.abstract_argument_type
 
@@ -1849,9 +1852,9 @@ let add_setoid global binders a aeq t n =
   let instance = declare_instance a aeq n "Coq.Classes.RelationClasses.Equivalence"
   in ignore(
     anew_instance global binders instance
-      [(Ident (Loc.ghost,id_of_string "Equivalence_Reflexive"), mkappc "Seq_refl" [a;aeq;t]);
-       (Ident (Loc.ghost,id_of_string "Equivalence_Symmetric"), mkappc "Seq_sym" [a;aeq;t]);
-       (Ident (Loc.ghost,id_of_string "Equivalence_Transitive"), mkappc "Seq_trans" [a;aeq;t])])
+      [(Ident (Loc.ghost,Id.of_string "Equivalence_Reflexive"), mkappc "Seq_refl" [a;aeq;t]);
+       (Ident (Loc.ghost,Id.of_string "Equivalence_Symmetric"), mkappc "Seq_sym" [a;aeq;t]);
+       (Ident (Loc.ghost,Id.of_string "Equivalence_Transitive"), mkappc "Seq_trans" [a;aeq;t])])
 
 let add_morphism_infer (glob,poly) m n =
   init_setoid ();

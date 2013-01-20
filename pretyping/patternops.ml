@@ -23,13 +23,13 @@ open Evd
 
 let case_info_pattern_eq i1 i2 =
   i1.cip_style == i2.cip_style &&
-  Option.Misc.compare eq_ind i1.cip_ind i2.cip_ind &&
-  Option.Misc.compare Int.equal i1.cip_ind_args i2.cip_ind_args &&
+  Option.equal eq_ind i1.cip_ind i2.cip_ind &&
+  Option.equal Int.equal i1.cip_ind_args i2.cip_ind_args &&
   i1.cip_extensible == i2.cip_extensible
 
 let rec constr_pattern_eq p1 p2 = match p1, p2 with
 | PRef r1, PRef r2 -> eq_gr r1 r2
-| PVar v1, PVar v2 -> id_eq v1 v2
+| PVar v1, PVar v2 -> Id.equal v1 v2
 | PEvar (ev1, ctx1), PEvar (ev2, ctx2) ->
   Int.equal ev1 ev2 && Array.equal constr_pattern_eq ctx1 ctx2
 | PRel i1, PRel i2 ->
@@ -37,15 +37,15 @@ let rec constr_pattern_eq p1 p2 = match p1, p2 with
 | PApp (t1, arg1), PApp (t2, arg2) ->
   constr_pattern_eq t1 t2 && Array.equal constr_pattern_eq arg1 arg2
 | PSoApp (id1, arg1), PSoApp (id2, arg2) ->
-  id_eq id1 id2 && List.equal constr_pattern_eq arg1 arg2
+  Id.equal id1 id2 && List.equal constr_pattern_eq arg1 arg2
 | PLambda (v1, t1, b1), PLambda (v2, t2, b2) ->
-  name_eq v1 v2 && constr_pattern_eq t1 t2 && constr_pattern_eq b1 b2
+  Name.equal v1 v2 && constr_pattern_eq t1 t2 && constr_pattern_eq b1 b2
 | PProd (v1, t1, b1), PProd (v2, t2, b2) ->
-  name_eq v1 v2 && constr_pattern_eq t1 t2 && constr_pattern_eq b1 b2
+  Name.equal v1 v2 && constr_pattern_eq t1 t2 && constr_pattern_eq b1 b2
 | PLetIn (v1, t1, b1), PLetIn (v2, t2, b2) ->
-  name_eq v1 v2 && constr_pattern_eq t1 t2 && constr_pattern_eq b1 b2
+  Name.equal v1 v2 && constr_pattern_eq t1 t2 && constr_pattern_eq b1 b2
 | PSort s1, PSort s2 -> glob_sort_eq s1 s2
-| PMeta m1, PMeta m2 -> Option.Misc.compare id_eq m1 m2
+| PMeta m1, PMeta m2 -> Option.equal Id.equal m1 m2
 | PIf (t1, l1, r1), PIf (t2, l2, r2) ->
   constr_pattern_eq t1 t2 && constr_pattern_eq l1 l2 && constr_pattern_eq r1 r2
 | PCase (info1, p1, r1, l1), PCase (info2, p2, r2, l2) ->
@@ -73,7 +73,7 @@ and cofixpoint_eq (i1, r1) (i2, r2) =
   rec_declaration_eq r1 r2
 
 and rec_declaration_eq (n1, c1, r1) (n2, c2, r2) =
-  Array.equal name_eq n1 n2 &&
+  Array.equal Name.equal n1 n2 &&
   Array.equal eq_constr c1 c2 &&
   Array.equal eq_constr r1 r2
 
@@ -122,7 +122,7 @@ let pattern_of_constr sigma t =
   let rec pattern_of_constr t =
   match kind_of_term t with
     | Rel n  -> PRel n
-    | Meta n -> PMeta (Some (id_of_string ("META" ^ string_of_int n)))
+    | Meta n -> PMeta (Some (Id.of_string ("META" ^ string_of_int n)))
     | Var id -> PVar id
     | Sort (Prop Null) -> PSort GProp
     | Sort (Prop Pos) -> PSort GSet
@@ -390,17 +390,17 @@ and pats_of_glob_branches loc metas vars ind brs =
       | _ ->
         err loc (Pp.str "All constructors must be in the same inductive type.")
       in
-      if Intset.mem (j-1) indexes then
+      if Int.Set.mem (j-1) indexes then
 	err loc
           (str "No unique branch for " ++ int j ++ str"-th constructor.");
       let lna = List.map get_arg lv in
       let vars' = List.rev lna @ vars in
       let pat = rev_it_mkPLambda lna (pat_of_raw metas vars' br) in
-      let ext,pats = get_pat (Intset.add (j-1) indexes) brs in
+      let ext,pats = get_pat (Int.Set.add (j-1) indexes) brs in
       ext, ((j-1, List.length lv, pat) :: pats)
     | (loc,_,_,_) :: _ -> err loc (Pp.str "Non supported pattern.")
   in
-  get_pat Intset.empty brs
+  get_pat Int.Set.empty brs
 
 let pattern_of_glob_constr c =
   let metas = ref [] in

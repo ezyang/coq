@@ -137,9 +137,24 @@ let cons_subst u su subst =
   try (u, sup su (List.assoc u subst)) :: List.remove_assoc u subst
   with Not_found -> (u, su) :: subst
 
-exception SingletonInductiveBecomesProp of identifier
+exception SingletonInductiveBecomesProp of Id.t
 
 (* Type of an inductive type *)
+
+let type_of_inductive_gen env ((mib,mip),u) =
+  let subst = make_inductive_subst mib u in
+    (subst_univs_constr subst mip.mind_arity.mind_user_arity, subst)
+
+let type_of_inductive env pind = 
+  fst (type_of_inductive_gen env pind)
+
+let constrained_type_of_inductive env ((mib,mip),u as pind) =
+  let ty, subst = type_of_inductive_gen env pind in
+  let cst = instantiate_inductive_constraints mib subst in
+    (ty, cst)
+
+let type_of_inductive_knowing_parameters env ?(polyprop=false) mip args = 
+  type_of_inductive env mip
 
 let type_of_inductive_gen env ((mib,mip),u) =
   let subst = make_inductive_subst mib u in
@@ -502,8 +517,8 @@ let branches_specif renv c_spec ci =
 		  Array.map
 		    (fun t -> Lazy.force (spec_of_tree (lazy t)))
 		    vra
-	      | Dead_code -> Array.create nca Dead_code
-	      | _ -> Array.create nca Not_subterm) in
+	      | Dead_code -> Array.make nca Dead_code
+	      | _ -> Array.make nca Not_subterm) in
 	 List.tabulate (fun j -> lazy (Lazy.force lvra).(j)) nca)
       car 
 

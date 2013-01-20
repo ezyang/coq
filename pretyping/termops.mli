@@ -28,11 +28,11 @@ val print_rel_context : env -> std_ppcmds
 val print_env : env -> std_ppcmds
 
 (** about contexts *)
-val push_rel_assum : name * types -> env -> env
-val push_rels_assum : (name * types) list -> env -> env
-val push_named_rec_types : name array * types array * 'a -> env -> env
+val push_rel_assum : Name.t * types -> env -> env
+val push_rels_assum : (Name.t * types) list -> env -> env
+val push_named_rec_types : Name.t array * types array * 'a -> env -> env
 
-val lookup_rel_id : identifier -> rel_context -> int * constr option * types
+val lookup_rel_id : Id.t -> rel_context -> int * constr option * types
 (** Associates the contents of an identifier in a [rel_context]. Raise
     [Not_found] if there is no such identifier. *)
 
@@ -45,8 +45,8 @@ val extended_rel_vect : int -> rel_context -> constr array
 (** iterators/destructors on terms *)
 val mkProd_or_LetIn : rel_declaration -> types -> types
 val mkProd_wo_LetIn : rel_declaration -> types -> types
-val it_mkProd : types -> (name * types) list -> types
-val it_mkLambda : constr -> (name * types) list -> constr
+val it_mkProd : types -> (Name.t * types) list -> types
+val it_mkLambda : constr -> (Name.t * types) list -> constr
 val it_mkProd_or_LetIn : types -> rel_context -> types
 val it_mkProd_wo_LetIn : types -> rel_context -> types
 val it_mkLambda_or_LetIn : constr -> rel_context -> constr
@@ -60,7 +60,7 @@ val it_named_context_quantifier :
 (** {6 Generic iterators on constr} *)
 
 val map_constr_with_named_binders :
-  (name -> 'a -> 'a) ->
+  (Name.t -> 'a -> 'a) ->
   ('a -> constr -> constr) -> 'a -> constr -> constr
 val map_constr_with_binders_left_to_right :
   (rel_declaration -> 'a -> 'a) ->
@@ -95,18 +95,18 @@ val occur_meta : types -> bool
 val occur_existential : types -> bool
 val occur_meta_or_existential : types -> bool
 val occur_evar : existential_key -> types -> bool
-val occur_var : env -> identifier -> types -> bool
+val occur_var : env -> Id.t -> types -> bool
 val occur_var_in_decl :
   env ->
-  identifier -> 'a * types option * types -> bool
-val free_rels : constr -> Intset.t
+  Id.t -> 'a * types option * types -> bool
+val free_rels : constr -> Int.Set.t
 val dependent : constr -> constr -> bool
 val dependent_no_evar : constr -> constr -> bool
 val dependent_univs : constr -> constr -> bool
 val dependent_univs_no_evar : constr -> constr -> bool
 val count_occurrences : constr -> constr -> int
 val collect_metas : constr -> int list
-val collect_vars : constr -> Idset.t (** for visible vars only *)
+val collect_vars : constr -> Id.Set.t (** for visible vars only *)
 val occur_term : constr -> constr -> bool (** Synonymous
  of dependent 
    Substitution of metavariables *)
@@ -155,7 +155,7 @@ type 'a testing_function = {
   match_fun : constr -> 'a;
   merge_fun : 'a -> 'a -> 'a;
   mutable testing_state : 'a;
-  mutable last_found : ((identifier * hyp_location_flag) option * int * constr) option
+  mutable last_found : ((Id.t * hyp_location_flag) option * int * constr) option
 }
 
 val make_eq_test : constr -> unit testing_function
@@ -165,8 +165,8 @@ val make_eq_univs_test : constr -> Univ.constraints testing_function
 exception NotUnifiable
 
 val subst_closed_term_occ_modulo :
-  occurrences -> 'a testing_function -> (identifier * hyp_location_flag) option
-  -> constr -> types 
+  occurrences -> 'a testing_function -> (Id.t * hyp_location_flag) option
+  -> constr -> types
 
 (** [subst_closed_term_occ occl c d] replaces occurrences of closed [c] at
    positions [occl] by [Rel 1] in [d] (see also Note OCC) *)
@@ -207,7 +207,7 @@ exception CannotFilter
    (context,term), or raises [CannotFilter].
    Warning: Outer-kernel sort subtyping are taken into account: c1 has
    to be smaller than c2 wrt. sorts. *)
-type subst = (rel_context*constr) Intmap.t
+type subst = (rel_context*constr) Int.Map.t
 val filtering : rel_context -> Reduction.conv_pb -> constr -> constr -> subst
 
 val decompose_prod_letin : constr -> int * rel_context * constr
@@ -225,26 +225,26 @@ val adjust_app_array_size : constr -> constr array -> constr -> constr array ->
   (constr * constr array * constr * constr array)
 
 (** name contexts *)
-type names_context = name list
-val add_name : name -> names_context -> names_context
-val lookup_name_of_rel : int -> names_context -> name
-val lookup_rel_of_name : identifier -> names_context -> int
+type names_context = Name.t list
+val add_name : Name.t -> names_context -> names_context
+val lookup_name_of_rel : int -> names_context -> Name.t
+val lookup_rel_of_name : Id.t -> names_context -> int
 val empty_names_context : names_context
-val ids_of_rel_context : rel_context -> identifier list
-val ids_of_named_context : named_context -> identifier list
-val ids_of_context : env -> identifier list
+val ids_of_rel_context : rel_context -> Id.t list
+val ids_of_named_context : named_context -> Id.t list
+val ids_of_context : env -> Id.t list
 val names_of_rel_context : env -> names_context
 
 val context_chop : int -> rel_context -> rel_context * rel_context
 val env_rel_context_chop : int -> env -> env * rel_context
 
 (** Set of local names *)
-val vars_of_env: env -> Idset.t
-val add_vname : Idset.t -> name -> Idset.t
+val vars_of_env: env -> Id.Set.t
+val add_vname : Id.Set.t -> Name.t -> Id.Set.t
 
 (** other signature iterators *)
 val process_rel_context : (rel_declaration -> env -> env) -> env -> env
-val assums_of_rel_context : rel_context -> (name * constr) list
+val assums_of_rel_context : rel_context -> (Name.t * constr) list
 val lift_rel_context : int -> rel_context -> rel_context
 val substl_rel_context : constr list -> rel_context -> rel_context
 val smash_rel_context : rel_context -> rel_context (** expand lets in context *)
@@ -256,19 +256,19 @@ val map_rel_context_with_binders :
 val fold_named_context_both_sides :
   ('a -> named_declaration -> named_declaration list -> 'a) ->
     named_context -> init:'a -> 'a
-val mem_named_context : identifier -> named_context -> bool
+val mem_named_context : Id.t -> named_context -> bool
 
-val clear_named_body : identifier -> env -> env
+val clear_named_body : Id.t -> env -> env
 
-val global_vars : env -> constr -> identifier list
-val global_vars_set_of_decl : env -> named_declaration -> Idset.t
+val global_vars : env -> constr -> Id.t list
+val global_vars_set_of_decl : env -> named_declaration -> Id.Set.t
 
 (** Gives an ordered list of hypotheses, closed by dependencies,
    containing a given set *)
-val dependency_closure : env -> named_context -> Idset.t -> identifier list
+val dependency_closure : env -> named_context -> Id.Set.t -> Id.t list
 
 (** Test if an identifier is the basename of a global reference *)
-val is_section_variable : identifier -> bool
+val is_section_variable : Id.t -> bool
 
 val isGlobalRef : constr -> bool
 

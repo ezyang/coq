@@ -15,7 +15,7 @@ open Declarations
 module Refset' : Set.S with type elt = global_reference
 module Refmap' : Map.S with type key = global_reference
 
-val safe_basename_of_global : global_reference -> identifier
+val safe_basename_of_global : global_reference -> Id.t
 
 (*s Warning and Error messages. *)
 
@@ -30,7 +30,7 @@ val error_inductive : global_reference -> 'a
 val error_nb_cons : unit -> 'a
 val error_module_clash : module_path -> module_path -> 'a
 val error_no_module_expr : module_path -> 'a
-val error_singleton_become_prop : identifier -> 'a
+val error_singleton_become_prop : Id.t -> 'a
 val error_unknown_module : qualid -> 'a
 val error_scheme : unit -> 'a
 val error_not_visible : global_reference -> 'a
@@ -38,7 +38,7 @@ val error_MPfile_as_mod : module_path -> bool -> 'a
 val check_inside_module : unit -> unit
 val check_inside_section : unit -> unit
 val check_loaded_modfile : module_path -> unit
-val msg_non_implicit : global_reference -> int -> name -> string
+val msg_non_implicit : global_reference -> int -> Name.t -> string
 val error_non_implicit : string -> 'a
 
 val info_file : string -> unit
@@ -46,9 +46,9 @@ val info_file : string -> unit
 (*s utilities about [module_path] and [kernel_names] and [global_reference] *)
 
 val occur_kn_in_ref : mutual_inductive -> global_reference -> bool
-val repr_of_r : global_reference -> module_path * dir_path * label
+val repr_of_r : global_reference -> module_path * Dir_path.t * Label.t
 val modpath_of_r : global_reference -> module_path
-val label_of_r : global_reference -> label
+val label_of_r : global_reference -> Label.t
 val current_toplevel : unit -> module_path
 val base_mp : module_path -> module_path
 val is_modfile : module_path -> bool
@@ -61,8 +61,8 @@ val mp_length : module_path -> int
 val prefixes_mp : module_path -> MPset.t
 val common_prefix_from_list :
   module_path -> module_path list -> module_path option
-val get_nth_label_mp : int -> module_path -> label
-val labels_of_ref : global_reference -> module_path * label list
+val get_nth_label_mp : int -> module_path -> Label.t
+val labels_of_ref : global_reference -> module_path * Label.t list
 
 (*s Some table-related operations *)
 
@@ -193,12 +193,12 @@ val extract_inductive :
   reference -> string -> string list -> string option -> unit
 
 
-type int_or_id = ArgInt of int | ArgId of identifier
+type int_or_id = ArgInt of int | ArgId of Id.t
 val extraction_implicit : reference -> int_or_id list -> unit
 
 (*s Table of blacklisted filenames *)
 
-val extraction_blacklist : identifier list -> unit
+val extraction_blacklist : Id.t list -> unit
 val reset_extraction_blacklist : unit -> unit
 val print_extraction_blacklist : unit -> Pp.std_ppcmds
 

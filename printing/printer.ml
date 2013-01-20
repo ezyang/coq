@@ -92,12 +92,12 @@ let pr_glob_constr_env env c =
   pr_constr_expr (extern_glob_constr (Termops.vars_of_env env) c)
 
 let pr_lglob_constr c =
-  pr_lconstr_expr (extern_glob_constr Idset.empty c)
+  pr_lconstr_expr (extern_glob_constr Id.Set.empty c)
 let pr_glob_constr c =
-  pr_constr_expr (extern_glob_constr Idset.empty c)
+  pr_constr_expr (extern_glob_constr Id.Set.empty c)
 
 let pr_cases_pattern t =
-  pr_cases_pattern_expr (extern_cases_pattern Idset.empty t)
+  pr_cases_pattern_expr (extern_cases_pattern Id.Set.empty t)
 
 let pr_lconstr_pattern_env env c =
   pr_lconstr_pattern_expr (extern_constr_pattern (Termops.names_of_rel_context env) c)
@@ -130,7 +130,13 @@ let pr_universe_ctx c =
 (* Global references *)
 
 let pr_global_env = pr_global_env
-let pr_global = pr_global_env Idset.empty
+let pr_global = pr_global_env Id.Set.empty
+
+let pr_puniverses f env (c,u) =
+  f env c ++ 
+  (if !Constrextern.print_universes then
+    str"(*" ++ prlist_with_sep spc Univ.Level.pr u ++ str"*)"
+   else mt ())
 
 let pr_puniverses f env (c,u) =
   f env c ++ 
@@ -151,7 +157,7 @@ let pr_evaluable_reference ref =
   pr_global (Tacred.global_of_evaluable_reference ref)
 
 (*let pr_glob_constr t =
-  pr_lconstr (Constrextern.extern_glob_constr Idset.empty t)*)
+  pr_lconstr (Constrextern.extern_glob_constr Id.Set.empty t)*)
 
 (*open Pattern
 
@@ -273,7 +279,7 @@ let pr_predicate pr_elt (b, elts) =
       if elts = [] then str"none" else pr_elts
 
 let pr_cpred p = pr_predicate (pr_constant (Global.env())) (Cpred.elements p)
-let pr_idpred p = pr_predicate Nameops.pr_id (Idpred.elements p)
+let pr_idpred p = pr_predicate Nameops.pr_id (Id.Pred.elements p)
 
 let pr_transparent_state (ids, csts) =
   hv 0 (str"VARIABLES: " ++ pr_idpred ids ++ fnl () ++
@@ -352,13 +358,13 @@ let emacs_print_dependent_evars sigma seeds =
   let evars () =
     let evars = Evarutil.gather_dependent_evars sigma seeds in
     let evars =
-      Intmap.fold begin fun e i s ->
+      Int.Map.fold begin fun e i s ->
 	let e' = str (string_of_existential e) in
 	match i with
 	| None -> s ++ str" " ++ e' ++ str " open,"
 	| Some i ->
 	  s ++ str " " ++ e' ++ str " using " ++
-	    Intset.fold begin fun d s ->
+	    Int.Set.fold begin fun d s ->
 	      str (string_of_existential d) ++ str " " ++ s
 	    end i (str ",")
       end evars (str "")
@@ -603,7 +609,7 @@ let pr_assumptionset env s =
       try pr_constant env kn
       with Not_found ->
 	let mp,_,lab = repr_con kn in
-	str (string_of_mp mp ^ "." ^ string_of_label lab)
+	str (string_of_mp mp ^ "." ^ Label.to_string lab)
     in
     let safe_pr_ltype typ =
       try str " : " ++ pr_ltype typ with _ -> mt ()
@@ -612,7 +618,7 @@ let pr_assumptionset env s =
       let (v, a, o, tr) = accu in
       match t with
       | Variable id ->
-        let var = str (string_of_id id) ++ str " : " ++ pr_ltype typ in
+        let var = str (Id.to_string id) ++ str " : " ++ pr_ltype typ in
         (var :: v, a, o, tr)
       | Axiom kn ->
         let ax = safe_pr_constant env kn ++ safe_pr_ltype typ in
@@ -711,10 +717,10 @@ let get_fields =
   let rec prodec_rec l subst c =
     match kind_of_term c with
     | Prod (na,t,c) ->
-	let id = match na with Name id -> id | Anonymous -> id_of_string "_" in
+	let id = match na with Name id -> id | Anonymous -> Id.of_string "_" in
 	prodec_rec ((id,true,substl subst t)::l) (mkVar id::subst) c
     | LetIn (na,b,_,c) ->
-	let id = match na with Name id -> id | Anonymous -> id_of_string "_" in
+	let id = match na with Name id -> id | Anonymous -> Id.of_string "_" in
 	prodec_rec ((id,false,substl subst b)::l) (mkVar id::subst) c
     | _               -> List.rev l
   in

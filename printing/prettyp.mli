@@ -19,7 +19,7 @@ open Misctypes
 
 (** A Pretty-Printer for the Calculus of Inductive Constructions. *)
 
-val assumptions_for_print : name list -> Termops.names_context
+val assumptions_for_print : Name.t list -> Termops.names_context
 
 val print_closed_sections : bool ref
 val print_context : bool -> int option -> Lib.library_segment -> std_ppcmds
@@ -64,7 +64,7 @@ type object_pr = {
   print_syntactic_def       : kernel_name -> std_ppcmds;
   print_module              : bool -> Names.module_path -> std_ppcmds;
   print_modtype             : module_path -> std_ppcmds;
-  print_named_decl          : identifier * constr option * types -> std_ppcmds;
+  print_named_decl          : Id.t * constr option * types -> std_ppcmds;
   print_library_entry       : bool -> (object_name * Lib.node) -> std_ppcmds option;
   print_context             : bool -> int option -> Lib.library_segment -> std_ppcmds;
   print_typed_value_in_env  : Environ.env -> Term.constr * Term.types -> Pp.std_ppcmds;

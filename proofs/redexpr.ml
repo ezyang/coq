@@ -44,7 +44,7 @@ let set_strategy_one ref l  =
 	  | OpaqueDef _ ->
             errorlabstrm "set_transparent_const"
               (str "Cannot make" ++ spc () ++
-		 Nametab.pr_global_env Idset.empty (ConstRef sp) ++
+		 Nametab.pr_global_env Id.Set.empty (ConstRef sp) ++
 		 spc () ++ str "transparent because it was declared opaque.");
 	  | _ -> Csymtable.set_transparent_const sp)
     | _ -> ()
@@ -141,29 +141,29 @@ let is_reference = function PRef _ | PVar _ -> true | _ -> false
 
 (* table of custom reductino fonctions, not synchronized,
    filled via ML calls to [declare_reduction] *)
-let reduction_tab = ref Stringmap.empty
+let reduction_tab = ref String.Map.empty
 
 (* table of custom reduction expressions, synchronized,
    filled by command Declare Reduction *)
-let red_expr_tab = ref Stringmap.empty
+let red_expr_tab = ref String.Map.empty
 
 let declare_reduction s f =
-  if Stringmap.mem s !reduction_tab || Stringmap.mem s !red_expr_tab
+  if String.Map.mem s !reduction_tab || String.Map.mem s !red_expr_tab
   then error ("There is already a reduction expression of name "^s)
-  else reduction_tab := Stringmap.add s f !reduction_tab
+  else reduction_tab := String.Map.add s f !reduction_tab
 
 let check_custom = function
   | ExtraRedExpr s ->
-      if not (Stringmap.mem s !reduction_tab || Stringmap.mem s !red_expr_tab)
+      if not (String.Map.mem s !reduction_tab || String.Map.mem s !red_expr_tab)
       then error ("Reference to undefined reduction expression "^s)
   |_ -> ()
 
 let decl_red_expr s e =
-  if Stringmap.mem s !reduction_tab || Stringmap.mem s !red_expr_tab
+  if String.Map.mem s !reduction_tab || String.Map.mem s !red_expr_tab
   then error ("There is already a reduction expression of name "^s)
   else begin
     check_custom e;
-    red_expr_tab := Stringmap.add s e !red_expr_tab
+    red_expr_tab := String.Map.add s e !red_expr_tab
   end
 
 let out_arg = function
@@ -183,14 +183,17 @@ let rec reduction_of_red_expr = function
       (fun _ -> simpl),DEFAULTcast)
   | Simpl None -> (simpl,DEFAULTcast)
   | Cbv f -> (cbv_norm_flags (make_flag f),DEFAULTcast)
+  | Cbn f ->
+    (strong (fun env evd x -> zip ~refold:true
+      (whd_state_gen ~refold:true (make_flag f) env evd (x, []))),DEFAULTcast)
   | Lazy f -> (clos_norm_flags (make_flag f),DEFAULTcast)
   | Unfold ubinds -> (unfoldn (List.map out_with_occurrences ubinds),DEFAULTcast)
   | Fold cl -> (fold_commands cl,DEFAULTcast)
   | Pattern lp -> (pattern_occs (List.map out_with_occurrences lp),DEFAULTcast)
   | ExtraRedExpr s ->
-      (try (Stringmap.find s !reduction_tab,DEFAULTcast)
+      (try (String.Map.find s !reduction_tab,DEFAULTcast)
       with Not_found ->
-	(try reduction_of_red_expr (Stringmap.find s !red_expr_tab)
+	(try reduction_of_red_expr (String.Map.find s !red_expr_tab)
 	 with Not_found ->
 	   error("unknown user-defined reduction \""^s^"\"")))
   | CbvVm (Some lp) ->
@@ -242,4 +245,4 @@ let declare_red_expr locality s expr =
 let _ = declare_summary "Declare Reduction"
   { freeze_function = (fun () -> !red_expr_tab);
     unfreeze_function = ((:=) red_expr_tab);
-    init_function = (fun () -> red_expr_tab := Stringmap.empty) }
+    init_function = (fun () -> red_expr_tab := String.Map.empty) }

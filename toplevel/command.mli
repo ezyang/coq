@@ -35,10 +35,10 @@ val interp_definition :
   local_binder list -> polymorphic -> red_expr option -> constr_expr ->
   constr_expr option -> definition_entry * Evd.evar_map * Impargs.manual_implicits
 
-val declare_definition : identifier -> definition_kind ->
+val declare_definition : Id.t -> definition_kind ->
   definition_entry -> Impargs.manual_implicits -> 'a declaration_hook -> 'a
 
-val do_definition : identifier -> definition_kind ->
+val do_definition : Id.t -> definition_kind ->
   local_binder list -> red_expr option -> constr_expr ->
   constr_expr option -> unit declaration_hook -> unit
 
@@ -65,9 +65,9 @@ val declare_assumptions : variable Loc.located list ->
    inductive declarations *)
 
 type structured_one_inductive_expr = {
-  ind_name : identifier;
+  ind_name : Id.t;
   ind_arity : constr_expr;
-  ind_lc : (identifier * constr_expr) list
+  ind_lc : (Id.t * constr_expr) list
 }
 
 type structured_inductive_expr =
@@ -102,8 +102,8 @@ val do_mutual_inductive :
 (** {6 Fixpoints and cofixpoints} *)
 
 type structured_fixpoint_expr = {
-  fix_name : identifier;
-  fix_annot : identifier Loc.located option;
+  fix_name : Id.t;
+  fix_annot : Id.t Loc.located option;
   fix_binders : local_binder list;
   fix_body : constr_expr option;
   fix_type : constr_expr
@@ -123,28 +123,28 @@ val extract_cofixpoint_components :
 (** Typing global fixpoints and cofixpoint_expr *)
 
 type recursive_preentry =
-  identifier list * constr option list * types list
+  Id.t list * constr option list * types list
 
 val interp_fixpoint :
   structured_fixpoint_expr list -> decl_notation list ->
     recursive_preentry * Univ.universe_context_set * 
-    (name list * Impargs.manual_implicits * int option) list
+    (Name.t list * Impargs.manual_implicits * int option) list
 
 val interp_cofixpoint :
   structured_fixpoint_expr list -> decl_notation list ->
     recursive_preentry * Univ.universe_context_set * 
-    (name list * Impargs.manual_implicits * int option) list
+    (Name.t list * Impargs.manual_implicits * int option) list
 
 (** Registering fixpoints and cofixpoints in the environment *)
 
 val declare_fixpoint :
   recursive_preentry * Univ.universe_context_set * 
-  (name list * Impargs.manual_implicits * int option) list ->
+  (Name.t list * Impargs.manual_implicits * int option) list ->
   polymorphic -> lemma_possible_guards -> decl_notation list -> unit
 
 val declare_cofixpoint :
   recursive_preentry * Univ.universe_context_set * 
-  (name list * Impargs.manual_implicits * int option) list ->
+  (Name.t list * Impargs.manual_implicits * int option) list ->
   polymorphic -> decl_notation list -> unit
 
 (** Entry points for the vernacular commands Fixpoint and CoFixpoint *)
@@ -157,7 +157,7 @@ val do_cofixpoint :
 
 (** Utils *)
 
-val check_mutuality : Environ.env -> bool -> (identifier * types) list -> unit
+val check_mutuality : Environ.env -> bool -> (Id.t * types) list -> unit
 
 val declare_fix : definition_object_kind -> polymorphic -> Univ.universe_context -> 
-  identifier -> constr -> types -> Impargs.manual_implicits -> global_reference
+  Id.t -> constr -> types -> Impargs.manual_implicits -> global_reference

@@ -164,9 +164,9 @@ let get_strength stre ref cls clt =
 let ident_key_of_class = function
   | CL_FUN -> "Funclass"
   | CL_SORT -> "Sortclass"
-  | CL_CONST sp -> string_of_label (con_label sp)
-  | CL_IND (sp,_) -> string_of_label (mind_label sp)
-  | CL_SECVAR id -> string_of_id id
+  | CL_CONST sp -> Label.to_string (con_label sp)
+  | CL_IND (sp,_) -> Label.to_string (mind_label sp)
+  | CL_SECVAR id -> Id.to_string id
 
 (* coercion identité *)
 
@@ -185,7 +185,7 @@ let build_id_coercion idf_opt source poly =
   let lams,t = decompose_lam_assum c in
   let val_f =
     it_mkLambda_or_LetIn
-      (mkLambda (Name (id_of_string "x"),
+      (mkLambda (Name (Id.of_string "x"),
 		 applistc vs (extended_rel_list 0 lams),
 		 mkRel 1))
        lams
@@ -209,7 +209,7 @@ let build_id_coercion idf_opt source poly =
       | Some idf -> idf
       | None ->
 	  let cl,u,_ = find_class_type Evd.empty t in
-	  id_of_string ("Id_"^(ident_key_of_class source)^"_"^
+	  Id.of_string ("Id_"^(ident_key_of_class source)^"_"^
                         (ident_key_of_class cl))
   in
   let constr_entry = (* Cast is necessary to express [val_f] is identity *)
@@ -217,8 +217,8 @@ let build_id_coercion idf_opt source poly =
       { const_entry_body = mkCast (val_f, DEFAULTcast, typ_f);
         const_entry_secctx = None;
 	const_entry_type = Some typ_f;
-	const_entry_polymorphic = poly;
-	const_entry_universes = Univ.context_of_universe_context_set ctx;
+	const_entry_polymorphic = false;
+	const_entry_universes = Univ.empty_universe_context; (* FIXME *)
         const_entry_opaque = false } in
   let kn = declare_constant idf (constr_entry,IsDefinition IdentityCoercion) in
   ConstRef kn
@@ -292,7 +292,7 @@ let try_add_new_coercion_with_source ref stre poly ~source =
 let add_coercion_hook poly stre ref =
   try_add_new_coercion ref stre poly;
   Flags.if_verbose msg_info
-    (pr_global_env Idset.empty ref ++ str " is now a coercion")
+    (pr_global_env Id.Set.empty ref ++ str " is now a coercion")
 
 let add_subclass_hook poly stre ref =
   let cl = class_of_global ref in

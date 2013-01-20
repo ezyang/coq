@@ -81,9 +81,9 @@ type ineq = Rlt | Rle | Rgt | Rge
 let string_of_R_constant kn =
   match Names.repr_con kn with
     | MPfile dir, sec_dir, id when
-	sec_dir = empty_dirpath &&
-	string_of_dirpath dir = "Coq.Reals.Rdefinitions"
-	-> string_of_label id
+	sec_dir = Dir_path.empty &&
+	Dir_path.to_string dir = "Coq.Reals.Rdefinitions"
+	-> Label.to_string id
     | _ -> "constant_not_of_R"
 
 let rec string_of_R_constr c =
@@ -463,7 +463,7 @@ let mkAppL a =
 let rec fourier gl=
     Coqlib.check_required_library ["Coq";"fourier";"Fourier"];
     let goal = strip_outer_cast (pf_concl gl) in
-    let fhyp=id_of_string "new_hyp_for_fourier" in
+    let fhyp=Id.of_string "new_hyp_for_fourier" in
     (* si le but est une inéquation, on introduit son contraire,
        et le but à prouver devient False *)
     try (let tac =

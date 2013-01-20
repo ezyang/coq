@@ -56,7 +56,7 @@ val e_new_type_evar : evar_map ref ->
 val new_evar_instance :
  named_context_val -> evar_map -> types -> ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> ?candidates:constr list -> constr list -> evar_map * constr
 
-val make_pure_subst : evar_info -> constr array -> (identifier * constr) list
+val make_pure_subst : evar_info -> constr array -> (Id.t * constr) list
 
 (** {6 Instantiate evars} *)
 
@@ -131,10 +131,10 @@ val solve_pattern_eqn : env -> constr list -> constr -> constr
     contained in the object, including defined evars *)
 
 
-val evars_of_term : constr -> Intset.t
+val evars_of_term : constr -> Int.Set.t
 
-val evars_of_named_context : named_context -> Intset.t
-val evars_of_evar_info : evar_info -> Intset.t
+val evars_of_named_context : named_context -> Int.Set.t
+val evars_of_evar_info : evar_info -> Int.Set.t
 
 (** [gather_dependent_evars evm seeds] classifies the evars in [evm]
     as dependent_evars and goals (these may overlap). A goal is an
@@ -145,16 +145,16 @@ val evars_of_evar_info : evar_info -> Intset.t
     associating to each dependent evar [None] if it has no (partial)
     definition or [Some s] if [s] is the list of evars appearing in
     its (partial) definition. *)
-val gather_dependent_evars : evar_map -> evar list -> (Intset.t option) Intmap.t
+val gather_dependent_evars : evar_map -> evar list -> (Int.Set.t option) Int.Map.t
 
 (** The following functions return the set of undefined evars
     contained in the object, the defined evars being traversed.
     This is roughly a combination of the previous functions and
     [nf_evar]. *)
 
-val undefined_evars_of_term : evar_map -> constr -> Intset.t
-val undefined_evars_of_named_context : evar_map -> named_context -> Intset.t
-val undefined_evars_of_evar_info : evar_map -> evar_info -> Intset.t
+val undefined_evars_of_term : evar_map -> constr -> Int.Set.t
+val undefined_evars_of_named_context : evar_map -> named_context -> Int.Set.t
+val undefined_evars_of_evar_info : evar_map -> evar_info -> Int.Set.t
 
 (** {6 Value/Type constraints} *)
 
@@ -170,7 +170,7 @@ val mk_valcon : constr -> val_constraint
 
 val split_tycon :
   Loc.t -> env ->  evar_map -> type_constraint ->
-    evar_map * (name * type_constraint * type_constraint)
+    evar_map * (Name.t * type_constraint * type_constraint)
 
 val valcon_of_tycon : type_constraint -> val_constraint
 val lift_tycon : int -> type_constraint -> type_constraint
@@ -221,17 +221,17 @@ val pr_tycon : env -> type_constraint -> Pp.std_ppcmds
 raise OccurHypInSimpleClause if the removal breaks dependencies *)
 
 type clear_dependency_error =
-| OccurHypInSimpleClause of identifier option
+| OccurHypInSimpleClause of Id.t option
 | EvarTypingBreak of existential
 
-exception ClearDependencyError of identifier * clear_dependency_error
+exception ClearDependencyError of Id.t * clear_dependency_error
 
 (* spiwack: marks an evar that has been "defined" by clear.
     used by [Goal] and (indirectly) [Proofview] to handle the clear tactic gracefully*)
 val cleared : bool Store.Field.t
 
 val clear_hyps_in_evi : evar_map ref -> named_context_val -> types ->
-  identifier list -> named_context_val * types
+  Id.t list -> named_context_val * types
 
 val push_rel_context_to_named_context : Environ.env -> types ->
   named_context_val * types * constr list * constr list

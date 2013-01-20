@@ -46,6 +46,7 @@ module type ExtS =
 sig
   include S
   external equal : string -> string -> bool = "caml_string_equal" "noalloc"
+  val is_empty : string -> bool
   val explode : string -> string list
   val implode : string list -> string
   val strip : string -> string
@@ -56,6 +57,10 @@ sig
   val plural : int -> string -> string
   val ordinal : int -> string
   val split : char -> string -> string list
+  val is_sub : string -> string -> int -> bool
+  module Set : Set.S with type elt = t
+  module Map : Map.S with type key = t
+  val hcons : string -> string
 end
 
 include String
@@ -76,6 +81,8 @@ let implode sl = String.concat "" sl
 let is_blank = function
   | ' ' | '\r' | '\t' | '\n' -> true
   | _ -> false
+
+let is_empty s = String.length s = 0
 
 let strip s =
   let n = String.length s in
@@ -100,7 +107,7 @@ let map f s =
 
 let drop_simple_quotes s =
   let n = String.length s in
-  if n > 2 & s.[0] = '\'' & s.[n-1] = '\'' then String.sub s 1 (n-2) else s
+  if n > 2 && s.[0] = '\'' & s.[n-1] = '\'' then String.sub s 1 (n-2) else s
 
 (* substring searching... *)
 
@@ -130,6 +137,20 @@ let string_contains ~where ~what =
   with
       Not_found -> false
 
+let is_sub p s off =
+  let lp = String.length p in
+  let ls = String.length s in
+  if ls < off + lp then false
+  else
+    let rec aux i =
+      if lp <= i then true
+      else
+        let cp = String.unsafe_get p i in
+        let cs = String.unsafe_get s (off + i) in
+        if cp = cs then aux (succ i) else false
+    in
+    aux 0
+
 let plural n s = if n<>1 then s^"s" else s
 
 let ordinal n =
@@ -149,3 +170,14 @@ let split c s =
       | Not_found -> [String.sub s n (len-n)]
   in
   if Int.equal len 0 then [] else split 0
+
+module Self =
+struct
+  type t = string
+  let compare = compare
+end
+
+module Set = Set.Make(Self)
+module Map = Map.Make(Self)
+
+let hcons = Hashcons.simple_hcons Hashcons.Hstring.generate ()

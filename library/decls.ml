@@ -18,28 +18,28 @@ open Libnames
 (** Datas associated to section variables and local definitions *)
 
 type variable_data =
-    dir_path * bool (* opacity *) * Univ.universe_context_set * Univ.constraints * logical_kind
+  Dir_path.t * bool (* opacity *) * Univ.universe_context_set * Univ.constraints * logical_kind
 
-let vartab = ref (Idmap.empty : variable_data Idmap.t)
+let vartab = ref (Id.Map.empty : variable_data Id.Map.t)
 
 let _ = Summary.declare_summary "VARIABLE"
   { Summary.freeze_function = (fun () -> !vartab);
     Summary.unfreeze_function = (fun ft -> vartab := ft);
-    Summary.init_function = (fun () -> vartab := Idmap.empty) }
+    Summary.init_function = (fun () -> vartab := Id.Map.empty) }
 
-let add_variable_data id o = vartab := Idmap.add id o !vartab
+let add_variable_data id o = vartab := Id.Map.add id o !vartab
 
-let variable_path id = let (p,_,_,_,_) = Idmap.find id !vartab in p
-let variable_opacity id = let (_,opaq,_,_,_) = Idmap.find id !vartab in opaq
-let variable_kind id = let (_,_,_,_,k) = Idmap.find id !vartab in k
-let variable_context id = let (_,_,ctx,_,_) = Idmap.find id !vartab in ctx
-let variable_constraints id = let (_,_,_,cst,_) = Idmap.find id !vartab in cst
+let variable_path id = let (p,_,_,_,_) = Id.Map.find id !vartab in p
+let variable_opacity id = let (_,opaq,_,_,_) = Id.Map.find id !vartab in opaq
+let variable_kind id = let (_,_,_,_,k) = Id.Map.find id !vartab in k
+let variable_context id = let (_,_,ctx,_,_) = Id.Map.find id !vartab in ctx
+let variable_constraints id = let (_,_,_,cst,_) = Id.Map.find id !vartab in cst
 
 let variable_secpath id =
   let dir = drop_dirpath_prefix (Lib.library_dp()) (variable_path id) in
   make_qualid dir id
 
-let variable_exists id = Idmap.mem id !vartab
+let variable_exists id = Id.Map.mem id !vartab
 
 (** Datas associated to global parameters and constants *)
 
@@ -66,7 +66,7 @@ let initialize_named_context_for_proof () =
 let last_section_hyps dir =
   fold_named_context
     (fun (id,_,_) sec_ids ->
-      try if dir_path_eq dir (variable_path id) then id::sec_ids else sec_ids
+      try if Dir_path.equal dir (variable_path id) then id::sec_ids else sec_ids
       with Not_found -> sec_ids)
     (Environ.named_context (Global.env()))
     ~init:[]

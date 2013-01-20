@@ -19,21 +19,21 @@ open Declarations
 open Environ
 
 let rec debug_string_of_mp = function
-  | MPfile sl -> string_of_dirpath sl
-  | MPbound uid -> "bound("^string_of_mbid uid^")"
-  | MPdot (mp,l) -> debug_string_of_mp mp ^ "." ^ string_of_label l
+  | MPfile sl -> Dir_path.to_string sl
+  | MPbound uid -> "bound("^MBId.to_string uid^")"
+  | MPdot (mp,l) -> debug_string_of_mp mp ^ "." ^ Label.to_string l
 
 let rec string_of_mp = function
-  | MPfile sl -> string_of_dirpath sl
-  | MPbound uid -> string_of_mbid uid
-  | MPdot (mp,l) -> string_of_mp mp ^ "." ^ string_of_label l
+  | MPfile sl -> Dir_path.to_string sl
+  | MPbound uid -> MBId.to_string uid
+  | MPdot (mp,l) -> string_of_mp mp ^ "." ^ Label.to_string l
 
 let string_of_mp mp =
   if !Flags.debug then debug_string_of_mp mp else string_of_mp mp
 
 let prkn kn =
   let (mp,_,l) = repr_kn kn in
-  str(string_of_mp mp ^ "." ^ string_of_label l)
+  str(string_of_mp mp ^ "." ^ Label.to_string l)
 let prcon c =
   let ck = canonical_con c in
   let uk = user_con c in
@@ -76,10 +76,10 @@ type inductive_error =
   | NotEnoughArgs of env * constr * constr
   | NotConstructor of env * constr * constr
   | NonPar of env * constr * int * constr * constr
-  | SameNamesTypes of identifier
-  | SameNamesConstructors of identifier
-  | SameNamesOverlap of identifier list
-  | NotAnArity of identifier
+  | SameNamesTypes of Id.t
+  | SameNamesConstructors of Id.t
+  | SameNamesOverlap of Id.t list
+  | NotAnArity of Id.t
   | BadEntry
 
 exception InductiveError of inductive_error

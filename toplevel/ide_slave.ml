@@ -51,8 +51,14 @@ let init_stdout,read_stdout =
              let r = Buffer.contents out_buff in
              Buffer.clear out_buff; r)
 
+let pr_with_pid s = Printf.eprintf "[pid %d] %s\n%!" (Unix.getpid ()) s
+
 let pr_debug s =
-  if !Flags.debug then Printf.eprintf "[pid %d] %s\n%!" (Unix.getpid ()) s
+  if !Flags.debug then pr_with_pid s
+let pr_debug_call q =
+  if !Flags.debug then pr_with_pid ("<-- " ^ Serialize.pr_call q)
+let pr_debug_answer q r =
+  if !Flags.debug then pr_with_pid ("--> " ^ Serialize.pr_full_value q r)
 
 (** Categories of commands *)
 
@@ -121,7 +127,7 @@ let interp (raw,verbosely,s) =
 (** Goal display *)
 
 let hyp_next_tac sigma env (id,_,ast) =
-  let id_s = Names.string_of_id id in
+  let id_s = Names.Id.to_string id in
   let type_s = string_of_ppcmds (pr_ltype_env env ast) in
   [
     ("clear "^id_s),("clear "^id_s^".");
@@ -225,20 +231,20 @@ let inloadpath dir =
   Library.is_in_load_paths (CUnix.physical_path_of_string dir)
 
 let status () =
-  (** We remove the initial part of the current [dir_path]
+  (** We remove the initial part of the current [Dir_path.t]
       (usually Top in an interactive session, cf "coqtop -top"),
       and display the other parts (opened sections and modules) *)
   let path =
-    let l = Names.repr_dirpath (Lib.cwd ()) in
-    List.rev_map Names.string_of_id l
+    let l = Names.Dir_path.repr (Lib.cwd ()) in
+    List.rev_map Names.Id.to_string l
   in
   let proof =
-    try Some (Names.string_of_id (Proof_global.get_current_proof_name ()))
+    try Some (Names.Id.to_string (Proof_global.get_current_proof_name ()))
     with _ -> None
   in
   let allproofs =
     let l = Proof_global.get_all_proof_names () in
-    List.map Names.string_of_id l
+    List.map Names.Id.to_string l
   in
   {
     Interface.status_path = path;
@@ -352,9 +358,9 @@ let loop () =
       let p = Xml_parser.make (Xml_parser.SChannel stdin) in
       let xml_query = Xml_parser.parse p in
       let q = Serialize.to_call xml_query in
-      let () = pr_debug ("<-- " ^ Serialize.pr_call q) in
+      let () = pr_debug_call q in
       let r = eval_call q in
-      let () = pr_debug ("--> " ^ Serialize.pr_full_value q r) in
+      let () = pr_debug_answer q r in
       Xml_utils.print_xml !orig_stdout (Serialize.of_answer q r);
       flush !orig_stdout
     with

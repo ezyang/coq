@@ -37,8 +37,8 @@ let pr_scheme_kind = Pp.str
 let scheme_map = ref Indmap.empty
 
 let cache_one_scheme kind (ind,const) =
-  let map = try Indmap.find ind !scheme_map with Not_found -> Stringmap.empty in
-  scheme_map := Indmap.add ind (Stringmap.add kind const map) !scheme_map
+  let map = try Indmap.find ind !scheme_map with Not_found -> String.Map.empty in
+  scheme_map := Indmap.add ind (String.Map.add kind const map) !scheme_map
 
 let cache_scheme (_,(kind,l)) =
   Array.iter (cache_one_scheme kind) l
@@ -89,9 +89,9 @@ let scheme_object_table =
   (Hashtbl.create 17 : (string, string * scheme_object_function) Hashtbl.t)
 
 let declare_scheme_object s aux f =
-  (try check_ident ("ind"^s) with _ ->
+  (try Id.check ("ind"^s) with _ ->
     error ("Illegal induction scheme suffix: "^s));
-  let key = if String.equal aux "" then s else aux in
+  let key = if String.is_empty aux then s else aux in
   try
     let _ = Hashtbl.find scheme_object_table key in
 (*    let aux_msg = if aux="" then "" else " (with key "^aux^")" in*)
@@ -175,7 +175,7 @@ let define_mutual_scheme kind internal names mind =
       define_mutual_scheme_base kind s f internal names mind
 
 let find_scheme kind (mind,i as ind) =
-  try Stringmap.find kind (Indmap.find ind !scheme_map)
+  try String.Map.find kind (Indmap.find ind !scheme_map)
   with Not_found ->
   match Hashtbl.find scheme_object_table kind with
   | s,IndividualSchemeFunction f ->
@@ -184,5 +184,5 @@ let find_scheme kind (mind,i as ind) =
       (define_mutual_scheme_base kind s f KernelSilent [] mind).(i)
 
 let check_scheme kind ind =
-  try let _ = Stringmap.find kind (Indmap.find ind !scheme_map) in true
+  try let _ = String.Map.find kind (Indmap.find ind !scheme_map) in true
   with Not_found -> false

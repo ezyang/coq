@@ -70,8 +70,11 @@ module PrintingInductiveMake =
   struct
     type t = inductive
     let encode = Test.encode
-    let subst = subst_ind
-    let printer ind = pr_global_env Idset.empty (IndRef ind)
+    let subst subst (kn, ints as obj) =
+      let kn' = subst_mind subst kn in
+	if kn' == kn then obj else
+	  kn', ints
+    let printer ind = pr_global_env Id.Set.empty (IndRef ind)
     let key = ["Printing";Test.field]
     let title = Test.title
     let member_message x = Test.member_message (printer x)
@@ -172,11 +175,11 @@ let lookup_name_as_displayed env t s =
   let rec lookup avoid n c = match kind_of_term c with
     | Prod (name,_,c') ->
 	(match compute_displayed_name_in RenamingForGoal avoid name c' with
-           | (Name id,avoid') -> if id_eq id s then Some n else lookup avoid' (n+1) c'
+           | (Name id,avoid') -> if Id.equal id s then Some n else lookup avoid' (n+1) c'
 	   | (Anonymous,avoid') -> lookup avoid' (n+1) (pop c'))
     | LetIn (name,_,_,c') ->
 	(match compute_displayed_name_in RenamingForGoal avoid name c' with
-           | (Name id,avoid') -> if id_eq id s then Some n else lookup avoid' (n+1) c'
+           | (Name id,avoid') -> if Id.equal id s then Some n else lookup avoid' (n+1) c'
 	   | (Anonymous,avoid') -> lookup avoid' (n+1) (pop c'))
     | Cast (c,_,_) -> lookup avoid n c
     | _ -> None
@@ -228,7 +231,7 @@ let rec decomp_branch n nal b (avoid,env as e) c =
 	| Lambda (na,_,c) -> na,c,compute_displayed_let_name_in
 	| LetIn (na,_,_,c) -> na,c,compute_displayed_name_in
 	| _ ->
-	    Name (id_of_string "x"),(applist (lift 1 c, [mkRel 1])),
+	    Name (Id.of_string "x"),(applist (lift 1 c, [mkRel 1])),
 	    compute_displayed_name_in in
     let na',avoid' = f flag avoid na c in
     decomp_branch (n-1) (na'::nal) b (avoid',add_name na' env) c
@@ -290,7 +293,7 @@ let it_destRLambda_or_LetIn_names n c =
       | _ ->
           (* eta-expansion *)
 	  let next l =
-	    let x = next_ident_away (id_of_string "x") l in
+	    let x = next_ident_away (Id.of_string "x") l in
 	    (* Not efficient but unusual and no function to get free glob_vars *)
 (* 	    if occur_glob_constr x c then next (x::l) else x in *)
 	    x
@@ -320,7 +323,7 @@ let detype_case computable detype detype_eqns testdep avoid data p c bl =
               | GLambda (_,x,_,t,c) -> x, c
 	      | _ -> Anonymous, typ in
 	    let aliastyp =
-	      if List.for_all (name_eq Anonymous) nl then None
+	      if List.for_all (Name.equal Anonymous) nl then None
 	      else Some (dl,indsp,nl) in
             n, aliastyp, Some typ
   in
@@ -385,7 +388,7 @@ let rec detype (isgoal:bool) avoid env t =
 	 | Anonymous -> !detype_anonymous dl n
        with Not_found ->
 	 let s = "_UNBOUND_REL_"^(string_of_int n)
-	 in GVar (dl, id_of_string s))
+	 in GVar (dl, Id.of_string s))
     | Meta n ->
 	(* Meta in constr are not user-parsable and are mapped to Evar *)
 	GEvar (dl, n, None)
@@ -395,6 +398,8 @@ let rec detype (isgoal:bool) avoid env t =
 	 with _ ->
 	  GVar (dl, id))
     | Sort s -> GSort (dl,detype_sort s)
+    | Cast (c1,REVERTcast,c2) when not !Flags.raw_print ->
+        detype isgoal avoid env c1
     | Cast (c1,k,c2) ->
         let d1 = detype isgoal avoid env c1 in
 	let d2 = detype isgoal avoid env c2 in

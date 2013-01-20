@@ -31,10 +31,10 @@ val is_empty : safe_environment -> bool
 
 (** Adding and removing local declarations (Local or Variables) *)
 val push_named_assum :
-  identifier * types -> safe_environment ->
+  Id.t * types -> safe_environment ->
     Univ.constraints * safe_environment
 val push_named_def :
-  identifier * constr * types option -> safe_environment ->
+  Id.t * constr * types option -> safe_environment ->
     Univ.constraints * safe_environment
 
 (** Adding global axioms or definitions *)
@@ -43,22 +43,22 @@ type global_declaration =
   | GlobalRecipe of Cooking.recipe
 
 val add_constant :
-  dir_path -> label -> global_declaration -> safe_environment ->
+  Dir_path.t -> Label.t -> global_declaration -> safe_environment ->
       constant * safe_environment
 
 (** Adding an inductive type *)
 val add_mind :
-  dir_path -> label -> mutual_inductive_entry -> safe_environment ->
+  Dir_path.t -> Label.t -> mutual_inductive_entry -> safe_environment ->
     mutual_inductive * safe_environment
 
 (** Adding a module *)
 val add_module :
-  label -> module_entry -> inline -> safe_environment
+  Label.t -> module_entry -> inline -> safe_environment
     -> module_path * delta_resolver * safe_environment
 
 (** Adding a module type *)
 val add_modtype :
-  label -> module_struct_entry -> inline -> safe_environment
+  Label.t -> module_struct_entry -> inline -> safe_environment
     -> module_path * safe_environment
 
 (** Adding universe constraints *)
@@ -71,20 +71,20 @@ val set_engagement : engagement -> safe_environment -> safe_environment
 (** {6 Interactive module functions } *)
 
 val start_module :
-  label -> safe_environment -> module_path * safe_environment
+  Label.t -> safe_environment -> module_path * safe_environment
 
 val end_module :
-  label -> (module_struct_entry * inline) option
+  Label.t -> (module_struct_entry * inline) option
       -> safe_environment -> module_path * delta_resolver * safe_environment 
 
 val add_module_parameter :
-  mod_bound_id -> module_struct_entry -> inline -> safe_environment -> delta_resolver * safe_environment
+  MBId.t -> module_struct_entry -> inline -> safe_environment -> delta_resolver * safe_environment
 
 val start_modtype :
-  label -> safe_environment -> module_path * safe_environment
+  Label.t -> safe_environment -> module_path * safe_environment
 
 val end_modtype :
-  label -> safe_environment -> module_path * safe_environment
+  Label.t -> safe_environment -> module_path * safe_environment
 
 val add_include :
   module_struct_entry -> bool -> inline -> safe_environment ->
@@ -102,10 +102,10 @@ val delta_of_senv : safe_environment -> delta_resolver*delta_resolver
 (** exporting and importing modules *)
 type compiled_library
 
-val start_library : dir_path -> safe_environment
+val start_library : Dir_path.t -> safe_environment
       -> module_path * safe_environment
 
-val export : safe_environment -> dir_path
+val export : safe_environment -> Dir_path.t
       -> module_path * compiled_library
 
 val import : compiled_library -> Digest.t -> safe_environment
@@ -139,7 +139,7 @@ val typing : safe_environment -> constr -> judgment
 
 (** {7 Query } *)
 
-val exists_objlabel : label -> safe_environment -> bool
+val exists_objlabel : Label.t -> safe_environment -> bool
 
 (*spiwack: safe retroknowledge functionalities *)
 

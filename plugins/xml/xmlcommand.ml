@@ -35,7 +35,7 @@ let filter_params pvars hyps =
       let ids' = id::ids in
       let ids'' =
        "cic:/" ^
-        String.concat "/" (List.rev (List.map Names.string_of_id ids')) in
+        String.concat "/" (List.rev (List.map Names.Id.to_string ids')) in
       let he' =
        ids'', List.rev (List.filter (function x -> List.mem x hyps) he) in
       let tl' = aux ids' tl in
@@ -44,9 +44,9 @@ let filter_params pvars hyps =
         | _,_  -> he'::tl'
  in
   let cwd = Lib.cwd () in
-  let cwdsp = Libnames.make_path cwd (Names.id_of_string "dummy") in
+  let cwdsp = Libnames.make_path cwd (Names.Id.of_string "dummy") in
   let modulepath = Cic2acic.get_module_path_of_full_path cwdsp in
-   aux (Names.repr_dirpath modulepath) (List.rev pvars)
+   aux (Names.Dir_path.repr modulepath) (List.rev pvars)
 ;;
 
 (* The computation is very inefficient, but we can't do anything *)
@@ -55,15 +55,15 @@ let filter_params pvars hyps =
 let search_variables () =
  let module N = Names in
   let cwd = Lib.cwd () in
-  let cwdsp = Libnames.make_path cwd (Names.id_of_string "dummy") in
+  let cwdsp = Libnames.make_path cwd (Names.Id.of_string "dummy") in
   let modulepath = Cic2acic.get_module_path_of_full_path cwdsp in
    let rec aux =
     function
        [] -> []
      | he::tl as modules ->
         let one_section_variables =
-         let dirpath = N.make_dirpath (modules @ N.repr_dirpath modulepath) in
-          let t = List.map N.string_of_id (Decls.last_section_hyps dirpath) in
+         let dirpath = N.Dir_path.make (modules @ N.Dir_path.repr modulepath) in
+          let t = List.map N.Id.to_string (Decls.last_section_hyps dirpath) in
            [he,t]
         in
          one_section_variables @ aux tl
@@ -113,7 +113,7 @@ let theory_filename xml_library_root =
   match xml_library_root with
     None -> None  (* stdout *)
   | Some xml_library_root' ->
-     let toks = List.map N.string_of_id (N.repr_dirpath (Lib.library_dp ())) in
+     let toks = List.map N.Id.to_string (N.Dir_path.repr (Lib.library_dp ())) in
      (* theory from A/B/C/F.v goes into A/B/C/F.theory *)
      let alltoks = List.rev toks in
        Some (join_dirs xml_library_root' alltoks ^ ".theory")
@@ -153,7 +153,7 @@ let print_object uri obj sigma filename =
 
 let string_list_of_named_context_list =
  List.map
-  (function (n,_,_) -> Names.string_of_id n)
+  (function (n,_,_) -> Names.Id.to_string n)
 ;;
 
 (* Function to collect the variables that occur in a term. *)
@@ -212,11 +212,11 @@ let mk_variable_obj id body typ =
    | Some bo -> find_hyps bo, Some (Unshare.unshare bo)
  in
   let hyps' = find_hyps typ @ hyps in
-  let hyps'' = List.map Names.string_of_id hyps' in
+  let hyps'' = List.map Names.Id.to_string hyps' in
   let variables = search_variables () in
   let params = filter_params variables hyps'' in
    Acic.Variable
-    (Names.string_of_id id, unsharedbody, Unshare.unshare typ, params)
+    (Names.Id.to_string id, unsharedbody, Unshare.unshare typ, params)
 ;;
 
 
@@ -226,10 +226,10 @@ let mk_constant_obj id bo ty variables hyps =
  let params = filter_params variables hyps in
   match bo with
      None ->
-      Acic.Constant (Names.string_of_id id,None,ty,params)
+      Acic.Constant (Names.Id.to_string id,None,ty,params)
    | Some c ->
       Acic.Constant
-       (Names.string_of_id id, Some (Unshare.unshare (Declarations.force c)),
+       (Names.Id.to_string id, Some (Unshare.unshare (Declarations.force c)),
          ty,params)
 ;;
 
@@ -384,12 +384,12 @@ let print internal glob_ref kind xml_library_root =
        (* this kn is fake since it is not provided by Coq *)
        let kn =
         let (mod_path,dir_path) = Lib.current_prefix () in
-        N.make_kn mod_path dir_path (N.label_of_id id)
+        N.make_kn mod_path dir_path (N.Label.of_id id)
        in
        let (_,body,typ) = G.lookup_named id in
         Cic2acic.Variable kn,mk_variable_obj id body typ
     | Gn.ConstRef kn ->
-       let id = N.id_of_label (N.con_label kn) in
+       let id = N.Label.to_id (N.con_label kn) in
        let cb = G.lookup_constant kn in
        let val0 = D.body_of_constant cb in
        let typ = cb.D.const_type in
@@ -467,7 +467,7 @@ let _ =
          (* I saved in the Pfedit.set_xml_cook_proof callback.          *)
         let fn = filename_of_path xml_library_root (Cic2acic.Constant kn) in
          show_pftreestate internal fn pftreestate
-	  (Names.id_of_label (Names.con_label kn)) ;
+	  (Names.Label.to_id (Names.con_label kn)) ;
          proof_to_export := None)
 ;;
 
@@ -531,7 +531,7 @@ let _ = Lexer.set_xml_output_comment (theory_output_string ~do_not_quote:true) ;
 
 let uri_of_dirpath dir =
   "/" ^ String.concat "/"
-    (List.map Names.string_of_id (List.rev (Names.repr_dirpath dir)))
+    (List.map Names.Id.to_string (List.rev (Names.Dir_path.repr dir)))
 ;;
 
 let _ =
@@ -550,5 +550,5 @@ let _ =
   Library.set_xml_require
     (fun d -> theory_output_string
       (Printf.sprintf "<b>Require</b> <a helm:helm_link=\"href\" href=\"theory:%s.theory\">%s</a>.<br/>"
-       (uri_of_dirpath d) (Names.string_of_dirpath d)))
+       (uri_of_dirpath d) (Names.Dir_path.to_string d)))
 ;;

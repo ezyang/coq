@@ -59,22 +59,22 @@ val constr_of_pat :
            Evd.evar_map ref ->
            Term.rel_declaration list ->
            Glob_term.cases_pattern ->
-           Names.identifier list ->
+           Names.Id.t list ->
            Glob_term.cases_pattern *
            (Term.rel_declaration list * Term.constr *
             (Term.types * Term.constr list) * Glob_term.cases_pattern) *
-           Names.identifier list
+           Names.Id.t list
 
 type 'a rhs =
     { rhs_env    : env;
-      rhs_vars   : identifier list;
-      avoid_ids  : identifier list;
+      rhs_vars   : Id.t list;
+      avoid_ids  : Id.t list;
       it         : 'a option}
 
 type 'a equation =
     { patterns     : cases_pattern list;
       rhs          : 'a rhs;
-      alias_stack  : name list;
+      alias_stack  : Name.t list;
       eqn_loc      : Loc.t;
       used         : bool ref }
 
@@ -82,12 +82,12 @@ type 'a matrix = 'a equation list
 
 (* 1st argument of IsInd is the original ind before extracting the summary *)
 type tomatch_type =
-  | IsInd of types * inductive_type * name list
+  | IsInd of types * inductive_type * Name.t list
   | NotInd of constr option * types
 
 type tomatch_status =
-  | Pushed of ((constr * tomatch_type) * int list * name)
-  | Alias of (name * constr * (constr * types))
+  | Pushed of ((constr * tomatch_type) * int list * Name.t)
+  | Alias of (Name.t * constr * (constr * types))
   | NonDepAlias
   | Abstract of int * rel_declaration
 

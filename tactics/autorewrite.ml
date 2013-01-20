@@ -59,10 +59,10 @@ module HintDN = Term_dnet.Make(HintIdent)(HintOpt)
 
 (* Summary and Object declaration *)
 let rewtab =
-  ref (Stringmap.empty : HintDN.t Stringmap.t)
+  ref (String.Map.empty : HintDN.t String.Map.t)
 
 let _ =
-  let init () = rewtab := Stringmap.empty in
+  let init () = rewtab := String.Map.empty in
   let freeze () = !rewtab in
   let unfreeze fs = rewtab := fs in
   Summary.declare_summary "autorewrite"
@@ -71,7 +71,7 @@ let _ =
       Summary.init_function     = init }
 
 let find_base bas =
- try Stringmap.find bas !rewtab
+ try String.Map.find bas !rewtab
  with
   Not_found ->
    errorlabstrm "AutoRewrite"
@@ -136,7 +136,7 @@ let autorewrite_multi_in ?(conds=Naive) idl tac_main lbas : tactic =
      match Tacmach.pf_hyps gl with
         (last_hyp_id,_,_)::_ -> last_hyp_id
       | _ -> (* even the hypothesis id is missing *)
-             error ("No such hypothesis: " ^ (string_of_id !id) ^".")
+             error ("No such hypothesis: " ^ (Id.to_string !id) ^".")
     in
     let gl' = general_rewrite_in dir AllOccurrences true ~tac:(tac, conds) false !id cstr false gl in
     let gls = gl'.Evd.it in
@@ -144,7 +144,7 @@ let autorewrite_multi_in ?(conds=Naive) idl tac_main lbas : tactic =
        g::_ ->
         (match Environ.named_context_of_val (Goal.V82.hyps gl'.Evd.sigma g) with
             (lastid,_,_)::_ ->
-              if not (id_eq last_hyp_id lastid) then
+              if not (Id.equal last_hyp_id lastid) then
                begin
                 let gl'' =
                   if !to_be_cleared then
@@ -214,7 +214,7 @@ let cache_hintrewrite (_,(rbase,lrl)) =
   let base = try find_base rbase with _ -> HintDN.empty in
   let max = try fst (Util.List.last (HintDN.find_all base)) with _ -> 0 in
   let lrl = HintDN.map (fun (i,h) -> (i + max, h)) lrl in
-    rewtab:=Stringmap.add rbase (HintDN.union lrl base) !rewtab
+    rewtab:=String.Map.add rbase (HintDN.union lrl base) !rewtab
 
 
 let subst_hintrewrite (subst,(rbase,list as node)) =

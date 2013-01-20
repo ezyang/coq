@@ -18,8 +18,8 @@ open Libnames
 
 (** Vernac expressions, produced by the parser *)
 
-type lident = identifier located
-type lname = name located
+type lident = Id.t located
+type lname = Name.t located
 type lstring = string located
 type lreference = reference
 
@@ -38,11 +38,11 @@ type printable =
   | PrintSectionContext of reference
   | PrintInspect of int
   | PrintGrammar of string
-  | PrintLoadPath of dir_path option
+  | PrintLoadPath of Dir_path.t option
   | PrintModules
   | PrintModule of reference
   | PrintModuleType of reference
-  | PrintNamespace of dir_path
+  | PrintNamespace of Dir_path.t
   | PrintMLLoadPath
   | PrintMLModules
   | PrintName of reference or_by_notation
@@ -151,10 +151,10 @@ type definition_expr =
       * constr_expr option
 
 type fixpoint_expr =
-    identifier located * (identifier located option * recursion_order_expr) * local_binder list * constr_expr * constr_expr option
+    Id.t located * (Id.t located option * recursion_order_expr) * local_binder list * constr_expr * constr_expr option
 
 type cofixpoint_expr =
-    identifier located * local_binder list * constr_expr * constr_expr option
+    Id.t located * local_binder list * constr_expr * constr_expr option
 
 type local_decl_expr =
   | AssumExpr of lname * constr_expr
@@ -184,7 +184,7 @@ type module_binder = bool option * lident list * module_ast_inl
 
 type grammar_tactic_prod_item_expr =
   | TacTerm of string
-  | TacNonTerm of Loc.t * string * (Names.identifier * string) option
+  | TacNonTerm of Loc.t * string * (Names.Id.t * string) option
 
 type syntax_modifier =
   | SetItemLevel of string list * Extend.production_level
@@ -291,7 +291,7 @@ type vernac_expr =
 
   (* Auxiliary file and library management *)
   | VernacRequireFrom of export_flag option * string
-  | VernacAddLoadPath of rec_flag * string * dir_path option
+  | VernacAddLoadPath of rec_flag * string * Dir_path.t option
   | VernacRemoveLoadPath of string
   | VernacAddMLPath of rec_flag * string
   | VernacDeclareMLModule of locality_flag * string list
@@ -313,12 +313,12 @@ type vernac_expr =
   | VernacCreateHintDb of locality_flag * string * bool
   | VernacRemoveHints of locality_flag * string list * reference list
   | VernacHints of locality_flag * string list * hints_expr
-  | VernacSyntacticDefinition of identifier located * (identifier list * constr_expr) *
+  | VernacSyntacticDefinition of Id.t located * (Id.t list * constr_expr) *
       locality_flag * onlyparsing_flag
   | VernacDeclareImplicits of locality_flag * reference or_by_notation *
       (explicitation * bool * bool) list list
   | VernacArguments of locality_flag * reference or_by_notation *
-      ((name * bool * (Loc.t * string) option * bool * bool) list) list *
+      ((Name.t * bool * (Loc.t * string) option * bool * bool) list) list *
       int * [ `SimplDontExposeCase | `SimplNeverUnfold | `Rename | `ExtraScopes
             | `ClearImplicits | `ClearScopes | `DefaultImplicits ] list
   | VernacArgumentsScope of locality_flag * reference or_by_notation *

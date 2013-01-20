@@ -32,7 +32,7 @@ type section_variable_entry =
   | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * bool (** opacity *)
   | SectionLocalAssum of types Univ.in_universe_context_set * bool (** Implicit status *)
 
-type variable_declaration = dir_path * section_variable_entry * logical_kind
+type variable_declaration = Dir_path.t * section_variable_entry * logical_kind
 
 val declare_variable : variable -> variable_declaration -> object_name
 
@@ -55,11 +55,11 @@ type internal_flag =
   | UserVerbose
 
 val declare_constant :
- ?internal:internal_flag -> identifier -> constant_declaration -> constant
+ ?internal:internal_flag -> Id.t -> constant_declaration -> constant
 
 val declare_definition : 
   ?internal:internal_flag -> ?opaque:bool -> ?kind:definition_object_kind ->
-  ?poly:polymorphic -> identifier -> ?types:constr -> constr Univ.in_universe_context_set -> constant
+  ?poly:polymorphic -> Id.t -> ?types:constr -> constr Univ.in_universe_context_set -> constant
 
 (** [declare_mind me] declares a block of inductive types with
    their constructors in the current section; it returns the path of
@@ -76,11 +76,11 @@ val add_cache_hook : (full_path -> unit) -> unit
 
 (** Declaration messages *)
 
-val definition_message : identifier -> unit
-val assumption_message : identifier -> unit
-val fixpoint_message : int array option -> identifier list -> unit
-val cofixpoint_message : identifier list -> unit
+val definition_message : Id.t -> unit
+val assumption_message : Id.t -> unit
+val fixpoint_message : int array option -> Id.t list -> unit
+val cofixpoint_message : Id.t list -> unit
 val recursive_message : bool (** true = fixpoint *) ->
-  int array option -> identifier list -> unit
+  int array option -> Id.t list -> unit
 
-val exists_name : identifier -> bool
+val exists_name : Id.t -> bool

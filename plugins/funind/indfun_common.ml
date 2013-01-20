@@ -4,7 +4,7 @@ open Libnames
 open Globnames
 open Refiner
 open Hiddentac 
-let mk_prefix pre id = id_of_string (pre^(string_of_id id))
+let mk_prefix pre id = Id.of_string (pre^(Id.to_string id))
 let mk_rel_id = mk_prefix "R_"
 let mk_correct_id id = Nameops.add_suffix (mk_rel_id id) "_correct"
 let mk_complete_id id = Nameops.add_suffix (mk_rel_id id) "_complete"
@@ -16,7 +16,7 @@ let msgnl m =
 let invalid_argument s = raise (Invalid_argument s)
 
 
-let fresh_id avoid s = Namegen.next_ident_away_in_goal (id_of_string s) avoid
+let fresh_id avoid s = Namegen.next_ident_away_in_goal (Id.of_string s) avoid
 
 let fresh_name avoid s = Name (fresh_id avoid s)
 
@@ -116,7 +116,7 @@ let const_of_id id =
     qualid_of_reference (Libnames.Ident (Loc.ghost,id))
   in
   try Nametab.locate_constant princ_ref
-  with Not_found -> Errors.error ("cannot find "^ string_of_id id)
+  with Not_found -> Errors.error ("cannot find "^ Id.to_string id)
 
 let def_of_const t =
    match (Term.kind_of_term t) with
@@ -132,9 +132,9 @@ let coq_constant s =
     Coqlib.init_modules s;;
 
 let find_reference sl s =
-    (Nametab.locate (make_qualid(Names.make_dirpath
-			   (List.map id_of_string (List.rev sl)))
-	       (id_of_string s)));;
+    (Nametab.locate (make_qualid(Names.Dir_path.make
+			   (List.map Id.of_string (List.rev sl)))
+	       (Id.of_string s)));;
 
 let eq = lazy(coq_constant "eq")
 let refl_equal = lazy(coq_constant "eq_refl")
@@ -411,7 +411,7 @@ let update_Function finfo =
 
 
 let add_Function is_general f =
-  let f_id = id_of_label (con_label f) in
+  let f_id = Label.to_id (con_label f) in
   let equation_lemma = find_or_none (mk_equation_id f_id)
   and correctness_lemma = find_or_none (mk_correct_id f_id)
   and completeness_lemma = find_or_none (mk_complete_id f_id)
@@ -513,8 +513,8 @@ let jmeq_refl () =
 let h_intros l =
   tclMAP h_intro l
 
-let h_id = id_of_string "h"
-let hrec_id = id_of_string "hrec"
+let h_id = Id.of_string "h"
+let hrec_id = Id.of_string "hrec"
 let well_founded = function () -> (coq_constant "well_founded")
 let acc_rel = function () -> (coq_constant "Acc")
 let acc_inv_id = function () -> (coq_constant "Acc_inv")

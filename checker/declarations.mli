@@ -80,7 +80,7 @@ type one_inductive_body = {
 (* Primitive datas *)
 
  (* Name of the type: [Ii] *)
-    mind_typename : identifier;
+    mind_typename : Id.t;
 
  (* Arity context of [Ii] with parameters: [forall params, Ui] *)
     mind_arity_ctxt : rel_context;
@@ -89,7 +89,7 @@ type one_inductive_body = {
     mind_arity : inductive_arity;
 
  (* Names of the constructors: [cij] *)
-    mind_consnames : identifier array;
+    mind_consnames : Id.t array;
 
  (* Types of the constructors with parameters: [forall params, Tij],
     where the Ik are replaced by de Bruijn index in the context
@@ -174,14 +174,14 @@ and structure_body = (label * structure_field_body) list
 
 and struct_expr_body =
   | SEBident of module_path
-  | SEBfunctor of mod_bound_id * module_type_body * struct_expr_body
+  | SEBfunctor of MBId.t * module_type_body * struct_expr_body
   | SEBapply of struct_expr_body * struct_expr_body * Univ.constraints
   | SEBstruct of structure_body
   | SEBwith of struct_expr_body * with_declaration_body
 
 and with_declaration_body =
-    With_module_body of identifier list * module_path
-  | With_definition_body of  identifier list * constant_body
+    With_module_body of Id.t list * module_path
+  | With_definition_body of  Id.t list * constant_body
 
 and module_body =
     { mod_mp : module_path;
@@ -204,9 +204,9 @@ and module_type_body =
 type 'a subst_fun = substitution -> 'a -> 'a
 
 val empty_subst : substitution
-val add_mbid : mod_bound_id -> module_path -> substitution -> substitution
+val add_mbid : MBId.t -> module_path -> substitution -> substitution
 val add_mp   : module_path -> module_path -> substitution -> substitution
-val map_mbid : mod_bound_id -> module_path -> substitution
+val map_mbid : MBId.t -> module_path -> substitution
 val map_mp   : module_path -> module_path -> substitution
 val mp_in_delta : module_path -> delta_resolver -> bool
 val mind_of_delta : delta_resolver -> mutual_inductive -> mutual_inductive

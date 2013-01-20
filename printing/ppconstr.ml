@@ -144,7 +144,7 @@ let pr_opt_type_spc pr = function
 let pr_lident (loc,id) =
   if loc <> Loc.ghost then
     let (b,_) = Loc.unloc loc in
-    pr_located pr_id (Loc.make_loc (b,b+String.length(string_of_id id)),id)
+    pr_located pr_id (Loc.make_loc (b,b+String.length(Id.to_string id)),id)
   else pr_id id
 
 let pr_lname = function
@@ -631,6 +631,8 @@ let pr_red_expr (pr_constr,pr_lconstr,pr_ref,pr_pattern) = function
 	hov 1 (str "cbv" ++ pr_red_flag pr_ref f)
   | Lazy f ->
       hov 1 (str "lazy" ++ pr_red_flag pr_ref f)
+  | Cbn f ->
+      hov 1 (str "cbn" ++ pr_red_flag pr_ref f)
   | Unfold l ->
       hov 1 (str "unfold" ++ spc() ++
              prlist_with_sep pr_comma (pr_with_occurrences pr_ref) l)

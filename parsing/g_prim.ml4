@@ -18,7 +18,7 @@ let prim_kw = ["{"; "}"; "["; "]"; "("; ")"; "'"]
 let _ = List.iter Lexer.add_keyword prim_kw
 
 
-let local_make_qualid l id = make_qualid (make_dirpath l) id
+let local_make_qualid l id = make_qualid (Dir_path.make l) id
 
 let my_int_of_string loc s =
   try
@@ -39,7 +39,7 @@ GEXTEND Gram
     [ [ s = IDENT -> s ] ]
   ;
   ident:
-    [ [ s = IDENT -> id_of_string s ] ]
+    [ [ s = IDENT -> Id.of_string s ] ]
   ;
   pattern_ident:
     [ [ LEFTQMARK; id = ident -> id ] ]
@@ -54,7 +54,7 @@ GEXTEND Gram
     [ [ id = ident -> (!@loc, id) ] ]
   ;
   field:
-    [ [ s = FIELD -> id_of_string s ] ]
+    [ [ s = FIELD -> Id.of_string s ] ]
   ;
   fields:
     [ [ id = field; (l,id') = fields -> (l@[id],id')
@@ -101,7 +101,7 @@ GEXTEND Gram
   ;
   dirpath:
     [ [ id = ident; l = LIST0 field ->
-        make_dirpath (List.rev (id::l)) ] ]
+        Dir_path.make (List.rev (id::l)) ] ]
   ;
   string:
     [ [ s = STRING -> s ] ]

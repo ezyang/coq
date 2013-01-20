@@ -65,6 +65,6 @@ val weaken_sort_scheme : env -> evar_map -> bool -> sorts -> int -> constr -> ty
 
 val lookup_eliminator : inductive -> sorts_family -> Globnames.global_reference
 val elimination_suffix : sorts_family -> string
-val make_elimination_ident : identifier -> sorts_family -> identifier
+val make_elimination_ident : Id.t -> sorts_family -> Id.t
 
 val case_suffix : string

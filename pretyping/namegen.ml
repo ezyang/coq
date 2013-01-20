@@ -30,7 +30,7 @@ let is_imported_modpath mp =
     match mp with
       | MPfile dp ->
 	  let rec find_prefix = function
-	    |MPfile dp1 -> not (dir_path_eq dp1 dp)
+	    |MPfile dp1 -> not (Dir_path.equal dp1 dp)
 	    |MPdot(mp,_) -> find_prefix mp
 	    |MPbound(_) -> false
 	  in find_prefix current_mp
@@ -63,7 +63,7 @@ let is_constructor id =
 (* Generating "intuitive" names from its type *)
 
 let lowercase_first_char id = (* First character of a constr *)
-  Unicode.lowercase_first_char (string_of_id id)
+  Unicode.lowercase_first_char (Id.to_string id)
 
 let sort_hdchar = function
   | Prop(_) -> "P"
@@ -77,7 +77,7 @@ let hdchar env c =
     | LetIn (_,_,_,c) -> hdrec (k+1) c
     | Cast (c,_,_)    -> hdrec k c
     | App (f,l)       -> hdrec k f
-    | Const (kn,_) -> lowercase_first_char (id_of_label (con_label kn))
+    | Const (kn,_) -> lowercase_first_char (Label.to_id (con_label kn))
     | Ind (x,_) -> lowercase_first_char (basename_of_global (IndRef x))
     | Construct (x,_) -> lowercase_first_char (basename_of_global (ConstructRef x))
     | Var id  -> lowercase_first_char id
@@ -100,11 +100,11 @@ let hdchar env c =
   hdrec 0 c
 
 let id_of_name_using_hdchar env a = function
-  | Anonymous -> id_of_string (hdchar env a)
+  | Anonymous -> Id.of_string (hdchar env a)
   | Name id   -> id
 
 let named_hd env a = function
-  | Anonymous -> Name (id_of_string (hdchar env a))
+  | Anonymous -> Name (Id.of_string (hdchar env a))
   | x         -> x
 
 let mkProd_name   env (n,a,b) = mkProd (named_hd env a n, a, b)
@@ -139,7 +139,7 @@ let it_mkLambda_or_LetIn_name env b hyps =
 (**********************************************************************)
 (* Fresh names *)
 
-let default_x = id_of_string "x"
+let default_x = Id.of_string "x"
 
 (* Looks for next "good" name by lifting subscript *)
 
@@ -179,7 +179,7 @@ let next_ident_away_in_goal id avoid =
   next_ident_away_from id bad
 
 let next_name_away_in_goal na avoid =
-  let id = match na with Name id -> id | Anonymous -> id_of_string "H" in
+  let id = match na with Name id -> id | Anonymous -> Id.of_string "H" in
   next_ident_away_in_goal id avoid
 
 (* 3- Looks for next fresh name outside a list that is moreover valid
@@ -203,7 +203,7 @@ let next_ident_away id avoid =
   else id
 
 let next_name_away_with_default default na avoid =
-  let id = match na with Name id -> id | Anonymous -> id_of_string default in
+  let id = match na with Name id -> id | Anonymous -> Id.of_string default in
   next_ident_away id avoid
 
 let reserved_type_name = ref (fun t -> Anonymous)
@@ -214,7 +214,7 @@ let next_name_away_with_default_using_types default na avoid t =
     | Name id -> id
     | Anonymous -> match !reserved_type_name t with
 	| Name id -> id
-	| Anonymous -> id_of_string default in
+	| Anonymous -> Id.of_string default in
   next_ident_away id avoid
 
 let next_name_away = next_name_away_with_default "H"
@@ -237,7 +237,7 @@ let occur_rel p env id =
   try
     let name = lookup_name_of_rel p env in
     begin match name with
-    | Name id' -> id_eq id' id
+    | Name id' -> Id.equal id' id
     | Anonymous -> false
     end
   with Not_found -> false (* Unbound indice : may happen in debug *)
@@ -246,7 +246,7 @@ let visibly_occur_id id (nenv,c) =
   let rec occur n c = match kind_of_term c with
     | Const _ | Ind _ | Construct _ | Var _
       when
-        let short = shortest_qualid_of_global Idset.empty (global_of_constr c) in
+        let short = shortest_qualid_of_global Id.Set.empty (global_of_constr c) in
         qualid_eq short (qualid_of_ident id) ->
       raise Occur
     | Rel p when p>n & occur_rel (p-n) nenv id -> raise Occur
@@ -267,7 +267,7 @@ let next_name_away_for_default_printing env_t na avoid =
       (* In principle, an anonymous name is not dependent and will not be *)
       (* taken into account by the function compute_displayed_name_in; *)
       (* just in case, invent a valid name *)
-      id_of_string "H" in
+      Id.of_string "H" in
   next_ident_away_for_default_printing env_t id avoid
 
 (**********************************************************************)
@@ -291,7 +291,7 @@ let next_name_away_for_default_printing env_t na avoid =
 type renaming_flags =
   | RenamingForCasesPattern
   | RenamingForGoal
-  | RenamingElsewhereFor of (name list * constr)
+  | RenamingElsewhereFor of (Name.t list * constr)
 
 let next_name_for_display flags =
   match flags with

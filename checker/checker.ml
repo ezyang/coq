@@ -19,7 +19,7 @@ let () = at_exit flush_all
 let fatal_error info =
   pperrnl info; flush_all (); exit 1
 
-let coq_root = id_of_string "Coq"
+let coq_root = Id.of_string "Coq"
 let parse_dir s =
   let len = String.length s in
   let rec decoupe_dirs dirs n =
@@ -36,7 +36,7 @@ let parse_dir s =
 let dirpath_of_string s =
   match parse_dir s with
       [] -> Check.default_root_prefix
-    | dir -> make_dirpath (List.map id_of_string dir)
+    | dir -> Dir_path.make (List.map Id.of_string dir)
 let path_of_string s =
   match parse_dir s with
       [] -> invalid_arg "path_of_string"
@@ -69,7 +69,7 @@ let add_path ~unix_path:dir ~coq_root:coq_dirpath =
     msg_warning (str ("Cannot open " ^ dir))
 
 let convert_string d =
-  try id_of_string d
+  try Id.of_string d
   with _ ->
     if_verbose msg_warning (str ("Directory "^d^" cannot be used as a Coq identifier (skipped)"));
     raise Exit
@@ -77,11 +77,11 @@ let convert_string d =
 let add_rec_path ~unix_path ~coq_root =
   if exists_dir unix_path then
     let dirs = all_subdirs ~unix_path in
-    let prefix = repr_dirpath coq_root in
+    let prefix = Dir_path.repr coq_root in
     let convert_dirs (lp, cp) =
       try
         let path = List.map convert_string (List.rev cp) @ prefix in
-        Some (lp, Names.make_dirpath path)
+        Some (lp, Names.Dir_path.make path)
       with Exit -> None
     in
     let dirs = List.map_filter convert_dirs dirs in
@@ -113,9 +113,9 @@ let init_load_path () =
   let plugins = coqlib/"plugins" in
   (* NOTE: These directories are searched from last to first *)
   (* first standard library *)
-  add_rec_path ~unix_path:(coqlib/"theories") ~coq_root:(Names.make_dirpath[coq_root]);
+  add_rec_path ~unix_path:(coqlib/"theories") ~coq_root:(Names.Dir_path.make[coq_root]);
   (* then plugins *)
-  add_rec_path ~unix_path:plugins ~coq_root:(Names.make_dirpath [coq_root]);
+  add_rec_path ~unix_path:plugins ~coq_root:(Names.Dir_path.make [coq_root]);
   (* then user-contrib *)
   if Sys.file_exists user_contrib then
     add_rec_path ~unix_path:user_contrib ~coq_root:Check.default_root_prefix;

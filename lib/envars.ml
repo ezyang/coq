@@ -6,6 +6,8 @@
 (*         *       GNU Lesser General Public License Version 2.1        *)
 (************************************************************************)
 
+open Util
+
 (** {1 Helper functions} *)
 
 let getenv_else s dft = try Sys.getenv s with Not_found -> dft ()
@@ -16,7 +18,8 @@ let safe_getenv warning n =
     ("$"^n)
   )
 
-let ( / ) = Filename.concat
+let ( / ) a b =
+  if Filename.is_relative b then Filename.concat a b else b
 
 let coqify d = d / "coq"
 
@@ -31,7 +34,7 @@ let home ~warn =
 
 let path_to_list p =
   let sep = if Sys.os_type = "Win32" then ';' else ':' in
-    Util.String.split sep p
+    String.split sep p
 
 let user_path () = 
   let path = try Sys.getenv "PATH" with _ -> raise Not_found in
@@ -144,7 +147,9 @@ let coqpath =
 
 (** {2 Caml paths} *)
 
-let guess_camlbin () = which (user_path ()) "ocamlc"
+let exe s = s ^ Coq_config.exec_extension
+
+let guess_camlbin () = which (user_path ()) (exe "ocamlc")
 
 let camlbin () =
   if !Flags.camlbin_spec then !Flags.camlbin else
@@ -161,11 +166,11 @@ let camllib () =
   else
     let com = ocamlc () ^ " -where" in
     let _, res = CUnix.run_command (fun x -> x) (fun _ -> ()) com in
-    Util.String.strip res
+    String.strip res
 
 (** {2 Camlp4 paths} *)
 
-let guess_camlp4bin () = which (user_path ()) Coq_config.camlp4
+let guess_camlp4bin () = which (user_path ()) (exe Coq_config.camlp4)
 
 let camlp4bin () =
   if !Flags.camlp4bin_spec then !Flags.camlp4bin else
@@ -173,7 +178,7 @@ let camlp4bin () =
       try 
 	guess_camlp4bin () 
       with _ -> 
-	if Sys.file_exists (camlbin () / Coq_config.camlp4) then 
+	if Sys.file_exists (camlbin () / exe Coq_config.camlp4) then
 	  camlbin ()
 	else 
 	  Coq_config.camlp4bin
@@ -187,7 +192,7 @@ let camlp4lib () =
     let com = camlp4 () ^ " -where" in
     let ex, res = CUnix.run_command (fun x -> x) (fun _ -> ()) com in
     match ex with
-      | Unix.WEXITED 0 -> Util.String.strip res
+      | Unix.WEXITED 0 -> String.strip res
       | _ -> "/dev/null"
 
 (** {1 XDG utilities} *)

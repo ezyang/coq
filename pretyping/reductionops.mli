@@ -24,8 +24,8 @@ exception Elimconst
 
 type 'a stack_member =
   | Zapp of 'a list
-  | Zcase of case_info * 'a * 'a array
-  | Zfix of fixpoint * 'a list
+  | Zcase of case_info * 'a * 'a array * ('a * 'a list) option
+  | Zfix of fixpoint * 'a list * ('a * 'a list) option
   | Zshift of int
   | Zupdate of 'a
 
@@ -46,7 +46,7 @@ val list_of_app_stack : 'a stack -> 'a list option
 val array_of_app_stack : 'a stack -> 'a array option
 val stack_assign : 'a stack -> int -> 'a -> 'a stack
 val stack_args_size : 'a stack -> int
-val zip : constr * constr stack -> constr
+val zip : ?refold:bool -> constr * constr stack -> constr
 val stack_tail : int -> 'a stack -> 'a stack
 val stack_nth : 'a stack -> int -> 'a
 
@@ -79,6 +79,13 @@ val stack_reduction_of_reduction :
   'a reduction_function -> 'a state_reduction_function
 i*)
 val stacklam : (state -> 'a) -> constr list -> constr -> constr stack -> 'a
+
+val whd_state_gen : ?refold:bool ->
+  Closure.RedFlags.reds ->
+  Environ.env ->
+  Evd.evar_map ->
+  Term.constr * Term.constr stack_member list ->
+  Term.constr * Term.constr stack_member list
 
 (** {6 Generic Optimized Reduction Function using Closures } *)
 
@@ -154,9 +161,9 @@ val hnf_lam_app      : env ->  evar_map -> constr -> constr -> constr
 val hnf_lam_appvect  : env ->  evar_map -> constr -> constr array -> constr
 val hnf_lam_applist  : env ->  evar_map -> constr -> constr list -> constr
 
-val splay_prod : env ->  evar_map -> constr -> (name * constr) list * constr
-val splay_lam : env ->  evar_map -> constr -> (name * constr) list * constr
-val splay_arity : env ->  evar_map -> constr -> (name * constr) list * sorts
+val splay_prod : env ->  evar_map -> constr -> (Name.t * constr) list * constr
+val splay_lam : env ->  evar_map -> constr -> (Name.t * constr) list * constr
+val splay_arity : env ->  evar_map -> constr -> (Name.t * constr) list * sorts
 val sort_of_arity : env -> evar_map -> constr -> sorts
 val splay_prod_n : env ->  evar_map -> int -> constr -> rel_context * constr
 val splay_lam_n : env ->  evar_map -> int -> constr -> rel_context * constr
@@ -180,7 +187,8 @@ val is_arity : env ->  evar_map -> constr -> bool
 
 val whd_programs :  reduction_function
 
-val contract_fix : fixpoint -> Term.constr
+val contract_fix : ?env:Environ.env -> fixpoint ->
+  (constr * constr list) option -> constr
 val fix_recarg : fixpoint -> constr stack -> (int * constr) option
 
 (** {6 Querying the kernel conversion oracle: opaque/transparent constants } *)

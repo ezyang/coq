@@ -98,7 +98,9 @@ let rec collect_quantified seq=
 
 let dummy_constr=mkMeta (-1)
 
-let dummy_bvid=id_of_string "x"
+let dummy_bvid=Id.of_string "x"
+
+let constr_of_global = Universes.constr_of_global
 
 let constr_of_global = Universes.constr_of_global
 

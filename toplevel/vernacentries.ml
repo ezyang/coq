@@ -179,9 +179,9 @@ let make_cases s =
 	       | [] -> []
 	       | (n,_)::l ->
 		   let n' = Namegen.next_name_away_in_cases_pattern n avoid in
-		   string_of_id n' :: rename (n'::avoid) l in
+		   Id.to_string n' :: rename (n'::avoid) l in
 	     let al' = rename [] al in
-	     (string_of_id consname :: al') :: l)
+	     (Id.to_string consname :: al') :: l)
 	  carr tarr []
     | _ -> raise Not_found
 
@@ -189,7 +189,7 @@ let make_cases s =
 
 let show_match id =
   let patterns =
-    try make_cases (string_of_id (snd id))
+    try make_cases (Id.to_string (snd id))
     with Not_found -> error "Unknown inductive type."
   in
   let pr_branch l =
@@ -201,7 +201,7 @@ let show_match id =
 (* "Print" commands *)
 
 let print_path_entry (s,l) =
-  (str (string_of_dirpath l) ++ str " " ++ tbrk (0,0) ++ str s)
+  (str (Dir_path.to_string l) ++ str " " ++ tbrk (0,0) ++ str s)
 
 let print_loadpath dir =
   let l = Library.get_full_load_paths () in
@@ -250,7 +250,7 @@ let print_modtype r =
       msg_error (str"Unknown Module Type or Module " ++ pr_qualid qid)
 
 let print_namespace ns =
-  let ns = List.rev (Names.repr_dirpath ns) in
+  let ns = List.rev (Names.Dir_path.repr ns) in
   (* [match_dirpath], [match_modulpath] are helpers for [matches]
      which checks whether a constant is in the namespace [ns]. *)
   let rec match_dirpath ns = function
@@ -259,20 +259,20 @@ let print_namespace ns =
         begin match match_dirpath ns dir with
         | Some [] as y -> y
         | Some (a::ns') ->
-            if Int.equal (Names.id_ord a id) 0 then Some ns'
+            if Int.equal (Names.Id.compare a id) 0 then Some ns'
             else None
         | None -> None
         end
   in
   let rec match_modulepath ns = function
     | MPbound _ -> None (* Not a proper namespace. *)
-    | MPfile dir -> match_dirpath ns (Names.repr_dirpath dir)
+    | MPfile dir -> match_dirpath ns (Names.Dir_path.repr dir)
     | MPdot (mp,lbl) ->
-        let id = Names.id_of_label lbl in
+        let id = Names.Label.to_id lbl in
         begin match match_modulepath ns mp with
         | Some [] as y -> y
         | Some (a::ns') ->
-            if Int.equal (Names.id_ord a id) 0 then Some ns'
+            if Int.equal (Names.Id.compare a id) 0 then Some ns'
             else None
         | None -> None
         end
@@ -286,8 +286,8 @@ let print_namespace ns =
   let qualified_minus n mp =
     let rec list_of_modulepath = function
       | MPbound _ -> assert false (* MPbound never matches *)
-      | MPfile dir -> Names.repr_dirpath dir
-      | MPdot (mp,lbl) -> (Names.id_of_label lbl)::(list_of_modulepath mp)
+      | MPfile dir -> Names.Dir_path.repr dir
+      | MPdot (mp,lbl) -> (Names.Label.to_id lbl)::(list_of_modulepath mp)
     in
     snd (Util.List.chop n (List.rev (list_of_modulepath mp)))
   in
@@ -295,7 +295,7 @@ let print_namespace ns =
   let print_kn kn =
     (* spiwack: I'm ignoring the dirpath, is that bad? *)
     let (mp,_,lbl) = Names.repr_kn kn in
-    let qn = (qualified_minus (List.length ns) mp)@[Names.id_of_label lbl] in
+    let qn = (qualified_minus (List.length ns) mp)@[Names.Label.to_id lbl] in
     print_list pr_id qn
   in
   let print_constant k body =
@@ -396,7 +396,7 @@ let print_located_module r =
     let dir = Nametab.full_name_module qid in
     msg_notice (str "Module " ++ pr_dirpath dir)
   with Not_found ->
-    if dir_path_eq (fst (repr_qualid qid)) empty_dirpath then
+    if Dir_path.equal (fst (repr_qualid qid)) Dir_path.empty then
       msg_error (str "No module is referred to by basename" ++ spc () ++ pr_qualid qid)
     else
       msg_error (str "No module is referred to by name" ++ spc () ++ pr_qualid qid)
@@ -614,7 +614,7 @@ let vernac_declare_module export (loc, id) binders_ast mty_ast =
     id binders_ast (Enforce mty_ast) []
   in
     Dumpglob.dump_moddef loc mp "mod";
-    if_verbose msg_info (str ("Module "^ string_of_id id ^" is declared"));
+    if_verbose msg_info (str ("Module "^ Id.to_string id ^" is declared"));
     Option.iter (fun export -> vernac_import export [Ident (Loc.ghost,id)]) export
 
 let vernac_define_module export (loc, id) binders_ast mty_ast_o mexpr_ast_l =
@@ -635,7 +635,7 @@ let vernac_define_module export (loc, id) binders_ast mty_ast_o mexpr_ast_l =
        in
 	 Dumpglob.dump_moddef loc mp "mod";
 	 if_verbose msg_info
-	   (str ("Interactive Module "^ string_of_id id ^" started"));
+	   (str ("Interactive Module "^ Id.to_string id ^" started"));
          List.iter
            (fun (export,id) ->
              Option.iter
@@ -656,14 +656,14 @@ let vernac_define_module export (loc, id) binders_ast mty_ast_o mexpr_ast_l =
        in
 	 Dumpglob.dump_moddef loc mp "mod";
 	 if_verbose msg_info
-	   (str ("Module "^ string_of_id id ^" is defined"));
+	   (str ("Module "^ Id.to_string id ^" is defined"));
          Option.iter (fun export -> vernac_import export [Ident (Loc.ghost,id)])
            export
 
 let vernac_end_module export (loc,id as lid) =
   let mp = Declaremods.end_module () in
   Dumpglob.dump_modref loc mp "mod";
-  if_verbose msg_info (str ("Module "^ string_of_id id ^" is defined"));
+  if_verbose msg_info (str ("Module "^ Id.to_string id ^" is defined"));
   Option.iter (fun export -> vernac_import export [Ident lid]) export
 
 let vernac_declare_module_type (loc,id) binders_ast mty_sign mty_ast_l =
@@ -683,7 +683,7 @@ let vernac_declare_module_type (loc,id) binders_ast mty_sign mty_ast_l =
 	 Modintern.interp_modtype id binders_ast mty_sign in
         Dumpglob.dump_moddef loc mp "modtype";
 	if_verbose msg_info
-	  (str ("Interactive Module Type "^ string_of_id id ^" started"));
+	  (str ("Interactive Module Type "^ Id.to_string id ^" started"));
         List.iter
          (fun (export,id) ->
            Option.iter
@@ -703,12 +703,12 @@ let vernac_declare_module_type (loc,id) binders_ast mty_sign mty_ast_l =
 	  id binders_ast mty_sign mty_ast_l in
           Dumpglob.dump_moddef loc mp "modtype";
 	  if_verbose msg_info
-	    (str ("Module Type "^ string_of_id id ^" is defined"))
+	    (str ("Module Type "^ Id.to_string id ^" is defined"))
 
 let vernac_end_modtype (loc,id) =
   let mp = Declaremods.end_modtype () in
   Dumpglob.dump_modref loc mp "modtype";
-  if_verbose msg_info (str ("Module Type "^ string_of_id id ^" is defined"))
+  if_verbose msg_info (str ("Module Type "^ Id.to_string id ^" is defined"))
 
 let vernac_include l =
   Declaremods.declare_include Modintern.interp_modexpr_or_modtype l
@@ -725,7 +725,7 @@ let vernac_begin_section (_, id as lid) =
 
 let vernac_end_section (loc,_) =
   Dumpglob.dump_reference loc
-    (string_of_dirpath (Lib.current_dirpath true)) "<>" "sec";
+    (Dir_path.to_string (Lib.current_dirpath true)) "<>" "sec";
   Lib.close_section ()
 
 (* Dispatcher of the "End" command *)
@@ -820,8 +820,8 @@ let vernac_set_used_variables l =
   if not (List.distinct l) then error "Used variables list contains duplicates";
   let vars = Environ.named_context (Global.env ()) in
   List.iter (fun id -> 
-    if not (List.exists (fun (id',_,_) -> id_eq id id') vars) then
-      error ("Unknown variable: " ^ string_of_id id))
+    if not (List.exists (fun (id',_,_) -> Id.equal id id') vars) then
+      error ("Unknown variable: " ^ Id.to_string id))
     l;
   set_used_variables l
 
@@ -903,14 +903,14 @@ let vernac_declare_arguments local r l nargs flags =
   let names = List.map (List.map (fun (id, _,_,_,_) -> id)) l in
   let names, rest = List.hd names, List.tl names in
   let scopes = List.map (List.map (fun (_,_, s, _,_) -> s)) l in
-  if List.exists (fun na -> not (List.equal name_eq na names)) rest then
+  if List.exists (fun na -> not (List.equal Name.equal na names)) rest then
     error "All arguments lists must declare the same names.";
   if not (List.distinct (List.filter ((!=) Anonymous) names)) then
     error "Arguments names must be distinct.";
   let sr = smart_global r in
   let inf_names =
     Impargs.compute_implicits_names (Global.env()) (Global.type_of_global_unsafe sr) in
-  let string_of_name = function Anonymous -> "_" | Name id -> string_of_id id in
+  let string_of_name = function Anonymous -> "_" | Name id -> Id.to_string id in
   let rec check li ld ls = match li, ld, ls with
     | [], [], [] -> ()
     | [], Anonymous::ld, (Some _)::ls when extra_scope_flag -> check li ld ls
@@ -946,7 +946,7 @@ let vernac_declare_arguments local r l nargs flags =
   let some_renaming_specified =
     try
       let names = Arguments_renaming.arguments_names sr in
-      not (List.equal (List.equal name_eq) names names_decl)
+      not (List.equal (List.equal Name.equal) names names_decl)
     with Not_found -> false in
   let some_renaming_specified, implicits =
     match l with
@@ -956,10 +956,10 @@ let vernac_declare_arguments local r l nargs flags =
       let sr', impl = List.fold_map (fun b -> function
         | (Anonymous, _,_, true, max), Name id -> assert false
         | (Name x, _,_, true, _), Anonymous ->
-            error ("Argument "^string_of_id x^" cannot be declared implicit.")
+            error ("Argument "^Id.to_string x^" cannot be declared implicit.")
         | (Name iid, _,_, true, max), Name id ->
-           b || not (id_eq iid id), Some (ExplByName id, max, false)
-        | (Name iid, _,_, _, _), Name id -> b || not (id_eq iid id), None
+           b || not (Id.equal iid id), Some (ExplByName id, max, false)
+        | (Name iid, _,_, _, _), Name id -> b || not (Id.equal iid id), None
         | _ -> b, None)
         sr (List.combine il inf_names) in
       sr || sr', List.map_filter (fun x -> x) impl)
@@ -1420,7 +1420,7 @@ let interp_search_restriction = function
 
 open Search
 
-let is_ident s = try ignore (check_ident s); true with UserError _ -> false
+let is_ident s = try ignore (Id.check s); true with UserError _ -> false
 
 let interp_search_about_item = function
   | SearchSubPattern pat ->
@@ -1500,7 +1500,7 @@ let vernac_reset_name id =
     if not globalized then begin
        try begin match Lib.find_opening_node (snd id) with
           | Lib.OpenedSection _ -> Dumpglob.dump_reference (fst id)
-              (string_of_dirpath (Lib.current_dirpath true)) "<>" "sec";
+              (Dir_path.to_string (Lib.current_dirpath true)) "<>" "sec";
           (* Might be nice to implement module cases, too.... *)
           | _ -> ()
        end with UserError _ -> ()
@@ -1545,7 +1545,7 @@ let vernac_abort = function
   | Some id ->
       Backtrack.mark_unreachable [snd id];
       delete_proof id;
-      let s = string_of_id (snd id) in
+      let s = Id.to_string (snd id) in
       if_verbose msg_info (str ("Goal "^s^" aborted"))
 
 let vernac_abort_all () =

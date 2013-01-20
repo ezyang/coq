@@ -25,16 +25,16 @@ let loc = CompatLoc.ghost
 let dloc = <:expr< Loc.ghost >>
 
 let mlexpr_of_ident id =
-  <:expr< Names.id_of_string $str:Names.string_of_id id$ >>
+  <:expr< Names.Id.of_string $str:Names.Id.to_string id$ >>
 
 let mlexpr_of_name = function
   | Names.Anonymous -> <:expr< Names.Anonymous >>
   | Names.Name id ->
-      <:expr< Names.Name (Names.id_of_string $str:Names.string_of_id id$) >>
+      <:expr< Names.Name (Names.Id.of_string $str:Names.Id.to_string id$) >>
 
 let mlexpr_of_dirpath dir =
-  let l = Names.repr_dirpath dir in
-  <:expr< Names.make_dirpath $mlexpr_of_list mlexpr_of_ident l$ >>
+  let l = Names.Dir_path.repr dir in
+  <:expr< Names.Dir_path.make $mlexpr_of_list mlexpr_of_ident l$ >>
 
 let mlexpr_of_qualid qid =
   let (dir, id) = Libnames.repr_qualid qid in
@@ -139,9 +139,9 @@ let mlexpr_of_binder_kind = function
 	$mlexpr_of_binding_kind b'$ $mlexpr_of_bool b''$ >>
 
 let rec mlexpr_of_constr = function
-  | Constrexpr.CRef (Libnames.Ident (loc,id),_) when is_meta (string_of_id id) ->
+  | Constrexpr.CRef (Libnames.Ident (loc,id),_) when is_meta (Id.to_string id) ->
       let loc = of_coqloc loc in
-      anti loc (string_of_id id)
+      anti loc (Id.to_string id)
   | Constrexpr.CRef (r,n) -> <:expr< Constrexpr.CRef $mlexpr_of_reference r$ None >>
   | Constrexpr.CFix (loc,_,_) -> failwith "mlexpr_of_constr: TODO"
   | Constrexpr.CCoFix (loc,_,_) -> failwith "mlexpr_of_constr: TODO"
@@ -183,6 +183,8 @@ let mlexpr_of_red_expr = function
   | Genredexpr.Simpl o -> <:expr< Genredexpr.Simpl $mlexpr_of_option mlexpr_of_occ_constr o$ >>
   | Genredexpr.Cbv f ->
       <:expr< Genredexpr.Cbv $mlexpr_of_red_flags f$ >>
+  | Genredexpr.Cbn f ->
+      <:expr< Genredexpr.Cbn $mlexpr_of_red_flags f$ >>
   | Genredexpr.Lazy f ->
       <:expr< Genredexpr.Lazy $mlexpr_of_red_flags f$ >>
   | Genredexpr.Unfold l ->

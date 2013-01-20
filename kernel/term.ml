@@ -109,7 +109,7 @@ let sort_of_univ u =
    the same order (i.e. last argument first) *)
 type 'constr pexistential = existential_key * 'constr array
 type ('constr, 'types) prec_declaration =
-    name array * 'types array * 'constr array
+    Name.t array * 'types array * 'constr array
 type ('constr, 'types) pfixpoint =
     (int array * int) * ('constr, 'types) prec_declaration
 type ('constr, 'types) pcofixpoint =
@@ -125,14 +125,14 @@ type pconstructor = constructor puniverses
    de Bruijn indices. *)
 type ('constr, 'types) kind_of_term =
   | Rel       of int
-  | Var       of identifier
+  | Var       of Id.t
   | Meta      of metavariable
   | Evar      of 'constr pexistential
   | Sort      of sorts
   | Cast      of 'constr * cast_kind * 'types
-  | Prod      of name * 'types * 'types
-  | Lambda    of name * 'types * 'constr
-  | LetIn     of name * 'constr * 'types * 'constr
+  | Prod      of Name.t * 'types * 'types
+  | Lambda    of Name.t * 'types * 'constr
+  | LetIn     of Name.t * 'constr * 'types * 'constr
   | App       of 'constr * 'constr array
   | Const     of pconstant
   | Ind       of pinductive
@@ -146,7 +146,7 @@ type ('constr, 'types) kind_of_term =
 type constr = (constr,constr) kind_of_term
 
 type existential = existential_key * constr array
-type rec_declaration = name array * constr array * constr array
+type rec_declaration = Name.t array * constr array * constr array
 type fixpoint = (int array * int) * rec_declaration
 type cofixpoint = int * rec_declaration
 
@@ -277,8 +277,8 @@ let kind_of_term c = c
 type ('constr, 'types) kind_of_type =
   | SortType   of sorts
   | CastType   of 'types * 'types
-  | ProdType   of name * 'types * 'types
-  | LetInType  of name * 'constr * 'types * 'types
+  | ProdType   of Name.t * 'types * 'types
+  | LetInType  of Name.t * 'constr * 'types * 'types
   | AtomicType of 'constr * 'constr array
 
 let kind_of_type = function
@@ -372,7 +372,7 @@ let isRelN n c = match kind_of_term c with Rel n' -> Int.equal n n' | _ -> false
 
 (* Tests if a variable *)
 let isVar c = match kind_of_term c with Var _ -> true | _ -> false
-let isVarId id c = match kind_of_term c with Var id' -> Int.equal (id_ord id id') 0 | _ -> false
+let isVarId id c = match kind_of_term c with Var id' -> Int.equal (Id.compare id id') 0 | _ -> false
 
 (* Tests if an inductive *)
 let isInd c = match kind_of_term c with Ind _ -> true | _ -> false
@@ -604,7 +604,7 @@ let compare_constr eq_universes eq_sorts f t1 t2 =
   match kind_of_term t1, kind_of_term t2 with
   | Rel n1, Rel n2 -> Int.equal n1 n2
   | Meta m1, Meta m2 -> Int.equal m1 m2
-  | Var id1, Var id2 -> Int.equal (id_ord id1 id2) 0
+  | Var id1, Var id2 -> Int.equal (Id.compare id1 id2) 0
   | Sort s1, Sort s2 -> eq_sorts s1 s2
   | Cast (c1,_,_), _ -> f c1 t2
   | _, Cast (c2,_,_) -> f t1 c2
@@ -634,7 +634,7 @@ let compare_constr_leq eq_universes eq_sorts leq_sorts eq leq t1 t2 =
   | Rel n1, Rel n2 -> Int.equal n1 n2
   | Meta m1, Meta m2 -> Int.equal m1 m2
   | Var id1, Var id2 -> Int.equal (id_ord id1 id2) 0
-  | Sort s1, Sort s2 -> Int.equal (sorts_ord s1 s2) 0
+  | Sort s1, Sort s2 -> leq_sorts s1 s2
   | Cast (c1,_,_), _ -> leq c1 t2
   | _, Cast (c2,_,_) -> leq t1 c2
   | Prod (_,t1,c1), Prod (_,t2,c2) -> eq t1 t2 && leq c1 c2
@@ -738,7 +738,7 @@ let constr_ord_int f t1 t2 =
   match kind_of_term t1, kind_of_term t2 with
     | Rel n1, Rel n2 -> Int.compare n1 n2
     | Meta m1, Meta m2 -> Int.compare m1 m2
-    | Var id1, Var id2 -> id_ord id1 id2
+    | Var id1, Var id2 -> Id.compare id1 id2
     | Sort s1, Sort s2 -> sorts_ord s1 s2
     | Cast (c1,_,_), _ -> f c1 t2
     | _, Cast (c2,_,_) -> f t1 c2
@@ -783,8 +783,8 @@ type types = constr
 
 type strategy = types option
 
-type named_declaration = identifier * constr option * types
-type rel_declaration = name * constr option * types
+type named_declaration = Id.t * constr option * types
+type rel_declaration = Name.t * constr option * types
 
 let map_named_declaration f (id, (v : strategy), ty) = (id, Option.map f v, f ty)
 let map_rel_declaration = map_named_declaration
@@ -799,10 +799,10 @@ let for_all_named_declaration f (_, v, ty) = Option.cata f true v && f ty
 let for_all_rel_declaration f (_, v, ty) = Option.cata f true v && f ty
 
 let eq_named_declaration (i1, c1, t1) (i2, c2, t2) =
-  id_eq i1 i2 && Option.Misc.compare eq_constr c1 c2 && eq_constr t1 t2
+  Id.equal i1 i2 && Option.equal eq_constr c1 c2 && eq_constr t1 t2
 
 let eq_rel_declaration (n1, c1, t1) (n2, c2, t2) =
-  name_eq n1 n2 && Option.Misc.compare eq_constr c1 c2 && eq_constr t1 t2
+  Name.equal n1 n2 && Option.equal eq_constr c1 c2 && eq_constr t1 t2
 
 (***************************************************************************)
 (*     Type of local contexts (telescopes)                                 *)
@@ -970,7 +970,7 @@ let subst1_named_decl = subst1_decl
 let rec thin_val = function
   | [] -> []
   | (((id,{ sit = v }) as s)::tl) when isVar v ->
-      if Int.equal (id_ord id (destVar v)) 0 then thin_val tl else s::(thin_val tl)
+      if Int.equal (Id.compare id (destVar v)) 0 then thin_val tl else s::(thin_val tl)
   | h::tl -> h::(thin_val tl)
 
 (* (replace_vars sigma M) applies substitution sigma to term M *)
@@ -1466,15 +1466,15 @@ let hcons_term (sh_sort,sh_ci,sh_construct,sh_ind,sh_con,sh_na,sh_id) =
       | Const c ->
 	(Const (sh_con c), combinesmall 9 (Hashtbl.hash c))
       | Ind ((kn,i),u as ind) ->
-	(Ind (sh_ind ind), combinesmall 9 (combine (Hashtbl.hash kn) i))
+	(Ind (sh_ind ind), combinesmall 10 (combine (Hashtbl.hash kn) i))
       | Construct ((((kn,i),j),u) as c)->
-	(Construct (sh_construct c), combinesmall 10 (combine3 (Hashtbl.hash kn) i j))
+	(Construct (sh_construct c), combinesmall 11 (combine3 (Hashtbl.hash kn) i j))
       | Case (ci,p,c,bl) ->
 	let p, hp = sh_rec p
 	and c, hc = sh_rec c in
 	let hbl = hash_term_array bl in
 	let hbl = combine (combine hc hp) hbl in
-	(Case (sh_ci ci, p, c, bl), combinesmall 11 hbl)
+	(Case (sh_ci ci, p, c, bl), combinesmall 12 hbl)
       | Fix (ln,(lna,tl,bl)) ->
 	let hbl = hash_term_array  bl in
 	let htl = hash_term_array  tl in
@@ -1525,11 +1525,11 @@ let rec hash_constr t =
     | Const (c,u) ->
       combinesmall 9 (Hashtbl.hash c)	(* TODO: proper hash function for constants *)
     | Ind ((kn,i),u) ->
-      combinesmall 9 (combine (Hashtbl.hash kn) i)
+      combinesmall 10 (combine (Hashtbl.hash kn) i)
     | Construct (((kn,i),j),u) ->
-      combinesmall 10 (combine3 (Hashtbl.hash kn) i j)
+      combinesmall 11 (combine3 (Hashtbl.hash kn) i j)
     | Case (_ , p, c, bl) ->
-      combinesmall 11 (combine3 (hash_constr c) (hash_constr p) (hash_term_array bl))
+      combinesmall 12 (combine3 (hash_constr c) (hash_constr p) (hash_term_array bl))
     | Fix (ln ,(_, tl, bl)) ->
       combinesmall 13 (combine (hash_term_array bl) (hash_term_array tl))
     | CoFix(ln, (_, tl, bl)) ->
@@ -1587,8 +1587,8 @@ let hcons_constr =
      hcons_construct,
      hcons_ind,
      hcons_con,
-     hcons_name,
-     hcons_ident)
+     Name.hcons,
+     Id.hcons)
 
 let hcons_types = hcons_constr
 

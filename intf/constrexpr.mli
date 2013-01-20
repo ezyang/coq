@@ -19,8 +19,8 @@ open Decl_kinds
 type notation = string
 
 type explicitation =
-  | ExplByPos of int * identifier option
-  | ExplByName of identifier
+  | ExplByPos of int * Id.t option
+  | ExplByName of Id.t
 
 type binder_kind =
   | Default of binding_kind
@@ -35,15 +35,15 @@ type proj_flag = int option (** [Some n] = proj of the n-th visible argument *)
 type prim_token = Numeral of Bigint.bigint | String of string
 
 type raw_cases_pattern_expr =
-  | RCPatAlias of Loc.t * raw_cases_pattern_expr * identifier
+  | RCPatAlias of Loc.t * raw_cases_pattern_expr * Id.t
   | RCPatCstr of Loc.t * Globnames.global_reference
     * raw_cases_pattern_expr list * raw_cases_pattern_expr list
   (** [CPatCstr (_, Inl c, l1, l2)] represents (@c l1) l2 *)
-  | RCPatAtom of Loc.t * identifier option
+  | RCPatAtom of Loc.t * Id.t option
   | RCPatOr of Loc.t * raw_cases_pattern_expr list
 
 type cases_pattern_expr =
-  | CPatAlias of Loc.t * cases_pattern_expr * identifier
+  | CPatAlias of Loc.t * cases_pattern_expr * Id.t
   | CPatCstr of Loc.t * reference
     * cases_pattern_expr list * cases_pattern_expr list
   (** [CPatCstr (_, Inl c, l1, l2)] represents (@c l1) l2 *)
@@ -63,21 +63,20 @@ and cases_pattern_notation_substitution =
 
 type constr_expr =
   | CRef of reference * Univ.universe_list option
-  | CFix of Loc.t * identifier located * fix_expr list
-  | CCoFix of Loc.t * identifier located * cofix_expr list
-  | CProdN of Loc.t * (name located list * binder_kind * constr_expr) list * constr_expr
-  | CLambdaN of Loc.t * (name located list * binder_kind * constr_expr) list * constr_expr
-  | CLetIn of Loc.t * name located * constr_expr * constr_expr
+  | CFix of Loc.t * Id.t located * fix_expr list
+  | CCoFix of Loc.t * Id.t located * cofix_expr list
+  | CProdN of Loc.t * binder_expr list * constr_expr
+  | CLambdaN of Loc.t * binder_expr list * constr_expr
+  | CLetIn of Loc.t * Name.t located * constr_expr * constr_expr
   | CAppExpl of Loc.t * (proj_flag * reference * Univ.universe_list option) * constr_expr list
   | CApp of Loc.t * (proj_flag * constr_expr) *
       (constr_expr * explicitation located option) list
   | CRecord of Loc.t * constr_expr option * (reference * constr_expr) list
   | CCases of Loc.t * case_style * constr_expr option *
-      (constr_expr * (name located option * cases_pattern_expr option)) list *
-      (Loc.t * cases_pattern_expr list located list * constr_expr) list
-  | CLetTuple of Loc.t * name located list * (name located option * constr_expr option) *
+      case_expr list * branch_expr list
+  | CLetTuple of Loc.t * Name.t located list * (Name.t located option * constr_expr option) *
       constr_expr * constr_expr
-  | CIf of Loc.t * constr_expr * (name located option * constr_expr option)
+  | CIf of Loc.t * constr_expr * (Name.t located option * constr_expr option)
       * constr_expr * constr_expr
   | CHole of Loc.t * Evar_kinds.t option
   | CPatVar of Loc.t * (bool * patvar)
@@ -89,12 +88,21 @@ type constr_expr =
   | CPrim of Loc.t * prim_token
   | CDelimiters of Loc.t * string * constr_expr
 
+and case_expr =
+  constr_expr * (Name.t located option * cases_pattern_expr option)
+
+and branch_expr =
+  Loc.t * cases_pattern_expr list located list * constr_expr
+
+and binder_expr =
+  Name.t located list * binder_kind * constr_expr
+
 and fix_expr =
-    identifier located * (identifier located option * recursion_order_expr) *
+    Id.t located * (Id.t located option * recursion_order_expr) *
       local_binder list * constr_expr * constr_expr
 
 and cofix_expr =
-    identifier located * local_binder list * constr_expr * constr_expr
+    Id.t located * local_binder list * constr_expr * constr_expr
 
 and recursion_order_expr =
   | CStructRec
@@ -103,15 +111,15 @@ and recursion_order_expr =
 
 (** Anonymous defs allowed ?? *)
 and local_binder =
-  | LocalRawDef of name located * constr_expr
-  | LocalRawAssum of name located list * binder_kind * constr_expr
+  | LocalRawDef of Name.t located * constr_expr
+  | LocalRawAssum of Name.t located list * binder_kind * constr_expr
 
 and constr_notation_substitution =
     constr_expr list *      (** for constr subterms *)
     constr_expr list list * (** for recursive notations *)
     local_binder list list (** for binders subexpressions *)
 
-type typeclass_constraint = name located * binding_kind * constr_expr
+type typeclass_constraint = Name.t located * binding_kind * constr_expr
 
 and typeclass_context = typeclass_constraint list
 
@@ -120,8 +128,8 @@ type constr_pattern_expr = constr_expr
 (** Concrete syntax for modules and module types *)
 
 type with_declaration_ast =
-  | CWith_Module of identifier list located * qualid located
-  | CWith_Definition of identifier list located * constr_expr
+  | CWith_Module of Id.t list located * qualid located
+  | CWith_Definition of Id.t list located * constr_expr
 
 type module_ast =
   | CMident of qualid located

@@ -64,14 +64,14 @@ val declare_module :
   (env -> 'modast -> module_struct_entry) ->
   (env -> 'modast -> module_struct_entry) ->
   (env -> 'modast -> module_struct_entry * bool) ->
-  identifier ->
-  (identifier located list * ('modast annotated)) list ->
+  Id.t ->
+  (Id.t located list * ('modast annotated)) list ->
   ('modast annotated) module_signature ->
   ('modast annotated) list -> module_path
 
 val start_module : (env -> 'modast -> module_struct_entry) ->
-  bool option -> identifier ->
-  (identifier located list * ('modast annotated)) list ->
+  bool option -> Id.t ->
+  (Id.t located list * ('modast annotated)) list ->
   ('modast annotated) module_signature -> module_path
 
 val end_module : unit -> module_path
@@ -82,14 +82,14 @@ val end_module : unit -> module_path
 
 val declare_modtype : (env -> 'modast -> module_struct_entry) ->
   (env -> 'modast -> module_struct_entry * bool) ->
-  identifier ->
-  (identifier located list * ('modast annotated)) list ->
+  Id.t ->
+  (Id.t located list * ('modast annotated)) list ->
   ('modast annotated) list ->
   ('modast annotated) list ->
   module_path
 
 val start_modtype : (env -> 'modast -> module_struct_entry) ->
-  identifier -> (identifier located list * ('modast annotated)) list ->
+  Id.t -> (Id.t located list * ('modast annotated)) list ->
   ('modast annotated) list -> module_path
 
 val end_modtype : unit -> module_path
@@ -104,7 +104,7 @@ val module_objects : module_path -> library_segment
 
 (** {6 Libraries i.e. modules on disk } *)
 
-type library_name = dir_path
+type library_name = Dir_path.t
 
 type library_objects
 
@@ -152,8 +152,8 @@ val debug_print_modtab : unit -> Pp.std_ppcmds
 
 (** For translator *)
 val process_module_bindings : module_ident list ->
-  (mod_bound_id * (module_struct_entry annotated)) list -> unit
+  (MBId.t * (module_struct_entry annotated)) list -> unit
 
 (** For Printer *)
 val process_module_seb_binding :
-  mod_bound_id -> Declarations.struct_expr_body -> unit
+  MBId.t -> Declarations.struct_expr_body -> unit

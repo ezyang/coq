@@ -128,15 +128,15 @@ let build_beq_scheme kn =
     context_chop (nparams-nparrec) mib.mind_params_ctxt in
   (* predef coq's boolean type *)
   (* rec name *)
-  let rec_name i =(string_of_id (Array.get mib.mind_packets i).mind_typename)^
+  let rec_name i =(Id.to_string (Array.get mib.mind_packets i).mind_typename)^
                     "_eqrec"
   in
   (* construct the "fun A B ... N, eqA eqB eqC ... N => fixpoint" part *)
   let create_input c =
     let myArrow u v = mkArrow u (lift 1 v)
     and eqName = function
-        | Name s -> id_of_string ("eq_"^(string_of_id s))
-        | Anonymous -> id_of_string "eq_A"
+        | Name s -> Id.of_string ("eq_"^(Id.to_string s))
+        | Anonymous -> Id.of_string "eq_A"
     in
     let ext_rel_list = extended_rel_list 0 lnamesparrec in
       let lift_cnt = ref 0 in
@@ -156,7 +156,7 @@ let build_beq_scheme kn =
         List.fold_left (fun a (n,_,t) ->(* mkLambda(n,t,a)) eq_input rel_list *)
           (* Same here , hoping the auto renaming will do something good ;)  *)
           mkNamedLambda
-                (match n with Name s -> s | Anonymous ->  id_of_string "A")
+                (match n with Name s -> s | Anonymous ->  Id.of_string "A")
                 t  a) eq_input lnamesparrec
  in
  let make_one_eq cur =
@@ -180,7 +180,7 @@ let build_beq_scheme kn =
 	let (c,a) = Reductionops.whd_betaiota_stack Evd.empty c in
 	match kind_of_term c with
         | Rel x -> mkRel (x-nlist+ndx)
-        | Var x -> mkVar (id_of_string ("eq_"^(string_of_id x)))
+        | Var x -> mkVar (Id.of_string ("eq_"^(Id.to_string x)))
         | Cast (x,_,_) -> aux (applist (x,a))
         | App _ -> assert false
         | Ind ((kn',i as ind'),u) -> if eq_mind kn kn' then mkRel(eqA-nlist-i+nb_ind-1)
@@ -229,10 +229,10 @@ let build_beq_scheme kn =
       extended_rel_list (n+nb_ind-1) mib.mind_params_ctxt)) in
     let constrsi = constrs (3+nparrec) in
     let n = Array.length constrsi in
-    let ar = Array.create n (Lazy.force ff) in
+    let ar = Array.make n (Lazy.force ff) in
 	for i=0 to n-1 do
 	  let nb_cstr_args = List.length constrsi.(i).cs_args in
-	  let ar2 = Array.create n (Lazy.force ff) in
+	  let ar2 = Array.make n (Lazy.force ff) in
           let constrsj = constrs (3+nparrec+nb_cstr_args) in
 	    for j=0 to n-1 do
 	      if Int.equal i j then
@@ -267,18 +267,18 @@ let build_beq_scheme kn =
 
 	  ar.(i) <- (List.fold_left (fun a (p,q,r) -> mkLambda (p,r,a))
 			(mkCase (ci,do_predicate rel_list nb_cstr_args,
-				  mkVar (id_of_string "Y") ,ar2))
+				  mkVar (Id.of_string "Y") ,ar2))
 			 (constrsi.(i).cs_args))
 	done;
-        mkNamedLambda (id_of_string "X") (mkFullInd (fst ind) (*FIXME*) (nb_ind-1+1))  (
-          mkNamedLambda (id_of_string "Y") (mkFullInd (fst ind) (nb_ind-1+2))  (
- 	    mkCase (ci, do_predicate rel_list 0,mkVar (id_of_string "X"),ar)))
+        mkNamedLambda (Id.of_string "X") (mkFullInd (fst ind) (*FIXME*) (nb_ind-1+1))  (
+          mkNamedLambda (Id.of_string "Y") (mkFullInd (fst ind) (nb_ind-1+2))  (
+ 	    mkCase (ci, do_predicate rel_list 0,mkVar (Id.of_string "X"),ar)))
     in (* build_beq_scheme *)
     let names = Array.make nb_ind Anonymous and
         types = Array.make nb_ind mkSet and
         cores = Array.make nb_ind mkSet in
     for i=0 to (nb_ind-1) do
-        names.(i) <- Name (id_of_string (rec_name i));
+        names.(i) <- Name (Id.of_string (rec_name i));
 	types.(i) <- mkArrow (mkFullInd (kn,i) 0)
                      (mkArrow (mkFullInd (kn,i) 1) (Lazy.force bb));
         cores.(i) <- make_one_eq i
@@ -321,9 +321,9 @@ let do_replace_lb lb_scheme_key aavoid narg gls p q =
     let s = destVar v in
     let n = Array.length avoid in
     let rec find i =
-      if id_eq avoid.(n-i) s then avoid.(n-i-x)
+      if Id.equal avoid.(n-i) s then avoid.(n-i-x)
       else (if i<n then find (i+1)
-            else error ("Var "^(string_of_id s)^" seems unknown.")
+            else error ("Var "^(Id.to_string s)^" seems unknown.")
       )
     in mkVar (find 1)
   with _ -> (* if this happen then the args have to be already declared as a
@@ -331,8 +331,8 @@ let do_replace_lb lb_scheme_key aavoid narg gls p q =
       (
         let mp,dir,lbl = repr_con (fst (destConst v)) in
           mkConst (make_con mp dir (mk_label (
-          if Int.equal offset 1 then ("eq_"^(string_of_label lbl))
-                       else ((string_of_label lbl)^"_lb")
+          if Int.equal offset 1 then ("eq_"^(Label.to_string lbl))
+                       else ((Label.to_string lbl)^"_lb")
         )))
       )
   in
@@ -368,9 +368,9 @@ let do_replace_bl bl_scheme_key (ind,u as indu) gls aavoid narg lft rgt =
     let s = destVar v in
     let n = Array.length avoid in
     let rec find i =
-      if id_eq avoid.(n-i) s then avoid.(n-i-x)
+      if Id.equal avoid.(n-i) s then avoid.(n-i-x)
       else (if i<n then find (i+1)
-            else error ("Var "^(string_of_id s)^" seems unknown.")
+            else error ("Var "^(Id.to_string s)^" seems unknown.")
       )
     in mkVar (find 1)
   with _ -> (* if this happen then the args have to be already declared as a
@@ -378,8 +378,8 @@ let do_replace_bl bl_scheme_key (ind,u as indu) gls aavoid narg lft rgt =
       (
         let mp,dir,lbl = repr_con (fst (destConst v)) in
           mkConst (make_con mp dir (mk_label (
-          if Int.equal offset 1 then ("eq_"^(string_of_label lbl))
-                       else ((string_of_label lbl)^"_bl")
+          if Int.equal offset 1 then ("eq_"^(Label.to_string lbl))
+                       else ((Label.to_string lbl)^"_bl")
         )))
       )
   in
@@ -446,11 +446,11 @@ let do_replace_bl bl_scheme_key (ind,u as indu) gls aavoid narg lft rgt =
 *)
 let list_id l = List.fold_left ( fun a (n,_,t) -> let s' =
       match n with
-        Name s -> string_of_id s
+        Name s -> Id.to_string s
       | Anonymous -> "A" in
-          (id_of_string s',id_of_string ("eq_"^s'),
-              id_of_string (s'^"_bl"),
-              id_of_string (s'^"_lb"))
+          (Id.of_string s',Id.of_string ("eq_"^s'),
+              Id.of_string (s'^"_bl"),
+              Id.of_string (s'^"_lb"))
             ::a
     ) [] l
 (*
@@ -472,8 +472,8 @@ let compute_bl_goal ind lnamesparrec nparrec =
   let eqI = eqI ind lnamesparrec in
   let list_id = list_id lnamesparrec in
   let create_input c =
-    let x = id_of_string "x" and
-        y = id_of_string "y" in
+    let x = Id.of_string "x" and
+        y = Id.of_string "y" in
       let bl_typ = List.map (fun (s,seq,_,_) ->
         mkNamedProd x (mkVar s) (
             mkNamedProd y (mkVar s) (
@@ -492,11 +492,11 @@ let compute_bl_goal ind lnamesparrec nparrec =
         mkNamedProd seq b a
       ) bl_input (List.rev list_id) (List.rev eqs_typ) in
       List.fold_left (fun a (n,_,t) -> mkNamedProd
-                (match n with Name s -> s | Anonymous ->  id_of_string "A")
+                (match n with Name s -> s | Anonymous ->  Id.of_string "A")
                 t  a) eq_input lnamesparrec
     in
-      let n = id_of_string "x" and
-          m = id_of_string "y" in
+      let n = Id.of_string "x" and
+          m = Id.of_string "y" in
      create_input (
         mkNamedProd n (mkFullInd ind nparrec) (
           mkNamedProd m (mkFullInd ind (nparrec+1)) (
@@ -516,11 +516,11 @@ let compute_bl_tact bl_scheme_key ind lnamesparrec nparrec gsig =
       let fresh_first_intros = List.map ( fun s ->
         let fresh = fresh_id (!avoid) s gsig in
         avoid := fresh::(!avoid); fresh ) first_intros in
-      let freshn = fresh_id (!avoid) (id_of_string "x") gsig in
+      let freshn = fresh_id (!avoid) (Id.of_string "x") gsig in
       let freshm = avoid := freshn::(!avoid);
-            fresh_id (!avoid) (id_of_string "y") gsig in
+            fresh_id (!avoid) (Id.of_string "y") gsig in
       let freshz = avoid := freshm::(!avoid);
-            fresh_id (!avoid) (id_of_string "Z") gsig in
+            fresh_id (!avoid) (Id.of_string "Z") gsig in
   (* try with *)
       avoid := freshz::(!avoid);
       tclTHENSEQ [ intros_using fresh_first_intros;
@@ -541,7 +541,7 @@ repeat ( apply andb_prop in z;let z1:= fresh "Z" in destruct z as [z1 z]).
                       tclTHENSEQ [
                          simple_apply_in freshz (andb_prop());
                          fun gl ->
-                           let fresht = fresh_id (!avoid) (id_of_string "Z") gsig
+                           let fresht = fresh_id (!avoid) (Id.of_string "Z") gsig
                            in
                             avoid := fresht::(!avoid);
                             (new_destruct false [Tacexpr.ElimOnConstr
@@ -604,8 +604,8 @@ let compute_lb_goal ind lnamesparrec nparrec =
   let eq = Lazy.force eq and tt = Lazy.force tt and bb = Lazy.force bb in
   let eqI = eqI ind lnamesparrec in
     let create_input c =
-      let x = id_of_string "x" and
-          y = id_of_string "y" in
+      let x = Id.of_string "x" and
+          y = Id.of_string "y" in
       let lb_typ = List.map (fun (s,seq,_,_) ->
         mkNamedProd x (mkVar s) (
             mkNamedProd y (mkVar s) (
@@ -624,11 +624,11 @@ let compute_lb_goal ind lnamesparrec nparrec =
         mkNamedProd seq b a
       ) lb_input (List.rev list_id) (List.rev eqs_typ) in
       List.fold_left (fun a (n,_,t) -> mkNamedProd
-                (match n with Name s -> s | Anonymous ->  id_of_string "A")
+                (match n with Name s -> s | Anonymous ->  Id.of_string "A")
                 t  a) eq_input lnamesparrec
     in
-      let n = id_of_string "x" and
-          m = id_of_string "y" in
+      let n = Id.of_string "x" and
+          m = Id.of_string "y" in
       create_input (
         mkNamedProd n (mkFullInd ind nparrec) (
           mkNamedProd m (mkFullInd ind (nparrec+1)) (
@@ -648,11 +648,11 @@ let compute_lb_tact lb_scheme_key ind lnamesparrec nparrec gsig =
       let fresh_first_intros = List.map ( fun s ->
         let fresh = fresh_id (!avoid) s gsig in
         avoid := fresh::(!avoid); fresh ) first_intros in
-      let freshn = fresh_id (!avoid) (id_of_string "x") gsig in
+      let freshn = fresh_id (!avoid) (Id.of_string "x") gsig in
       let freshm = avoid := freshn::(!avoid);
-            fresh_id (!avoid) (id_of_string "y") gsig in
+            fresh_id (!avoid) (Id.of_string "y") gsig in
       let freshz = avoid := freshm::(!avoid);
-            fresh_id (!avoid) (id_of_string "Z") gsig in
+            fresh_id (!avoid) (Id.of_string "Z") gsig in
   (* try with *)
       avoid := freshz::(!avoid);
       tclTHENSEQ [ intros_using fresh_first_intros;
@@ -722,8 +722,8 @@ let compute_dec_goal ind lnamesparrec nparrec =
   let eq = Lazy.force eq and tt = Lazy.force tt and bb = Lazy.force bb in
   let list_id = list_id lnamesparrec in
     let create_input c =
-      let x = id_of_string "x" and
-          y = id_of_string "y" in
+      let x = Id.of_string "x" and
+          y = Id.of_string "y" in
       let lb_typ = List.map (fun (s,seq,_,_) ->
         mkNamedProd x (mkVar s) (
             mkNamedProd y (mkVar s) (
@@ -755,11 +755,11 @@ let compute_dec_goal ind lnamesparrec nparrec =
         mkNamedProd seq b a
       ) bl_input (List.rev list_id) (List.rev eqs_typ) in
       List.fold_left (fun a (n,_,t) -> mkNamedProd
-                (match n with Name s -> s | Anonymous ->  id_of_string "A")
+                (match n with Name s -> s | Anonymous ->  Id.of_string "A")
                 t  a) eq_input lnamesparrec
     in
-      let n = id_of_string "x" and
-          m = id_of_string "y" in
+      let n = Id.of_string "x" and
+          m = Id.of_string "y" in
         let eqnm = mkApp(eq,[|mkFullInd ind (2*nparrec+2);mkVar n;mkVar m|]) in
         create_input (
           mkNamedProd n (mkFullInd ind (2*nparrec)) (
@@ -786,11 +786,11 @@ let compute_dec_tact ind lnamesparrec nparrec gsig =
   let fresh_first_intros = List.map ( fun s ->
     let fresh = fresh_id (!avoid) s gsig in
     avoid := fresh::(!avoid); fresh ) first_intros in
-  let freshn = fresh_id (!avoid) (id_of_string "x") gsig in
+  let freshn = fresh_id (!avoid) (Id.of_string "x") gsig in
   let freshm = avoid := freshn::(!avoid);
-    fresh_id (!avoid) (id_of_string "y") gsig in
+    fresh_id (!avoid) (Id.of_string "y") gsig in
   let freshH = avoid := freshm::(!avoid);
-    fresh_id (!avoid) (id_of_string "H") gsig in
+    fresh_id (!avoid) (Id.of_string "H") gsig in
   let eqbnm = mkApp(eqI,[|mkVar freshn;mkVar freshm|]) in
   avoid := freshH::(!avoid);
   let arfresh = Array.of_list fresh_first_intros in
@@ -814,7 +814,7 @@ let compute_dec_tact ind lnamesparrec nparrec gsig =
 	)
 	  (tclTHEN (destruct_on eqbnm) Auto.default_auto);
         (fun gsig ->
-	  let freshH2 = fresh_id (!avoid) (id_of_string "H") gsig in
+	  let freshH2 = fresh_id (!avoid) (Id.of_string "H") gsig in
           avoid := freshH2::(!avoid);
 	  tclTHENS (destruct_on_using (mkVar freshH) freshH2) [
 	    (* left *)
@@ -825,7 +825,7 @@ let compute_dec_tact ind lnamesparrec nparrec gsig =
             ];
 	    (*right *)
             (fun gsig ->
-	    let freshH3 = fresh_id (!avoid) (id_of_string "H") gsig in
+	    let freshH3 = fresh_id (!avoid) (Id.of_string "H") gsig in
             avoid := freshH3::(!avoid);
             tclTHENSEQ [
 	      simplest_right ;

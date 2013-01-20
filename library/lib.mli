@@ -27,7 +27,7 @@ type node =
 
 and library_segment = (Libnames.object_name * node) list
 
-type lib_objects = (Names.identifier * Libobject.obj) list
+type lib_objects = (Names.Id.t * Libobject.obj) list
 
 (** {6 Object iteration functions. } *)
 
@@ -53,12 +53,12 @@ val segment_of_objects :
 (** Adding operations (which call the [cache] method, and getting the
   current list of operations (most recent ones coming first). *)
 
-val add_leaf : Names.identifier -> Libobject.obj -> Libnames.object_name
+val add_leaf : Names.Id.t -> Libobject.obj -> Libnames.object_name
 val add_anonymous_leaf : Libobject.obj -> unit
 
 (** this operation adds all objects with the same name and calls [load_object]
    for each of them *)
-val add_leaves : Names.identifier -> Libobject.obj list -> Libnames.object_name
+val add_leaves : Names.Id.t -> Libobject.obj list -> Libnames.object_name
 
 val add_frozen_state : unit -> unit
 
@@ -72,17 +72,17 @@ val contents_after : Libnames.object_name option -> library_segment
 (** {6 Functions relative to current path } *)
 
 (** User-side names *)
-val cwd : unit -> Names.dir_path
-val cwd_except_section : unit -> Names.dir_path
-val current_dirpath : bool -> Names.dir_path (* false = except sections *)
-val make_path : Names.identifier -> Libnames.full_path
-val make_path_except_section : Names.identifier -> Libnames.full_path
+val cwd : unit -> Names.Dir_path.t
+val cwd_except_section : unit -> Names.Dir_path.t
+val current_dirpath : bool -> Names.Dir_path.t (* false = except sections *)
+val make_path : Names.Id.t -> Libnames.full_path
+val make_path_except_section : Names.Id.t -> Libnames.full_path
 val path_of_include : unit -> Libnames.full_path
 
 (** Kernel-side names *)
-val current_prefix : unit -> Names.module_path * Names.dir_path
-val make_kn : Names.identifier -> Names.kernel_name
-val make_con : Names.identifier -> Names.constant
+val current_prefix : unit -> Names.module_path * Names.Dir_path.t
+val make_kn : Names.Id.t -> Names.kernel_name
+val make_con : Names.Id.t -> Names.constant
 
 (** Are we inside an opened section *)
 val sections_are_opened : unit -> bool
@@ -98,7 +98,7 @@ val is_module : unit -> bool
 val current_mod_id : unit -> Names.module_ident
 
 (** Returns the opening node of a given name *)
-val find_opening_node : Names.identifier -> node
+val find_opening_node : Names.Id.t -> node
 
 (** {6 Modules and module types } *)
 
@@ -124,23 +124,23 @@ val end_modtype :
 
 (** {6 Compilation units } *)
 
-val start_compilation : Names.dir_path -> Names.module_path -> unit
-val end_compilation : Names.dir_path -> Libnames.object_prefix * library_segment
+val start_compilation : Names.Dir_path.t -> Names.module_path -> unit
+val end_compilation : Names.Dir_path.t -> Libnames.object_prefix * library_segment
 
-(** The function [library_dp] returns the [dir_path] of the current
+(** The function [library_dp] returns the [Dir_path.t] of the current
    compiling library (or [default_library]) *)
-val library_dp : unit -> Names.dir_path
+val library_dp : unit -> Names.Dir_path.t
 
 (** Extract the library part of a name even if in a section *)
-val dp_of_mp : Names.module_path -> Names.dir_path
-val split_mp : Names.module_path -> Names.dir_path * Names.dir_path
-val split_modpath : Names.module_path -> Names.dir_path * Names.identifier list
-val library_part :  Globnames.global_reference -> Names.dir_path
-val remove_section_part : Globnames.global_reference -> Names.dir_path
+val dp_of_mp : Names.module_path -> Names.Dir_path.t
+val split_mp : Names.module_path -> Names.Dir_path.t * Names.Dir_path.t
+val split_modpath : Names.module_path -> Names.Dir_path.t * Names.Id.t list
+val library_part :  Globnames.global_reference -> Names.Dir_path.t
+val remove_section_part : Globnames.global_reference -> Names.Dir_path.t
 
 (** {6 Sections } *)
 
-val open_section : Names.identifier -> unit
+val open_section : Names.Id.t -> unit
 val close_section : unit -> unit
 
 (** {6 Backtracking } *)
@@ -164,7 +164,7 @@ val first_command_label : int
 val reset_label : int -> unit
 
 (** search the label registered immediately before adding some definition *)
-val label_before_name : Names.identifier Loc.located -> int
+val label_before_name : Names.Id.t Loc.located -> int
 
 (** {6 We can get and set the state of the operations (used in [States]). } *)
 
@@ -176,24 +176,24 @@ val unfreeze : frozen -> unit
 val init : unit -> unit
 
 (** XML output hooks *)
-val set_xml_open_section : (Names.identifier -> unit) -> unit
-val set_xml_close_section : (Names.identifier -> unit) -> unit
+val set_xml_open_section : (Names.Id.t -> unit) -> unit
+val set_xml_close_section : (Names.Id.t -> unit) -> unit
 
 (** {6 Section management for discharge } *)
-type variable_info = Names.identifier * Decl_kinds.binding_kind *
+type variable_info = Names.Id.t * Decl_kinds.binding_kind *
     Term.constr option * Term.types
 type variable_context = variable_info list 
 
-val instance_from_variable_context : variable_context -> Names.identifier array
+val instance_from_variable_context : variable_context -> Names.Id.t array
 val named_of_variable_context : variable_context -> Sign.named_context
 
 val section_segment_of_constant : Names.constant -> variable_context Univ.in_universe_context
 val section_segment_of_mutual_inductive: Names.mutual_inductive -> variable_context Univ.in_universe_context
 
-val section_instance : Globnames.global_reference -> Univ.universe_list * Names.identifier array
+val section_instance : Globnames.global_reference -> Univ.universe_list * Names.Id.t array
 val is_in_section : Globnames.global_reference -> bool
 
-val add_section_variable : Names.identifier -> Decl_kinds.binding_kind -> Univ.universe_context_set -> unit
+val add_section_variable : Names.Id.t -> Decl_kinds.binding_kind -> Univ.universe_context_set -> unit
 
 val add_section_constant : Decl_kinds.polymorphic -> Names.constant -> Sign.named_context -> unit
 val add_section_kn : Decl_kinds.polymorphic -> Names.mutual_inductive -> Sign.named_context -> unit

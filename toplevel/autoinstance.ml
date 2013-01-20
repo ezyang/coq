@@ -56,7 +56,7 @@ let rec safe_define evm ev c =
 (*  msgnl(str"safe_define "++pr_evar_map evm++spc()++str" |- ?"++Pp.int ev++str" := "++pr_constr c);*)
   let evi = (Evd.find evm ev) in
   let define_subst evm sigma =
-    Util.Intmap.fold
+    Int.Map.fold
       ( fun ev (e,c) evm ->
 	  match kind_of_term c with Evar (i,_) when Int.equal i ev -> evm | _ ->
 	    safe_define evm ev (lift (-List.length e) c)
@@ -91,7 +91,7 @@ let add_gen_ctx (cl,gen,evm) ctx : signature * constr list =
    compare function for constr instead of Pervasive's one! *)
 module SubstSet : Set.S with type elt = Termops.subst
   = Set.Make (struct type t = Termops.subst
-		     let compare = Util.Intmap.compare (Pervasives.compare)
+		     let compare = Int.Map.compare (Pervasives.compare)
 	      end)
 
 (* searches instatiations in the library for just one evar [ev] of a
@@ -214,6 +214,7 @@ let rec iter_under_prod (f:rel_context->constr->unit) (ctx:rel_context) t = f ct
 (* main search function: search for total instances containing gr, and
    apply k to each of them *)
 let complete_signature_with_def gr deftyp (k:instance_decl_function -> signature -> unit) : unit =
+  let gr_c = Universes.constr_of_global gr in
   let (smap:(Globnames.global_reference * Evd.evar_map,
    ('a * 'b * Term.constr) list * Evd.evar)
   Gmapl.t ref) = ref Gmapl.empty in

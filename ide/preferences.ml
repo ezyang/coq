@@ -236,9 +236,9 @@ let save_pref () =
   let () = try GtkData.AccelMap.save accel_file with _ -> () in
   let p = current in
 
-    let add = Util.Stringmap.add in
+    let add = Util.String.Map.add in
     let (++) x f = f x in
-    Util.Stringmap.empty ++
+    Util.String.Map.empty ++
     add "cmd_coqtop" (match p.cmd_coqtop with | None -> [] | Some v-> [v]) ++
     add "cmd_coqc" [p.cmd_coqc] ++
     add "cmd_make" [p.cmd_make] ++
@@ -302,7 +302,7 @@ let load_pref () =
 
     let m = Config_lexer.load_file loaded_pref_file in
     let np = current in
-    let set k f = try let v = Util.Stringmap.find k m in f v with _ -> () in
+    let set k f = try let v = Util.String.Map.find k m in f v with _ -> () in
     let set_hd k f = set k (fun v -> f (List.hd v)) in
     let set_bool k f = set_hd k (fun v -> f (bool_of_string v)) in
     let set_int k f = set_hd k (fun v -> f (int_of_string v)) in
@@ -341,7 +341,6 @@ let load_pref () =
       (fun v -> np.modifier_for_display <- v);
     set_hd "modifiers_valid"
       (fun v ->
-	let () = GtkData.AccelGroup.set_default_mod_mask (Some (str_to_mod_list v)) in
 	np.modifiers_valid <- v);
     set_command_with_pair_compat "cmd_browse" (fun v -> np.cmd_browse <- v);
     set_command_with_pair_compat "cmd_editor" (fun v -> np.cmd_editor <- v);
@@ -705,7 +704,6 @@ let configure ?(apply=(fun () -> ())) () =
   let modifiers_valid =
     modifiers
       ~f:(fun l ->
- 	let () = GtkData.AccelGroup.set_default_mod_mask (Some l) in
 	current.modifiers_valid <- mod_list_to_str l)
       "Allowed modifiers"
       the_valid_mod

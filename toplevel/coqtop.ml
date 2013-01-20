@@ -52,10 +52,10 @@ let engage () =
 
 let set_batch_mode () = batch_mode := true
 
-let toplevel_default_name = make_dirpath [id_of_string "Top"]
+let toplevel_default_name = Dir_path.make [Id.of_string "Top"]
 let toplevel_name = ref (Some toplevel_default_name)
 let set_toplevel_name dir =
-  if dir_path_eq dir empty_dirpath then error "Need a non empty toplevel module name";
+  if Dir_path.equal dir Dir_path.empty then error "Need a non empty toplevel module name";
   toplevel_name := Some dir
 let unset_toplevel_name () = toplevel_name := None
 
@@ -63,11 +63,11 @@ let remove_top_ml () = Mltop.remove ()
 
 let inputstate = ref ""
 let set_inputstate s = inputstate:=s
-let inputstate () = if not (String.equal !inputstate "") then intern_state !inputstate
+let inputstate () = if not (String.is_empty !inputstate) then intern_state !inputstate
 
 let outputstate = ref ""
 let set_outputstate s = outputstate:=s
-let outputstate () = if not (String.equal !outputstate "") then extern_state !outputstate
+let outputstate () = if not (String.is_empty !outputstate) then extern_state !outputstate
 
 let set_default_include d = push_include (d,Nameops.default_root_prefix)
 let set_include d p =

@@ -98,7 +98,7 @@ let rec pattern_of_constr env sigma c =
 	let pargs,lrels = List.split
 	  (Array.map_to_list (pattern_of_constr env sigma) args) in
 	  PApp (pf,List.rev pargs),
-	List.fold_left Intset.union Intset.empty lrels
+	List.fold_left Int.Set.union Int.Set.empty lrels
     | Prod (_,a,_b) when not (Termops.dependent (mkRel 1) _b) ->
 	let b = Termops.pop _b in
 	let pa,sa = pattern_of_constr env sigma a in
@@ -106,11 +106,11 @@ let rec pattern_of_constr env sigma c =
 	let sort_b = sf_of env sigma b in
 	let sort_a = sf_of env sigma a in
 	  PApp(Product (sort_a,sort_b),
-	       [pa;pb]),(Intset.union sa sb)
-    | Rel i -> PVar i,Intset.singleton i
+	       [pa;pb]),(Int.Set.union sa sb)
+    | Rel i -> PVar i,Int.Set.singleton i
     | _ ->
 	let pf = decompose_term env sigma c in
-	  PApp (pf,[]),Intset.empty
+	  PApp (pf,[]),Int.Set.empty
 
 let non_trivial = function
     PVar _ -> false
@@ -124,11 +124,11 @@ let patterns_of_constr env sigma nrels term=
 	  let patt1,rels1 = pattern_of_constr env sigma args.(1)
 	  and patt2,rels2 = pattern_of_constr env sigma args.(2) in
 	  let valid1 =
-	    if Intset.cardinal rels1 <> nrels then Creates_variables
+	    if Int.Set.cardinal rels1 <> nrels then Creates_variables
 	    else if non_trivial patt1 then Normal
 	    else Trivial args.(0)
 	  and valid2 =
-	    if Intset.cardinal rels2 <> nrels then Creates_variables
+	    if Int.Set.cardinal rels2 <> nrels then Creates_variables
 	    else if non_trivial patt2 then Normal
 	    else Trivial args.(0) in
 	    if valid1 <> Creates_variables
@@ -233,7 +233,7 @@ let build_projection intype outtype (cstr:pconstructor) special default gls=
   let pred=mkLambda(Anonymous,intype,outtype) in
   let case_info=make_case_info (pf_env gls) ind RegularStyle in
   let body= mkCase(case_info, pred, casee, branches) in
-  let id=pf_get_new_id (id_of_string "t") gls in
+  let id=pf_get_new_id (Id.of_string "t") gls in
     mkLambda(Name id,intype,body)
 
 (* generate an adhoc tactic following the proof tree  *)
@@ -273,7 +273,7 @@ let rec proof_tac p gls =
 	let typf = (* Termops.refresh_universes  *)(pf_type_of gls tf1) in
 	let typx = (* Termops.refresh_universes *) (pf_type_of gls tx1) in
 	let typfx = (* Termops.refresh_universes *) (pf_type_of gls (mkApp (tf1,[|tx1|]))) in
-	let id = pf_get_new_id (id_of_string "f") gls in
+	let id = pf_get_new_id (Id.of_string "f") gls in
 	let appx1 = mkLambda(Name id,typf,mkApp(mkRel 1,[|tx1|])) in
 	let lemma1 =
 	  app_global _f_equal
@@ -312,7 +312,7 @@ let refute_tac c t1 t2 p gls =
   let tt1=constr_of_term t1 and tt2=constr_of_term t2 in
   let intype = (* Termops.refresh_universes *) (pf_type_of gls tt1) in
   let neweq= app_global _eq [|intype;tt1;tt2|] in
-  let hid=pf_get_new_id (id_of_string "Heq") gls in
+  let hid=pf_get_new_id (Id.of_string "Heq") gls in
   let false_t=mkApp (c,[|mkVar hid|]) in
     tclTHENS (assert_tac (Name hid) neweq)
       [proof_tac p; simplest_elim false_t] gls
@@ -321,8 +321,8 @@ let convert_to_goal_tac c t1 t2 p gls =
   let tt1=constr_of_term t1 and tt2=constr_of_term t2 in
   let sort = (* Termops.refresh_universes *) (pf_type_of gls tt2) in
   let neweq= app_global _eq [|sort;tt1;tt2|] in
-  let e=pf_get_new_id (id_of_string "e") gls in
-  let x=pf_get_new_id (id_of_string "X") gls in
+  let e=pf_get_new_id (Id.of_string "e") gls in
+  let x=pf_get_new_id (Id.of_string "X") gls in
   let identity=mkLambda (Name x,sort,mkRel 1) in
   let endt=app_global _eq_rect [|sort;tt1;identity;c;tt2;mkVar e|] in
     tclTHENS (assert_tac (Name e) neweq)
@@ -330,7 +330,7 @@ let convert_to_goal_tac c t1 t2 p gls =
 
 let convert_to_hyp_tac c1 t1 c2 t2 p gls =
   let tt2=constr_of_term t2 in
-  let h=pf_get_new_id (id_of_string "H") gls in
+  let h=pf_get_new_id (Id.of_string "H") gls in
   let false_t=mkApp (c2,[|mkVar h|]) in
     tclTHENS (assert_tac (Name h) tt2)
       [convert_to_goal_tac c1 t1 t2 p;
@@ -341,13 +341,13 @@ let discriminate_tac (cstr,u as cstru) p gls =
   let intype = (* Termops.refresh_universes *) (pf_type_of gls t1) in
   let concl=pf_concl gls in
   let outsort = mkType (fst (Universes.new_global_univ () (*FIXME*))) in
-  let xid=pf_get_new_id (id_of_string "X") gls in
-  let tid=pf_get_new_id (id_of_string "t") gls in
+  let xid=pf_get_new_id (Id.of_string "X") gls in
+  let tid=pf_get_new_id (Id.of_string "t") gls in
   let identity=mkLambda(Name xid,outsort,mkLambda(Name tid,mkRel 1,mkRel 1)) in
   let trivial=pf_type_of gls identity in
   let outtype = mkType (fst (Universes.new_global_univ () (*FIXME*))) in
   let pred=mkLambda(Name xid,outtype,mkRel 1) in
-  let hid=pf_get_new_id (id_of_string "Heq") gls in
+  let hid=pf_get_new_id (Id.of_string "Heq") gls in
   let proj=build_projection intype outtype cstru trivial concl gls in
   let injt=app_global _f_equal
 		  [|intype;outtype;proj;t1;t2;mkVar hid|] in

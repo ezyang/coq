@@ -43,7 +43,7 @@ open Misctypes
     could be inferred. We also loose the ability of typing ltac
     variables before calling the right-hand-side of ltac matching clauses. *)
 
-type constr_under_binders = identifier list * constr
+type constr_under_binders = Id.t list * constr
 
 (** Types of substitutions with or w/o bound variables *)
 
@@ -60,14 +60,14 @@ type case_info_pattern =
 
 type constr_pattern =
   | PRef of global_reference
-  | PVar of identifier
+  | PVar of Id.t
   | PEvar of existential_key * constr_pattern array
   | PRel of int
   | PApp of constr_pattern * constr_pattern array
   | PSoApp of patvar * constr_pattern list
-  | PLambda of name * constr_pattern * constr_pattern
-  | PProd of name * constr_pattern * constr_pattern
-  | PLetIn of name * constr_pattern * constr_pattern
+  | PLambda of Name.t * constr_pattern * constr_pattern
+  | PProd of Name.t * constr_pattern * constr_pattern
+  | PLetIn of Name.t * constr_pattern * constr_pattern
   | PSort of glob_sort
   | PMeta of patvar option
   | PIf of constr_pattern * constr_pattern * constr_pattern

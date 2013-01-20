@@ -113,13 +113,13 @@ type inductive_arity = {
 type one_inductive_body = {
 (** {8 Primitive datas } *)
 
-    mind_typename : identifier; (** Name of the type: [Ii] *)
+    mind_typename : Id.t; (** Name of the type: [Ii] *)
 
     mind_arity_ctxt : rel_context; (** Arity context of [Ii] with parameters: [forall params, Ui] *)
 
     mind_arity : inductive_arity; (** Arity sort and original user arity *)
 
-    mind_consnames : identifier array; (** Names of the constructors: [cij] *)
+    mind_consnames : Id.t array; (** Names of the constructors: [cij] *)
 
     mind_user_lc : types array;
  (** Types of the constructors with parameters:  [forall params, Tij],
@@ -190,18 +190,18 @@ type structure_field_body =
     a [structure_body], once for a module ([SFBmodule] or [SFBmodtype])
     and once for an object ([SFBconst] or [SFBmind]) *)
 
-and structure_body = (label * structure_field_body) list
+and structure_body = (Label.t * structure_field_body) list
 
 and struct_expr_body =
   | SEBident of module_path
-  | SEBfunctor of mod_bound_id * module_type_body * struct_expr_body
+  | SEBfunctor of MBId.t * module_type_body * struct_expr_body
   | SEBapply of struct_expr_body * struct_expr_body * constraints
   | SEBstruct of structure_body
   | SEBwith of struct_expr_body * with_declaration_body
 
 and with_declaration_body =
-    With_module_body of identifier list * module_path
-  | With_definition_body of  identifier list * constant_body
+    With_module_body of Id.t list * module_path
+  | With_definition_body of  Id.t list * constant_body
 
 and module_body =
     {  (** absolute path of the module *)

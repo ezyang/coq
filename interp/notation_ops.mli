@@ -17,11 +17,11 @@ open Glob_term
     bound by the notation; also interpret recursive patterns           *)
 
 val notation_constr_of_glob_constr :
-  (identifier * notation_var_internalization_type) list ->
-  (identifier * identifier) list -> glob_constr -> notation_constr
+  (Id.t * notation_var_internalization_type) list ->
+  (Id.t * Id.t) list -> glob_constr -> notation_constr
 
 (** Name of the special identifier used to encode recursive notations  *)
-val ldots_var : identifier
+val ldots_var : Id.t
 
 (** Equality of [glob_constr] (warning: only partially implemented) *)
 (** FIXME: nothing to do here *)
@@ -30,7 +30,7 @@ val eq_glob_constr : glob_constr -> glob_constr -> bool
 (** Re-interpret a notation as a [glob_constr], taking care of binders     *)
 
 val glob_constr_of_notation_constr_with_binders : Loc.t ->
-  ('a -> name -> 'a * name) ->
+  ('a -> Name.t -> 'a * Name.t) ->
   ('a -> notation_constr -> glob_constr) ->
   'a -> notation_constr -> glob_constr
 

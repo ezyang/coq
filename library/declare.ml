@@ -53,7 +53,7 @@ type section_variable_entry =
   | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * bool (** opacity *)
   | SectionLocalAssum of types Univ.in_universe_context_set * bool (** Implicit status *)
 
-type variable_declaration = dir_path * section_variable_entry * logical_kind
+type variable_declaration = Dir_path.t * section_variable_entry * logical_kind
 
 let cache_variable ((sp,_),o) =
   match o with
@@ -80,7 +80,7 @@ let discharge_variable (_,o) = match o with
   | Inl _ -> Some o
 
 type variable_obj =
-    (Univ.constraints, identifier * variable_declaration) union
+    (Univ.constraints, Id.t * variable_declaration) union
 
 let inVariable : variable_obj -> obj =
   declare_object { (default_object "VARIABLE") with
@@ -117,7 +117,7 @@ let open_constant i ((sp,kn),_) =
     Nametab.push (Nametab.Exactly i) sp (ConstRef con)
 
 let exists_name id =
-  variable_exists id or Global.exists_objlabel (label_of_id id)
+  variable_exists id or Global.exists_objlabel (Label.of_id id)
 
 let check_exists sp =
   let id = basename sp in

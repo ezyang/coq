@@ -17,13 +17,13 @@ open Globnames
 type obligation_definition_status = Define of bool | Expand
 
 type t =
-  | ImplicitArg of global_reference * (int * identifier option)
+  | ImplicitArg of global_reference * (int * Id.t option)
      * bool (** Force inference *)
-  | BinderType of name
+  | BinderType of Name.t
   | QuestionMark of obligation_definition_status
   | CasesType
   | InternalHole
   | TomatchTypeParameter of inductive * int
   | GoalEvar
   | ImpossibleCase
-  | MatchingVar of bool * identifier
+  | MatchingVar of bool * Id.t

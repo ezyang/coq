@@ -56,7 +56,7 @@ let cases_pattern_expr_of_name (loc,na) = match na with
 
 type grammar_constr_prod_item =
   | GramConstrTerminal of Tok.t
-  | GramConstrNonTerminal of constr_prod_entry_key * identifier option
+  | GramConstrNonTerminal of constr_prod_entry_key * Id.t option
   | GramConstrListMark of int * bool
     (* tells action rule to make a list of the n previous parsed items;
        concat with last parsed list if true *)
@@ -79,7 +79,7 @@ let make_constr_action
         Gram.action (fun (v:reference) ->
 	  make (CRef (v,None) :: constrs, constrlists, binders) tl)
     | ETName ->
-        Gram.action (fun (na:Loc.t * name) ->
+        Gram.action (fun (na:Loc.t * Name.t) ->
 	  make (constr_expr_of_name na :: constrs, constrlists, binders) tl)
     | ETBigint ->
         Gram.action (fun (v:Bigint.bigint) ->
@@ -130,7 +130,7 @@ let make_cases_pattern_action
         Gram.action (fun (v:reference) ->
 	  make (CPatAtom (Loc.ghost,Some v) :: env, envlist, hasbinders) tl)
     | ETName ->
-        Gram.action (fun (na:Loc.t * name) ->
+        Gram.action (fun (na:Loc.t * Name.t) ->
 	  make (cases_pattern_expr_of_name na :: env, envlist, hasbinders) tl)
     | ETBigint ->
         Gram.action (fun (v:Bigint.bigint) ->
@@ -248,7 +248,7 @@ type tactic_grammar = {
   tacgram_key : string;
   tacgram_level : int;
   tacgram_prods : grammar_prod_item list;
-  tacgram_tactic : dir_path * Tacexpr.glob_tactic_expr;
+  tacgram_tactic : Dir_path.t * Tacexpr.glob_tactic_expr;
 }
 
 type all_grammar_command =

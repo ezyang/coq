@@ -53,8 +53,8 @@ let safe_msgnl s =
 type value =
   | VRTactic of (goal list sigma) (* For Match results *)
                                                (* Not a true value *)
-  | VFun of ltac_trace * (identifier*value) list *
-      identifier option list * glob_tactic_expr
+  | VFun of ltac_trace * (Id.t*value) list *
+      Id.t option list * glob_tactic_expr
   | VVoid
   | VInteger of int
   | VIntroPattern of intro_pattern_expr (* includes idents which are not *)
@@ -64,7 +64,7 @@ type value =
                         (* includes idents known to be bound and references *)
   | VConstr_context of constr
   | VList of value list
-  | VRec of (identifier*value) list ref * glob_tactic_expr
+  | VRec of (Id.t*value) list ref * glob_tactic_expr
 
 let dloc = Loc.ghost
 
@@ -83,8 +83,8 @@ let catch_error call_trace tac g =
 
 (* Signature for interpretation: val_interp and interpretation functions *)
 type interp_sign =
-    { lfun : (identifier * value) list;
-      avoid_ids : identifier list; (* ids inherited from the call context
+    { lfun : (Id.t * value) list;
+      avoid_ids : Id.t list; (* ids inherited from the call context
 				      (needed to get fresh ids) *)
       debug : debug_info;
       trace : ltac_trace }
@@ -137,11 +137,11 @@ type interp_genarg_type =
     Evd.evar_map * typed_generic_argument
 
 let extragenargtab =
-  ref (Stringmap.empty : interp_genarg_type Stringmap.t)
+  ref (String.Map.empty : interp_genarg_type String.Map.t)
 let add_interp_genarg id f =
-  extragenargtab := Stringmap.add id f !extragenargtab
+  extragenargtab := String.Map.add id f !extragenargtab
 let lookup_interp_genarg id =
-  try Stringmap.find id !extragenargtab
+  try String.Map.find id !extragenargtab
   with Not_found ->
     let msg = "No interpretation function found for entry " ^ id in
     msg_warning (strbrk msg);
@@ -234,7 +234,7 @@ let try_interp_ltac_var coerce ist env (loc,id) =
 
 let interp_ltac_var coerce ist env locid =
   try try_interp_ltac_var coerce ist env locid
-  with Not_found -> anomaly ("Detected '" ^ (string_of_id (snd locid)) ^ "' as ltac var at interning time")
+  with Not_found -> anomaly ("Detected '" ^ (Id.to_string (snd locid)) ^ "' as ltac var at interning time")
 
 (* Interprets an identifier which must be fresh *)
 let coerce_to_ident fresh env = function
@@ -274,11 +274,11 @@ let interp_intro_pattern_var loc ist env id =
   with Not_found -> IntroIdentifier id
 
 let coerce_to_hint_base = function
-  | VIntroPattern (IntroIdentifier id) -> string_of_id id
+  | VIntroPattern (IntroIdentifier id) -> Id.to_string id
   | _ -> raise (CannotCoerceTo "a hint base name")
 
 let interp_hint_base ist s =
-  try try_interp_ltac_var coerce_to_hint_base ist None (dloc,id_of_string s)
+  try try_interp_ltac_var coerce_to_hint_base ist None (dloc,Id.of_string s)
   with Not_found -> s
 
 let coerce_to_int = function
@@ -441,7 +441,7 @@ let rec extract_ids ids = function
   | _::tl -> extract_ids ids tl
   | [] -> []
 
-let default_fresh_id = id_of_string "H"
+let default_fresh_id = Id.of_string "H"
 
 let interp_fresh_id ist env l =
   let ids = List.map_filter (function ArgVar (_, id) -> Some id | _ -> None) l in
@@ -452,9 +452,9 @@ let interp_fresh_id ist env l =
       let s =
 	String.concat "" (List.map (function
 	  | ArgArg s -> s
-	  | ArgVar (_,id) -> string_of_id (interp_ident ist env id)) l) in
+	  | ArgVar (_,id) -> Id.to_string (interp_ident ist env id)) l) in
       let s = if Lexer.is_keyword s then s^"0" else s in
-      id_of_string s in
+      Id.of_string s in
   Tactics.fresh_id_in_env avoid id env
 
 let pf_interp_fresh_id ist gl = interp_fresh_id ist (pf_env gl)
@@ -587,6 +587,7 @@ let interp_red_expr ist sigma env = function
     let (sigma,l_interp) = interp_constr_list ist env sigma l in
     sigma , Fold l_interp
   | Cbv f -> sigma , Cbv (interp_flag ist env f)
+  | Cbn f -> sigma , Cbn (interp_flag ist env f)
   | Lazy f -> sigma , Lazy (interp_flag ist env f)
   | Pattern l ->
     let (sigma,l_interp) =
@@ -841,7 +842,7 @@ let read_pattern lfun ist env sigma = function
 let cons_and_check_name id l =
   if List.mem id l then
     user_err_loc (dloc,"read_match_goal_hyps",
-      strbrk ("Hypothesis pattern-matching variable "^(string_of_id id)^
+      strbrk ("Hypothesis pattern-matching variable "^(Id.to_string id)^
       " used twice in the same pattern."))
   else id::l
 
@@ -876,7 +877,7 @@ let equal_instances gl (ctx',c') (ctx,c) =
   (* How to compare instances? Do we want the terms to be convertible?
      unifiable? Do we want the universe levels to be relevant? 
      (historically, conv_x is used) *)
-  List.equal id_eq ctx ctx' && pf_conv_x gl c' c
+  List.equal Id.equal ctx ctx' && pf_conv_x gl c' c
 
 (* Verifies if the matched list is coherent with respect to lcm *)
 (* While non-linear matching is modulo eq_constr in matches, merge of *)
@@ -884,7 +885,7 @@ let equal_instances gl (ctx',c') (ctx,c) =
 let verify_metas_coherence gl (ln1,lcm) (ln,lm) =
   let rec aux = function
   | (id,c as x)::tl ->
-      if List.for_all (fun (id',c') -> not (id_eq id' id) || equal_instances gl c' c) lcm
+      if List.for_all (fun (id',c') -> not (Id.equal id' id) || equal_instances gl c' c) lcm
       then
 	x :: aux tl
       else
@@ -1506,13 +1507,13 @@ and interp_ltac_constr ist gl e =
 		    str "instantiated arguments " ++ fnl() ++
                     List.fold_right
                     (fun p s ->
-                      let (i,v) = p in str (string_of_id i) ++ str ", " ++ s)
+                      let (i,v) = p in str (Id.to_string i) ++ str ", " ++ s)
                     il (str "") ++
                     str "uninstantiated arguments " ++ fnl() ++
                     List.fold_right
                     (fun opt_id s ->
                       (match opt_id with
-                          Some id -> str (string_of_id id)
+                          Some id -> str (Id.to_string id)
                         | None -> str "_") ++ str ", " ++ s)
                     ul (mt()))
             | VVoid -> str "VVoid"

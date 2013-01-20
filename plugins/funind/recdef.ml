@@ -50,12 +50,12 @@ let coq_base_constant s =
     (Coqlib.init_modules @ [["Coq";"Arith";"Le"];["Coq";"Arith";"Lt"]]) s;;
 
 let find_reference sl s =
-    (locate (make_qualid(Names.make_dirpath
-			   (List.map id_of_string (List.rev sl)))
-	       (id_of_string s)));;
+    (locate (make_qualid(Names.Dir_path.make
+			   (List.map Id.of_string (List.rev sl)))
+	       (Id.of_string s)));;
 
 
-let (declare_fun : identifier -> logical_kind -> constr -> global_reference) =
+let (declare_fun : Id.t -> logical_kind -> constr -> global_reference) =
   fun f_id kind value ->
     let ce = {const_entry_body = value;
               const_entry_secctx = None;
@@ -75,7 +75,7 @@ let def_of_const t =
 	     | _ -> assert false)
        with _ ->
 	 anomaly ("Cannot find definition of constant "^
-		    (string_of_id (id_of_label (con_label (fst sp)))))
+		    (Id.to_string (Label.to_id (con_label (fst sp)))))
       )
      |_ -> assert false
 
@@ -88,9 +88,9 @@ let constr_of_global = Universes.constr_of_global
 
 let constant sl s =
   constr_of_global
-    (locate (make_qualid(Names.make_dirpath
-			   (List.map id_of_string (List.rev sl)))
-	       (id_of_string s)));;
+    (locate (make_qualid(Names.Dir_path.make
+			   (List.map Id.of_string (List.rev sl)))
+	       (Id.of_string s)));;
 let const_of_ref = function
     ConstRef kn -> kn
   | _ -> anomaly "ConstRef expected"
@@ -123,15 +123,15 @@ let pf_get_new_ids idl g =
 let compute_renamed_type gls c =
   rename_bound_vars_as_displayed (*no avoid*) [] (*no rels*) []
     (pf_type_of gls c)
-let h'_id = id_of_string "h'"
-let teq_id = id_of_string "teq"
-let ano_id = id_of_string "anonymous"
-let x_id = id_of_string "x"
-let k_id = id_of_string "k"
-let v_id = id_of_string "v"
-let def_id = id_of_string "def"
-let p_id = id_of_string "p"
-let rec_res_id = id_of_string "rec_res";;
+let h'_id = Id.of_string "h'"
+let teq_id = Id.of_string "teq"
+let ano_id = Id.of_string "anonymous"
+let x_id = Id.of_string "x"
+let k_id = Id.of_string "k"
+let v_id = Id.of_string "v"
+let def_id = Id.of_string "def"
+let p_id = Id.of_string "p"
+let rec_res_id = Id.of_string "rec_res";;
 let lt = function () -> (coq_base_constant "lt")
 let le = function () -> (coq_base_constant "le")
 let ex = function () -> (coq_base_constant "ex")
@@ -205,7 +205,7 @@ let (value_f:constr list -> global_reference -> constr) =
     let body = fst (understand Evd.empty env glob_body)(*FIXME*) in
     it_mkLambda_or_LetIn body context
 
-let (declare_f : identifier -> logical_kind -> constr list -> global_reference -> global_reference) =
+let (declare_f : Id.t -> logical_kind -> constr list -> global_reference -> global_reference) =
   fun f_id kind input_type fterm_ref ->
     declare_fun f_id kind (value_f input_type fterm_ref);;
 
@@ -303,7 +303,7 @@ let check_not_nested forbidden e =
   let rec check_not_nested e =  
     match kind_of_term e with 
       | Rel _ -> ()
-      | Var x -> if List.mem x (forbidden) then error ("check_not_nested : failure "^string_of_id x)
+      | Var x -> if List.mem x (forbidden) then error ("check_not_nested : failure "^Id.to_string x)
       | Meta _ | Evar _ | Sort _ -> ()
       | Cast(e,_,t) -> check_not_nested e;check_not_nested t
       | Prod(_,t,b) -> check_not_nested t;check_not_nested b
@@ -327,21 +327,21 @@ let check_not_nested forbidden e =
 type 'a infos = 
     { nb_arg : int; (* function number of arguments *)
       concl_tac : tactic; (* final tactic to finish proofs *)
-      rec_arg_id : identifier; (*name of the declared recursive argument *)
+      rec_arg_id : Id.t; (*name of the declared recursive argument *)
       is_mes : bool; (* type of recursion *)
-      ih : identifier; (* induction hypothesis name *)
-      f_id : identifier;  (* function name *)
+      ih : Id.t; (* induction hypothesis name *)
+      f_id : Id.t;  (* function name *)
       f_constr : constr;  (* function term *)
       f_terminate : constr; (* termination proof term *)
       func : global_reference; (* functionnal reference *)
       info : 'a;
       is_main_branch : bool; (* on the main branch or on a matched expression *)
       is_final : bool; (* final first order term or not *)
-      values_and_bounds : (identifier*identifier) list; 
-      eqs : identifier list; 
-      forbidden_ids : identifier list;
+      values_and_bounds : (Id.t*Id.t) list; 
+      eqs : Id.t list; 
+      forbidden_ids : Id.t list;
       acc_inv : constr lazy_t;
-      acc_id : identifier;
+      acc_id : Id.t;
       args_assoc : ((constr list)*constr) list;
     }
 
@@ -356,8 +356,8 @@ type ('a,'b) journey_info_tac =
 (* journey_info : specifies the actions to do on the different term constructors during the travelling of the term
 *)
 type journey_info = 
-    { letiN : ((name*constr*types*constr),constr) journey_info_tac;
-      lambdA : ((name*types*constr),constr) journey_info_tac;
+    { letiN : ((Name.t*constr*types*constr),constr) journey_info_tac;
+      lambdA : ((Name.t*types*constr),constr) journey_info_tac;
       casE : ((constr infos -> tactic) -> constr infos -> tactic) -> 
 	((case_info * constr * constr * constr array),constr) journey_info_tac;
       otherS : (unit,constr) journey_info_tac;
@@ -654,7 +654,7 @@ let terminate_letin (na,b,t,e) expr_info continuation_tac info =
   introduced back later; the result is the pair of the tactic and the
   list of hypotheses that have been generalized and cleared. *)
 let mkDestructEq :
-  identifier list -> constr -> goal sigma -> tactic * identifier list =
+  Id.t list -> constr -> goal sigma -> tactic * Id.t list =
   fun not_on_hyp expr g ->
   let hyps = pf_hyps g in
   let to_revert =
@@ -1034,10 +1034,10 @@ let termination_proof_header is_mes input_type ids args_id relation
       in
       let relation = substl pre_rec_args relation in
       let input_type = substl pre_rec_args input_type in
-      let wf_thm = next_ident_away_in_goal (id_of_string ("wf_R")) ids in
+      let wf_thm = next_ident_away_in_goal (Id.of_string ("wf_R")) ids in
       let wf_rec_arg =
 	next_ident_away_in_goal
-	  (id_of_string ("Acc_"^(string_of_id rec_arg_id)))
+	  (Id.of_string ("Acc_"^(Id.to_string rec_arg_id)))
 	  (wf_thm::ids)
       in
       let hrec = next_ident_away_in_goal hrec_id
@@ -1209,8 +1209,8 @@ let build_and_l l =
 
 
 let is_rec_res id =
-  let rec_res_name = string_of_id rec_res_id   in
-  let id_name = string_of_id id in
+  let rec_res_name = Id.to_string rec_res_id   in
+  let id_name = Id.to_string id in
   try
     String.sub id_name 0 (String.length rec_res_name) = rec_res_name
   with _ -> false
@@ -1388,7 +1388,7 @@ let com_terminate
 
 
 let start_equation (f:global_reference) (term_f:global_reference)
-  (cont_tactic:identifier list -> tactic) g =
+  (cont_tactic:Id.t list -> tactic) g =
   let ids = pf_ids_of_hyps g in
   let terminate_constr = constr_of_global term_f in
   let nargs = nb_prod (fst (type_of_const terminate_constr)) (*FIXME*) in
@@ -1401,7 +1401,7 @@ let start_equation (f:global_reference) (term_f:global_reference)
                              Array.of_list (List.map mkVar x))));
     observe_tac (str "prove_eq") (cont_tactic x)] g;;
 
-let (com_eqn : int -> identifier ->
+let (com_eqn : int -> Id.t ->
        global_reference -> global_reference -> global_reference
 	 -> constr -> unit) =
   fun nb_arg eq_name functional_ref f_ref terminate_ref equation_lemma_type ->
@@ -1434,12 +1434,12 @@ let (com_eqn : int -> identifier ->
 		eqs = [];
 		forbidden_ids = [];
 		acc_inv = lazy (assert false);
-		acc_id = id_of_string "____";
+		acc_id = Id.of_string "____";
 		args_assoc = [];
-		f_id = id_of_string "______";
-		rec_arg_id = id_of_string "______";
+		f_id = Id.of_string "______";
+		rec_arg_id = Id.of_string "______";
 		is_mes = false;
-		ih = id_of_string "______";
+		ih = Id.of_string "______";
 	       }
 	  )
        ); 

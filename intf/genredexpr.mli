@@ -34,6 +34,7 @@ type ('a,'b,'c) red_expr_gen =
   | Hnf
   | Simpl of 'c Locus.with_occurrences option
   | Cbv of 'b glob_red_flag
+  | Cbn of 'b glob_red_flag
   | Lazy of 'b glob_red_flag
   | Unfold of 'b Locus.with_occurrences list
   | Fold of 'a list
@@ -44,5 +45,5 @@ type ('a,'b,'c) red_expr_gen =
 type ('a,'b,'c) may_eval =
   | ConstrTerm of 'a
   | ConstrEval of ('a,'b,'c) red_expr_gen * 'a
-  | ConstrContext of (Loc.t * Names.identifier) * 'a
+  | ConstrContext of (Loc.t * Names.Id.t) * 'a
   | ConstrTypeOf of 'a

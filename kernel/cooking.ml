@@ -24,12 +24,12 @@ open Univ
 
 (*s Cooking the constants. *)
 
-type work_list = (universe_list * identifier array) Cmap.t * 
-  (universe_list * identifier array) Mindmap.t
+type work_list = (universe_list * Id.t array) Cmap.t * 
+  (universe_list * Id.t array) Mindmap.t
 
-let pop_dirpath p = match repr_dirpath p with
+let pop_dirpath p = match Dir_path.repr p with
   | [] -> anomaly "dirpath_prefix: empty dirpath"
-  | _::l -> make_dirpath l
+  | _::l -> Dir_path.make l
 
 let pop_mind kn =
   let (mp,dir,l) = Names.repr_mind kn in
@@ -164,7 +164,7 @@ let cook_constant env r =
   in
   let const_hyps =
     Sign.fold_named_context (fun (h,_,_) hyps ->
-      List.filter (fun (id,_,_) -> not (id_eq id h)) hyps)
+      List.filter (fun (id,_,_) -> not (Id.equal id h)) hyps)
       hyps ~init:cb.const_hyps in
   let typ = 
     abstract_constant_type (expmod_constr r.d_modlist cb.const_type) hyps 

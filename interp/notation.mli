@@ -65,7 +65,7 @@ val find_delimiters_scope : Loc.t -> delimiters -> scope_name
    negative numbers are not supported, the interpreter must fail with
    an appropriate error message *)
 
-type notation_location = (dir_path * dir_path) * string
+type notation_location = (Dir_path.t * Dir_path.t) * string
 type required_module = full_path * string list
 type cases_pattern_status = bool (** true = use prim token in patterns *)
 
@@ -95,7 +95,7 @@ val interp_prim_token_cases_pattern_expr : Loc.t -> (global_reference -> unit) -
 val uninterp_prim_token :
   glob_constr -> scope_name * prim_token
 val uninterp_prim_token_cases_pattern :
-  cases_pattern -> name * scope_name * prim_token
+  cases_pattern -> Name.t * scope_name * prim_token
 val uninterp_prim_token_ind_pattern :
  inductive -> cases_pattern list -> scope_name * prim_token
 
@@ -169,8 +169,8 @@ val compute_scope_of_global : global_reference -> scope_name option
 
 type symbol =
   | Terminal of string
-  | NonTerminal of identifier
-  | SProdList of identifier * symbol list
+  | NonTerminal of Id.t
+  | SProdList of Id.t * symbol list
   | Break of int
 
 val symbol_eq : symbol -> symbol -> bool

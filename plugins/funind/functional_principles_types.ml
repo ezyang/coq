@@ -41,7 +41,7 @@ let compute_new_princ_type_from_rel rel_to_fun sorts princ_type =
   let env = Global.env () in
   let env_with_params = Environ.push_rel_context princ_type_info.params env in
   let tbl = Hashtbl.create 792 in
-  let rec change_predicates_names (avoid:identifier list) (predicates:rel_context)  : rel_context =
+  let rec change_predicates_names (avoid:Id.t list) (predicates:rel_context)  : rel_context =
     match predicates with
     | [] -> []
     |(Name x,v,t)::predicates ->
@@ -83,10 +83,10 @@ let compute_new_princ_type_from_rel rel_to_fun sorts princ_type =
   in
   let ptes_vars = List.map (fun (id,_,_) -> id) new_predicates in
   let is_pte =
-    let set = List.fold_right Idset.add ptes_vars Idset.empty in
+    let set = List.fold_right Id.Set.add ptes_vars Id.Set.empty in
     fun t ->
       match kind_of_term t with
-	| Var id -> Idset.mem id set
+	| Var id -> Id.Set.mem id set
 	| _ -> false
   in
   let pre_princ =
@@ -114,7 +114,7 @@ let compute_new_princ_type_from_rel rel_to_fun sorts princ_type =
       | Construct(((_,num),_),_) -> num
       | _ -> assert false
   in
-  let dummy_var = mkVar (id_of_string "________") in
+  let dummy_var = mkVar (Id.of_string "________") in
   let mk_replacement c i args =
     let res = mkApp(rel_to_fun.(i), Array.map Termops.pop (array_get_start args)) in
 (*     observe (str "replacing " ++ pr_lconstr c ++ str " by "  ++ pr_lconstr res); *)
@@ -169,7 +169,7 @@ let compute_new_princ_type_from_rel rel_to_fun sorts princ_type =
     begin
       try
 	let new_t,binders_to_remove_from_t = compute_new_princ_type remove env t in
-	let new_x : name = get_name (Termops.ids_of_context env) x in
+	let new_x : Name.t = get_name (Termops.ids_of_context env) x in
 	let new_env = Environ.push_rel (x,None,t) env in
 	let new_b,binders_to_remove_from_b = compute_new_princ_type remove new_env b in
 	 if List.exists (eq_constr (mkRel 1)) binders_to_remove_from_b
@@ -198,7 +198,7 @@ let compute_new_princ_type_from_rel rel_to_fun sorts princ_type =
       try
 	let new_t,binders_to_remove_from_t = compute_new_princ_type remove env t in
 	let new_v,binders_to_remove_from_v = compute_new_princ_type remove env v in
-	let new_x : name = get_name (Termops.ids_of_context env) x in
+	let new_x : Name.t = get_name (Termops.ids_of_context env) x in
 	let new_env = Environ.push_rel (x,Some v,t) env in
 	let new_b,binders_to_remove_from_b = compute_new_princ_type remove new_env b in
 	if List.exists (eq_constr (mkRel 1)) binders_to_remove_from_b
@@ -284,7 +284,7 @@ let build_functional_principle interactive_proof old_princ_type sorts funs i pro
   (*    Pp.msgnl (str "computing principle type := " ++ System.fmt_time_difference time1 time2); *)
      observe (str "new_principle_type : " ++ pr_lconstr new_principle_type);
   let new_princ_name =
-    next_ident_away_in_goal (id_of_string "___________princ_________") []
+    next_ident_away_in_goal (Id.of_string "___________princ_________") []
   in
   begin
     Lemmas.start_proof
@@ -322,14 +322,14 @@ let generate_functional_principle
     match new_princ_name with
       | Some (id) -> id,id
       | None ->
-	  let id_of_f = id_of_label (con_label f) in
+	  let id_of_f = Label.to_id (con_label f) in
 	  id_of_f,Indrec.make_elimination_ident id_of_f (family_of_sort type_sort)
   in
   let names = ref [new_princ_name] in
   let hook new_principle_type _ _  =
     if sorts = None
     then
-      (*     let id_of_f = id_of_label (con_label f) in *)
+      (*     let id_of_f = Label.to_id (con_label f) in *)
       let register_with_sort fam_sort =
 	let s = Universes.new_sort_in_family fam_sort in
 	let name = Indrec.make_elimination_ident base_new_princ_name fam_sort in
@@ -368,7 +368,7 @@ let generate_functional_principle
       begin
 	try
 	  let id = Pfedit.get_current_proof_name () in
-	  let s = string_of_id id in
+	  let s = Id.to_string id in
 	  let n = String.length "___________princ_________" in
 	  if String.length s >= n
 	  then if String.sub s 0 n = "___________princ_________"
@@ -392,7 +392,7 @@ let get_funs_constant mp dp =
 	    (fun i na ->
 	       match na with
 		 | Name id ->
-		     let const = make_con mp dp (label_of_id id) in
+		     let const = make_con mp dp (Label.of_id id) in
 		     const,i
 		 | Anonymous ->
 		     anomaly "Anonymous fix"
@@ -522,7 +522,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
       begin
 	try
 	  let id = Pfedit.get_current_proof_name () in
-	  let s = string_of_id id in
+	  let s = Id.to_string id in
 	  let n = String.length "___________princ_________" in
 	  if String.length s >= n
 	  then if String.sub s 0 n = "___________princ_________"

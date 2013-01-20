@@ -53,9 +53,9 @@ let skip_metaid = function
 (** Generic arguments *)
 
 type glob_sign = {
-  ltacvars : identifier list * identifier list;
+  ltacvars : Id.t list * Id.t list;
      (* ltac variables and the subset of vars introduced by Intro/Let/... *)
-  ltacrecvars : (identifier * ltac_constant) list;
+  ltacrecvars : (Id.t * ltac_constant) list;
      (* ltac recursive names *)
   gsigma : Evd.evar_map;
   genv : Environ.env }
@@ -71,13 +71,13 @@ type intern_genarg_type =
     glob_sign -> raw_generic_argument -> glob_generic_argument
 
 let genarginterns =
-  ref (Stringmap.empty : intern_genarg_type Stringmap.t)
+  ref (String.Map.empty : intern_genarg_type String.Map.t)
 
 let add_intern_genarg id f =
-  genarginterns := Stringmap.add id f !genarginterns
+  genarginterns := String.Map.add id f !genarginterns
 
 let lookup_intern_genarg id =
-  try Stringmap.find id !genarginterns
+  try String.Map.find id !genarginterns
   with Not_found ->
     let msg = "No globalization function found for entry "^id in
     Pp.msg_warning (Pp.strbrk msg);
@@ -87,10 +87,10 @@ let lookup_intern_genarg id =
 
 (* Table of "pervasives" macros tactics (e.g. auto, simpl, etc.) *)
 
-let atomic_mactab = ref Idmap.empty
+let atomic_mactab = ref Id.Map.empty
 let add_primitive_tactic s tac =
-  let id = id_of_string s in
-  atomic_mactab := Idmap.add id tac !atomic_mactab
+  let id = Id.of_string s in
+  atomic_mactab := Id.Map.add id tac !atomic_mactab
 
 let _ =
   let nocl = {onhyps=Some[];concl_occs=AllOccurrences} in
@@ -124,10 +124,10 @@ let _ =
         "fresh", TacArg(dloc,TacFreshId [])
       ]
 
-let lookup_atomic id = Idmap.find id !atomic_mactab
+let lookup_atomic id = Id.Map.find id !atomic_mactab
 let is_atomic_kn kn =
   let (_,_,l) = repr_kn kn in
-  Idmap.mem (id_of_label l) !atomic_mactab
+  Id.Map.mem (Label.to_id l) !atomic_mactab
 
 (* Tactics table (TacExtend). *)
 
@@ -456,6 +456,7 @@ let intern_red_expr ist = function
   | Unfold l -> Unfold (List.map (intern_unfold ist) l)
   | Fold l -> Fold (List.map (intern_constr ist) l)
   | Cbv f -> Cbv (intern_flag ist f)
+  | Cbn f -> Cbn (intern_flag ist f)
   | Lazy f -> Lazy (intern_flag ist f)
   | Pattern l -> Pattern (List.map (intern_constr_with_occurrences ist) l)
   | Simpl o -> Simpl (Option.map (intern_typed_pattern_with_occurrences ist) o)
@@ -754,7 +755,7 @@ and intern_tacarg strict onlytac ist = function
   | ConstrMayEval c -> ConstrMayEval (intern_constr_may_eval ist c)
   | MetaIdArg (loc,istac,s) ->
       (* $id can occur in Grammar tactic... *)
-      let id = id_of_string s in
+      let id = Id.of_string s in
       if find_ltacvar id ist then
 	if istac then Reference (ArgVar (adjust_loc loc,id))
 	else ConstrMayEval (ConstrTerm (GVar (adjust_loc loc,id), None))
@@ -866,7 +867,7 @@ let add (kn,td) = mactab := Gmap.add kn td !mactab
 let replace (kn,td) = mactab := Gmap.add kn td (Gmap.remove kn !mactab)
 
 type tacdef_kind =
-  | NewTac of identifier
+  | NewTac of Id.t
   | UpdateTac of ltac_constant
 
 let load_md i ((sp,kn),(local,defs)) =
@@ -876,7 +877,7 @@ let load_md i ((sp,kn),(local,defs)) =
     match id with
       | NewTac id ->
 	  let sp = Libnames.make_path dp id in
-	  let kn = Names.make_kn mp dir (label_of_id id) in
+	  let kn = Names.make_kn mp dir (Label.of_id id) in
 	    Nametab.push_tactic (Until i) sp kn;
 	    add (kn,t)
       | UpdateTac kn -> replace (kn,t)) defs
@@ -888,7 +889,7 @@ let open_md i ((sp,kn),(local,defs)) =
     match id with
 	NewTac id ->
 	  let sp = Libnames.make_path dp id in
-	  let kn = Names.make_kn mp dir (label_of_id id) in
+	  let kn = Names.make_kn mp dir (Label.of_id id) in
 	    Nametab.push_tactic (Exactly i) sp kn
       | UpdateTac kn -> ()) defs
 
