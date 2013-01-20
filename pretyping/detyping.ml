@@ -71,7 +71,7 @@ module PrintingInductiveMake =
     type t = inductive
     let encode = Test.encode
     let subst subst (kn, ints as obj) =
-      let kn' = subst_ind subst kn in
+      let kn' = subst_mind subst kn in
 	if kn' == kn then obj else
 	  kn', ints
     let printer ind = pr_global_env Id.Set.empty (IndRef ind)

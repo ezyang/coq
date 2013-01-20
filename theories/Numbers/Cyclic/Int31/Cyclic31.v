@@ -882,16 +882,16 @@ Section Basics.
  destruct p; simpl snd.
 
  specialize IHn with p.
- destruct (p2ibis n p). simpl snd in *.
-rewrite nshiftr_S_tail.
+ destruct (p2ibis n p). simpl @snd in *.
+ rewrite nshiftr_S_tail.
  destruct (le_lt_dec size n).
  rewrite nshiftr_above_size; auto.
  assert (H:=nshiftr_0_firstl _ _ l IHn).
  replace (shiftr (twice_plus_one i)) with i; auto.
- destruct i; simpl in *; rewrite H; auto.
+ destruct i; simpl in *. rewrite H; auto.
 
  specialize IHn with p.
- destruct (p2ibis n p); simpl snd in *.
+ destruct (p2ibis n p); simpl @snd in *.
  rewrite nshiftr_S_tail.
  destruct (le_lt_dec size n).
  rewrite nshiftr_above_size; auto.

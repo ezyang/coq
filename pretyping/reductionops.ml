@@ -233,9 +233,16 @@ let magicaly_constant_of_fixbody env bd = function
     try
       let cst = Nametab.locate_constant
 	(Libnames.make_qualid Dir_path.empty id) in
-      match constant_opt_value env cst with
+      let (cst, u), ctx = Universes.fresh_constant_instance env cst in
+      match constant_opt_value env (cst,u) with
       | None -> bd
-      | Some t -> if eq_constr t bd then mkConst cst else bd
+      | Some (t,cstrs) -> 
+        let b, csts = eq_constr_univs t bd in
+	let subst = Constraint.fold (fun (l,d,r) acc -> Univ.LMap.add l r acc)
+	  csts Univ.LMap.empty
+	in
+	let inst = List.map (fun u -> Univ.LMap.find u subst) u in
+          if b then mkConstU (cst,inst) else bd
     with
     | Not_found -> bd
 
@@ -318,7 +325,6 @@ let rec whd_state_gen ?(refold=false) flags env sigma =
       if refold then List.fold_left best_state s cst_l else s
     in
     match kind_of_term x with
-<<<<<<< HEAD
     | Rel n when Closure.RedFlags.red_set flags Closure.RedFlags.fDELTA ->
       (match lookup_rel n env with
       | (_,Some body,_) -> whrec noth (lift n body, stack)
@@ -335,9 +341,9 @@ let rec whd_state_gen ?(refold=false) flags env sigma =
       (match safe_meta_value sigma ev with
       | Some body -> whrec noth (body, stack)
       | None -> fold ())
-    | Const const when Closure.RedFlags.red_set flags (Closure.RedFlags.fCONST const) ->
-      (match constant_opt_value env const with
-      | Some  body -> whrec ((mkConst const,[],0)::cst_l) (body, stack)
+    | Const (const,u as cu) when Closure.RedFlags.red_set flags (Closure.RedFlags.fCONST const) ->
+      (match constant_opt_value_in env cu with
+      | Some  body -> whrec ((mkConstU cu,[],0)::cst_l) (body, stack)
       | None -> fold ())
     | LetIn (_,b,_,c) when Closure.RedFlags.red_set flags Closure.RedFlags.fZETA ->
       apply_subst whrec [b] cst_l c stack
@@ -376,7 +382,7 @@ let rec whd_state_gen ?(refold=false) flags env sigma =
       |None -> fold ()
       |Some (bef,arg,s') -> whrec noth (arg, Zfix(f,bef,best_cst ())::s'))
 
-    | Construct (ind,c) ->
+    | Construct ((ind,c),u) ->
       if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
 	match strip_app stack with
 	|args, (Zcase(ci, _, lf,_)::s') ->
@@ -387,80 +393,6 @@ let rec whd_state_gen ?(refold=false) flags env sigma =
 		      append_stack_app_list s' (append_stack_app_list [x'] s''))
 	|_ -> fold ()
       else fold ()
-=======
-      | Rel n when Closure.RedFlags.red_set flags Closure.RedFlags.fDELTA ->
-	  (match lookup_rel n env with
-	     | (_,Some body,_) -> whrec (lift n body, stack)
-	     | _ -> s)
-      | Var id when Closure.RedFlags.red_set flags (Closure.RedFlags.fVAR id) ->
-	  (match lookup_named id env with
-	     | (_,Some body,_) -> whrec (body, stack)
-	     | _ -> s)
-      | Evar ev ->
-	  (match safe_evar_value sigma ev with
-	     | Some body -> whrec (body, stack)
-	     | None -> s)
-      | Meta ev ->
-	  (match safe_meta_value sigma ev with
-	     | Some body -> whrec (body, stack)
-	     | None -> s)
-      | Const (const,u as cu) when Closure.RedFlags.red_set flags (Closure.RedFlags.fCONST const) ->
-	  (match constant_opt_value_in env cu with
-	     | Some body -> whrec (body, stack)
-	     | None -> s)
-      | LetIn (_,b,_,c) when Closure.RedFlags.red_set flags Closure.RedFlags.fZETA ->
-	stacklam whrec [b] c stack
-      | Cast (c,_,_) -> whrec (c, stack)
-      | App (f,cl)  -> whrec (f, append_stack_app cl stack)
-      | Lambda (na,t,c) ->
-          (match decomp_stack stack with
-             | Some (a,m) when Closure.RedFlags.red_set flags Closure.RedFlags.fBETA ->
-	       stacklam whrec [a] c m
-             | None when Closure.RedFlags.red_set flags Closure.RedFlags.fETA ->
-		 let env' = push_rel (na,None,t) env in
-		 let whrec' = whd_state_gen flags env' sigma in
-                 (match kind_of_term (zip (whrec' (c, empty_stack))) with
-                    | App (f,cl) ->
-			let napp = Array.length cl in
-			if napp > 0 then
-			  let x', l' = whrec' (Array.last cl, empty_stack) in
-                          match kind_of_term x', l' with
-                            | Rel 1, [] ->
-				let lc = Array.sub cl 0 (napp-1) in
-				let u = if Int.equal napp 1 then f else appvect (f,lc) in
-				if noccurn 1 u then (pop u,empty_stack) else s
-                            | _ -> s
-			else s
-		    | _ -> s)
-	     | _ -> s)
-
-      | Case (ci,p,d,lf) ->
-	whrec (d, Zcase (ci,p,lf) :: stack)
-
-      | Fix ((ri,n),_ as f) ->
-	(match strip_n_app ri.(n) stack with
-	  |None -> s
-	  |Some (bef,arg,s') -> whrec (arg, Zfix(f,bef)::s'))
-
-      | Construct ((ind,c),u) ->
-	if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
-	  match strip_app stack with
-	  | args, (Zcase(ci, _, lf)::s') ->
-	    whrec (lf.(c-1), append_stack_app_list (List.skipn ci.ci_npar args) s')
-	  | args, (Zfix (f,s')::s'') ->
-	    let x' = applist(x,args) in
-	    whrec (contract_fix f,append_stack_app_list s' (append_stack_app_list [x'] s''))
-	  |_ -> s
-	else s
-
-      | CoFix cofix ->
-	if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
-	  match strip_app stack with
-	  |args, (Zcase(ci, _, lf)::s') ->
-	    whrec (contract_cofix cofix, stack)
-	  |_ -> s
-	else s
->>>>>>> Adapt kernel, library, pretyping, tactics and toplevel to universe polymorphism.
 
     | CoFix cofix ->
       if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
@@ -518,40 +450,12 @@ let local_whd_state_gen flags sigma =
         Some c -> whrec (c,stack)
       | None -> s)
 
-<<<<<<< HEAD
     | Meta ev ->
       (match safe_meta_value sigma ev with
         Some c -> whrec (c,stack)
       | None -> s)
-=======
-      | Fix ((ri,n),_ as f) ->
-	(match strip_n_app ri.(n) stack with
-	  |None -> s
-	  |Some (bef,arg,s') -> whrec (arg, Zfix(f,bef)::s'))
 
-      | Evar ev ->
-          (match safe_evar_value sigma ev with
-              Some c -> whrec (c,stack)
-            | None -> s)
-
-      | Meta ev ->
-          (match safe_meta_value sigma ev with
-              Some c -> whrec (c,stack)
-            | None -> s)
-
-      | Construct ((ind,c),u) ->
-	if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
-	  match strip_app stack with
-	  |args, (Zcase(ci, _, lf)::s') ->
-	    whrec (lf.(c-1), append_stack_app_list (List.skipn ci.ci_npar args) s')
-	  |args, (Zfix (f,s')::s'') ->
-	    let x' = applist(x,args) in
-	    whrec (contract_fix f,append_stack_app_list s' (append_stack_app_list [x'] s''))
-	  |_ -> s
-	else s
->>>>>>> Adapt kernel, library, pretyping, tactics and toplevel to universe polymorphism.
-
-    | Construct (ind,c) ->
+    | Construct ((ind,c),u) ->
       if Closure.RedFlags.red_set flags Closure.RedFlags.fIOTA then
 	match strip_app stack with
 	|args, (Zcase(ci, _, lf,_)::s') ->

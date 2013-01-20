@@ -305,13 +305,8 @@ let build_coq_jmeq_data () =
   congr = Lazy.force coq_jmeq_congr }
 
 let join_jmeq_types eq =
-<<<<<<< HEAD
-  mkLambda(Name (Id.of_string "A"),Termops.new_Type empty_dirpath (*FIXME?*),
+  mkLambda(Name (Id.of_string "A"),Universes.new_Type (Global.current_dirpath ()),
   mkLambda(Name (Id.of_string "x"),mkRel 1,
-=======
-  mkLambda(Name (id_of_string "A"),Universes.new_Type (Global.current_dirpath ()),
-  mkLambda(Name (id_of_string "x"),mkRel 1,
->>>>>>> Cleanup and move code from kernel to library and from pretyping to library too.
   mkApp (eq,[|mkRel 2;mkRel 1;mkRel 2|])))
 
 let build_coq_inversion_jmeq_data () =
