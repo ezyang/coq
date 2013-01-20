@@ -102,8 +102,6 @@ let dummy_bvid=Id.of_string "x"
 
 let constr_of_global = Universes.constr_of_global
 
-let constr_of_global = Universes.constr_of_global
-
 let mk_open_instance id gl m t=
   let env=pf_env gl in
   let evmap=Refiner.project gl in

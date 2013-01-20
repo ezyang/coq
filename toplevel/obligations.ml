@@ -299,10 +299,6 @@ type 'a obligation_body =
   | DefinedObl of 'a
   | TermObl of constr
 
-type 'a obligation_body = 
-  | DefinedObl of 'a
-  | TermObl of constr
-
 type obligation =
   { obl_name : Id.t;
     obl_type : types;

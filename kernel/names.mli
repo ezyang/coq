@@ -208,8 +208,6 @@ val label : kernel_name -> Label.t
 
 val dp_of_mp : module_path -> Dir_path.t
 
-val dp_of_mp : module_path -> dir_path
-
 val string_of_kn : kernel_name -> string
 val pr_kn : kernel_name -> Pp.std_ppcmds
 
@@ -324,12 +322,6 @@ val empty_transparent_state : transparent_state
 val full_transparent_state : transparent_state
 val var_full_transparent_state : transparent_state
 val cst_full_transparent_state : transparent_state
-
-
-type 'a tableKey =
-  | ConstKey of 'a
-  | VarKey of identifier
-  | RelKey of Int.t
 
 type inv_rel_key = int (** index in the [rel_context] part of environment
 			  starting by the end, {e inverse}
