@@ -709,14 +709,14 @@ let rec pr_vernac = function
       (if f then str"Export" else str"Import") ++ spc() ++
       prlist_with_sep sep pr_import_module l
   | VernacCanonical q -> str"Canonical Structure" ++ spc() ++ pr_smart_global q
-  | VernacCoercion (s,id,c1,c2) ->
-      hov 1 (
+  | VernacCoercion (s,poly,id,c1,c2) ->
+      hov 1 (pr_poly poly ++
 	str"Coercion" ++ (match s with | Local -> spc() ++
 	  str"Local" ++ spc() | Global -> spc()) ++
 	pr_smart_global id ++ spc() ++ str":" ++ spc() ++ pr_class_rawexpr c1 ++
 	spc() ++ str">->" ++ spc() ++ pr_class_rawexpr c2)
-  | VernacIdentityCoercion (s,id,c1,c2) ->
-      hov 1 (
+  | VernacIdentityCoercion (s,p,id,c1,c2) ->
+      hov 1 (pr_poly p ++      
 	str"Identity Coercion" ++ (match s with | Local -> spc() ++
 	  str"Local" ++ spc() | Global -> spc()) ++ pr_lident id ++
 	spc() ++ str":" ++ spc() ++ pr_class_rawexpr c1 ++ spc() ++ str">->" ++
