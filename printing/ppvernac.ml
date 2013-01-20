@@ -710,7 +710,7 @@ let rec pr_vernac = function
       prlist_with_sep sep pr_import_module l
   | VernacCanonical q -> str"Canonical Structure" ++ spc() ++ pr_smart_global q
   | VernacCoercion (s,poly,id,c1,c2) ->
-      hov 1 (
+      hov 1 (pr_poly poly ++
 	str"Coercion" ++ (match s with | Local -> spc() ++
 	  str"Local" ++ spc() | Global -> spc()) ++
 	pr_smart_global id ++ spc() ++ str":" ++ spc() ++ pr_class_rawexpr c1 ++

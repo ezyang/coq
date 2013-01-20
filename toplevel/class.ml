@@ -217,8 +217,8 @@ let build_id_coercion idf_opt source poly =
       { const_entry_body = mkCast (val_f, DEFAULTcast, typ_f);
         const_entry_secctx = None;
 	const_entry_type = Some typ_f;
-	const_entry_polymorphic = false;
-	const_entry_universes = Univ.empty_universe_context; (* FIXME *)
+	const_entry_polymorphic = poly;
+	const_entry_universes = Univ.context_of_universe_context_set ctx;
         const_entry_opaque = false } in
   let kn = declare_constant idf (constr_entry,IsDefinition IdentityCoercion) in
   ConstRef kn
