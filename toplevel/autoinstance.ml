@@ -214,7 +214,6 @@ let rec iter_under_prod (f:rel_context->constr->unit) (ctx:rel_context) t = f ct
 (* main search function: search for total instances containing gr, and
    apply k to each of them *)
 let complete_signature_with_def gr deftyp (k:instance_decl_function -> signature -> unit) : unit =
-  let gr_c = Universes.constr_of_global gr in
   let (smap:(Globnames.global_reference * Evd.evar_map,
    ('a * 'b * Term.constr) list * Evd.evar)
   Gmapl.t ref) = ref Gmapl.empty in
@@ -230,7 +229,7 @@ let complete_signature_with_def gr deftyp (k:instance_decl_function -> signature
     ( fun (cl,evm) evl ->
 	let f = if Typeclasses.is_class cl then
 	  declare_class_instance else declare_record_instance in
-	complete_with_evars_permut (cl,[],evm) evl gr_c
+	complete_with_evars_permut (cl,[],evm) evl (Universes.constr_of_global gr)
 	  (fun sign -> complete_signature (k f) sign)
     ) !smap
 

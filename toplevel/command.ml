@@ -203,7 +203,7 @@ let declare_assumption is_coe (local,p,kind) (c,ctx) imps impl nl (_,ident) =
 	Typeclasses.declare_instance None false gr;
         gr , (Lib.is_modtype_strict ())
   in
-    if is_coe then Class.try_add_new_coercion r local;
+    if is_coe then Class.try_add_new_coercion r local p;
     status
 
 let declare_assumptions_hook = ref ignore
@@ -523,7 +523,7 @@ let do_mutual_inductive indl poly finite =
   (* Declare the possible notations of inductive types *)
   List.iter Metasyntax.add_notation_interpretation ntns;
   (* Declare the coercions *)
-  List.iter (fun qid -> Class.try_add_new_coercion (locate qid) Global) coes
+  List.iter (fun qid -> Class.try_add_new_coercion (locate qid) Global poly) coes
 
 (* 3c| Fixpoints and co-fixpoints *)
 

@@ -253,9 +253,9 @@ type vernac_expr =
       export_flag option * lreference list
   | VernacImport of export_flag * lreference list
   | VernacCanonical of reference or_by_notation
-  | VernacCoercion of locality * reference or_by_notation *
+  | VernacCoercion of locality * polymorphic * reference or_by_notation *
       class_rawexpr * class_rawexpr
-  | VernacIdentityCoercion of locality * lident *
+  | VernacIdentityCoercion of locality * polymorphic * lident *
       class_rawexpr * class_rawexpr
 
   (* Type classes *)
