@@ -152,6 +152,7 @@ val fold : (evar -> evar_info -> 'a -> 'a) -> evar_map -> 'a -> 'a
 val fold_undefined : (evar -> evar_info -> 'a -> 'a) -> evar_map -> 'a -> 'a
 val merge : evar_map -> evar_map -> evar_map
 val define : evar -> constr -> evar_map -> evar_map
+val cmap : (constr -> constr) -> evar_map -> evar_map
 
 val is_evar : evar_map -> evar -> bool
 
@@ -270,6 +271,9 @@ val union_evar_universe_context : evar_universe_context -> evar_universe_context
 val add_constraints_context : evar_universe_context -> 
   Univ.constraints -> evar_universe_context
 
+val normalize_evar_universe_context_variables : evar_universe_context -> 
+  Univ.universe_subst in_evar_universe_context
+
 val normalize_evar_universe_context : evar_universe_context -> Univ.universe_subst ->
   Univ.universe_full_subst in_evar_universe_context
 
@@ -303,6 +307,8 @@ val with_context_set : rigid -> evar_map -> 'a Univ.in_universe_context_set -> e
 
 val nf_univ_variables : evar_map -> evar_map * Univ.universe_subst
 val abstract_undefined_variables : evar_map -> evar_map
+
+val refresh_undefined_universes : evar_map -> evar_map * Univ.universe_subst
 
 val nf_constraints : evar_map -> evar_map * Univ.universe_full_subst
 

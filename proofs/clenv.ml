@@ -48,6 +48,12 @@ let subst_clenv sub clenv =
     evd = subst_evar_defs_light sub clenv.evd;
     env = clenv.env }
 
+let map_clenv sub clenv =
+  { templval = map_fl sub clenv.templval;
+    templtyp = map_fl sub clenv.templtyp;
+    evd = cmap sub clenv.evd;
+    env = clenv.env }
+
 let clenv_nf_meta clenv c = nf_meta clenv.evd c
 let clenv_term clenv c = meta_instance clenv.evd c
 let clenv_meta_type clenv mv = Typing.meta_type clenv.evd mv

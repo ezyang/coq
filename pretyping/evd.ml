@@ -283,7 +283,10 @@ let process_constraints vars local cstrs =
       if Univ.Level.is_small r &&
 	not (Univ.Level.is_small l || Univ.LMap.mem l vars) then
 	anomaly ("Trying to lower a rigid Type universe to a small universe")
-      else (vars, Univ.Constraint.add cstr local))
+      else
+	if d = Univ.Le && Univ.Constraint.mem (l,Univ.Lt,r) local then
+	  (vars, local)
+	else (vars, Univ.Constraint.add cstr local))
   cstrs (vars, local)
 
 let add_constraints_context ctx cstrs =
@@ -501,6 +504,12 @@ let subst_evar_defs_light sub evd =
   }
 
 let subst_evar_map = subst_evar_defs_light
+
+let cmap f evd = 
+  { evd with
+      metas = Metamap.map (map_clb f) evd.metas;
+      evars = EvarInfoMap.map (fst evd.evars) (map_evar_info f), (snd evd.evars)
+  }
 
 (* spiwack: deprecated *)
 let create_evar_defs sigma = { sigma with
@@ -863,6 +872,26 @@ let mark_undefs_as_rigid uctx =
 
 let abstract_undefined_variables ({evars = (sigma, uctx)} as d) =
   {d with evars = (sigma, mark_undefs_as_rigid uctx)}
+
+let refresh_undefined_univ_variables uctx =
+  let subst, ctx' = Universes.fresh_universe_context_set_instance uctx.uctx_local in
+  let alg = Univ.LSet.fold (fun u acc -> Univ.LSet.add (Univ.subst_univs_level subst u) acc) 
+    uctx.uctx_univ_algebraic Univ.LSet.empty 
+  in
+  let vars = 
+    Univ.LMap.fold
+      (fun u v acc ->
+       Univ.LMap.add (Univ.subst_univs_level subst u) (Option.map (Univ.subst_univs_level subst) v) acc)
+    uctx.uctx_univ_variables Univ.LMap.empty
+  in 
+  let uctx' = {uctx_local = ctx'; uctx_univ_variables = vars; uctx_univ_algebraic = alg;
+	       uctx_universes = Univ.initial_universes} in
+    uctx', subst
+
+let refresh_undefined_universes ({evars = (sigma, uctx)} as d) =
+  let uctx', subst = refresh_undefined_univ_variables uctx in
+  let metas' = Metamap.map (map_clb (subst_univs_constr subst)) d.metas in
+    {d with evars = (sigma, uctx'); metas = metas'}, subst
 
 let normalize_evar_universe_context uctx subst = 
   let undef, _ = Univ.LMap.partition (fun i b -> b = None) uctx.uctx_univ_variables in

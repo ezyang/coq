@@ -99,6 +99,8 @@ val import : compiled_library -> Digest.t -> module_path
 (** Function to get an environment from the constants part of the global
  * environment and a given context. *)
 
+val is_polymorphic : Globnames.global_reference -> bool
+
 (* val type_of_global : Globnames.global_reference -> types Univ.in_universe_context_set *)
 val type_of_global_unsafe : Globnames.global_reference -> types 
 val env_of_context : Environ.named_context_val -> Environ.env

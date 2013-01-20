@@ -107,8 +107,8 @@ type reference_or_constr =
   | HintsConstr of constr_expr
 
 type hints_expr =
-  | HintsResolve of (int option * bool * reference_or_constr) list
-  | HintsImmediate of reference_or_constr list
+  | HintsResolve of (int option * polymorphic * bool * reference_or_constr) list
+  | HintsImmediate of (polymorphic * reference_or_constr) list
   | HintsUnfold of reference list
   | HintsTransparency of reference list * bool
   | HintsConstructors of reference list

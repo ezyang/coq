@@ -32,6 +32,8 @@ type clausenv = {
    goal env) *)
 val subst_clenv : substitution -> clausenv -> clausenv
 
+val map_clenv : (constr -> constr) -> clausenv -> clausenv
+
 (** subject of clenv (instantiated) *)
 val clenv_value     : clausenv -> constr
 
