@@ -95,7 +95,7 @@ and cases_pattern_notation_substitution_eq (s1, n1) (s2, n2) =
 let rec constr_expr_eq e1 e2 =
   if e1 == e2 then true
   else match e1, e2 with
-  | CRef r1, CRef r2 -> eq_reference r1 r2
+  | CRef (r1,_), CRef (r2,_) -> eq_reference r1 r2
   | CFix(_,id1,fl1), CFix(_,id2,fl2) ->
       eq_located Id.equal id1 id2 &&
       List.equal fix_expr_eq fl1 fl2
@@ -112,7 +112,7 @@ let rec constr_expr_eq e1 e2 =
       Name.equal na1 na2 &&
       constr_expr_eq a1 a2 &&
       constr_expr_eq b1 b2
-  | CAppExpl(_,(proj1,r1),al1), CAppExpl(_,(proj2,r2),al2) ->
+  | CAppExpl(_,(proj1,r1,_),al1), CAppExpl(_,(proj2,r2,_),al2) ->
       Option.equal Int.equal proj1 proj2 &&
       eq_reference r1 r2 &&
       List.equal constr_expr_eq al1 al2

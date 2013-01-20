@@ -46,7 +46,7 @@ type mutual_inductive_entry = {
   mind_entry_record : bool;
   mind_entry_finite : bool;
   mind_entry_params : (Id.t * local_entry) list;
-  mind_entry_inds : one_inductive_entry list }
+  mind_entry_inds : one_inductive_entry list;
   mind_entry_polymorphic : bool;
   mind_entry_universes : universe_context }
 

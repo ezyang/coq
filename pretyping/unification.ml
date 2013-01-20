@@ -657,7 +657,7 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
                 Id.Pred.subset dl_id cv_id && Cpred.subset dl_k cv_k
             | None,(dl_id, dl_k) ->
                 Id.Pred.is_empty dl_id && Cpred.is_empty dl_k)
-      then error_cannot_unify env sigma (m, n) else None)
+      then error_cannot_unify env sigma (m, n) else None
   in 
     match res with 
     | Some sigma -> sigma, ms, es

@@ -267,7 +267,7 @@ let close_proof () =
     let proofs_and_types, ctx = Proof.return p in
     let section_vars = Proof.get_used_variables p in
     let { compute_guard=cg ; strength=str ; hook=hook } =
-      Idmap.find id !proof_info
+      Id.Map.find id !proof_info
     in
     let entries = List.map
       (fun (c,t) -> { Entries.const_entry_body = c;
@@ -277,9 +277,6 @@ let close_proof () =
 		      const_entry_universes = ctx;
 		      const_entry_opaque = true })
       proofs_and_types
-    in
-    let { compute_guard=cg ; strength=str ; hook=hook } =
-      Id.Map.find id !proof_info
     in
     (id, (entries,cg,str,hook))
   with

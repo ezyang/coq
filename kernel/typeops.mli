@@ -30,7 +30,7 @@ val infer_type : env -> types        ->
 
 val infer_local_decls :
   env -> (Id.t * local_entry) list
-    -> env * rel_context * in_universe_context_set
+    -> (env * rel_context) in_universe_context_set
 
 (** {6 Basic operations of the typing machine. } *)
 
