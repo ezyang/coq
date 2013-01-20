@@ -189,11 +189,12 @@ let pr_hints local db h pr_c pr_pat =
     match h with
     | HintsResolve l ->
         str "Resolve " ++ prlist_with_sep sep
-	  (fun (pri, _, c) -> pr_reference_or_constr pr_c c ++
+	  (fun (pri, poly, _, c) -> pr_reference_or_constr pr_c c ++
 	    match pri with Some x -> spc () ++ str"(" ++ int x ++ str")" | None -> mt ())
 	  l
     | HintsImmediate l ->
-        str"Immediate" ++ spc() ++ prlist_with_sep sep (pr_reference_or_constr pr_c) l
+        str"Immediate" ++ spc() ++ 
+	  prlist_with_sep sep (fun (poly, c) -> pr_reference_or_constr pr_c c) l
     | HintsUnfold l ->
         str "Unfold " ++ prlist_with_sep sep pr_reference l
     | HintsTransparency (l, b) ->

@@ -345,7 +345,7 @@ let normalize_context_set (ctx, csts) substdef us algs =
 	instantiate_univ_variables ucstrsl ucstrsr u' acc
       else acc)
     us ([], noneqs)
-  in
+  in  
   let subst, ussubst, noneqs = 
     let rec aux subst ussubst =
       List.fold_left (fun (subst', usubst') (u, us) -> 
@@ -391,6 +391,18 @@ let normalize_context_set (ctx, csts) substdef us algs =
     List.partition (fun (u, _) -> LSet.mem u algs) ussubst
   in
   let subst = LMap.union substdef subst in
+  let rec normalize_univ subst v = 
+    let v' = subst_univs_full_universe subst v in
+      if v' = v then v'
+      else normalize_univ subst v'
+  in
+  let normalize_subst s =
+    LMap.fold (fun u v acc -> 
+	       let v' = normalize_univ acc v in
+		 if v' = v then acc
+		 else LMap.add u v' acc)
+    s s
+  in
   let subst = 
     LMap.union (Univ.LMap.of_list usalg)
       (LMap.fold (fun u v acc ->
@@ -398,6 +410,7 @@ let normalize_context_set (ctx, csts) substdef us algs =
 	else LMap.add u (Universe.make (subst_univs_level subst v)) acc)
        subst LMap.empty)
   in
+  let subst = normalize_subst subst in
   let ctx' = LSet.diff ctx (LMap.universes subst) in
   let constraints' =
     (** Residual constraints that can't be normalized further. *)

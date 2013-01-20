@@ -39,6 +39,7 @@ open Tacexpr
 open Mod_subst
 open Misctypes
 open Locus
+open Decl_kinds
 
 (****************************************************************************)
 (*            The Type of Constructions Autotactic Hints                    *)
@@ -66,6 +67,7 @@ type hints_path =
 
 type 'a gen_auto_tactic = {
   pri  : int;            (* A number lower is higher priority *)
+  poly  : polymorphic;    (** Is the hint polymorpic and hence should be refreshed at each application *)
   pat  : constr_pattern option; (* A pattern for the concl of the Goal *)
   name  : hints_path_atom; (* A potential name to refer to the hint *) 
   code : 'a auto_tactic     (* the tactic to apply when the concl matches pat *)
@@ -184,7 +186,7 @@ let instantiate_hint p =
     | Give_exact (c, cty, ctx) -> Give_exact (c, mk_clenv c cty ctx)
     | Unfold_nth e -> Unfold_nth e
     | Extern t -> Extern t
-  in { pri = p.pri; name = p.name; pat = p.pat; code = code }
+  in { pri = p.pri; poly = p.poly; name = p.name; pat = p.pat; code = code }
 
 let hints_path_atom_eq h1 h2 = match h1, h2 with
 | PathHints l1, PathHints l2 -> List.equal eq_gr l1 l2
@@ -501,7 +503,7 @@ let try_head_pattern c =
   try head_pattern_bound c
   with BoundPattern -> error "Bound head variable."
 
-let make_exact_entry sigma pri ?(name=PathAny) (c, cty, ctx) =
+let make_exact_entry sigma pri poly ?(name=PathAny) (c, cty, ctx) =
   let cty = strip_outer_cast cty in
     match kind_of_term cty with
     | Prod _ -> failwith "make_exact_entry"
@@ -513,11 +515,12 @@ let make_exact_entry sigma pri ?(name=PathAny) (c, cty, ctx) =
 	in
           (Some hd,
 	  { pri = (match pri with None -> 0 | Some p -> p);
+	    poly = poly;
 	    pat = Some pat;
 	    name = name;
 	    code = Give_exact (c, cty, ctx) })
 
-let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c, cty, ctx) =
+let make_apply_entry env sigma (eapply,hnf,verbose) pri poly ?(name=PathAny) (c, cty, ctx) =
   let cty = if hnf then hnf_constr env sigma cty else cty in
     match kind_of_term cty with
     | Prod _ ->
@@ -532,6 +535,7 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c, cty,
 	if Int.equal nmiss 0 then
 	  (Some hd,
           { pri = (match pri with None -> nb_hyp cty | Some p -> p);
+	    poly = poly;
             pat = Some pat;
 	    name = name;
             code = Res_pf(c,cty,ctx) })
@@ -542,6 +546,7 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c, cty,
 	    str " will only be used by eauto");
           (Some hd,
            { pri = (match pri with None -> nb_hyp cty + nmiss | Some p -> p);
+	     poly = poly;
              pat = Some pat;
 	     name = name;
              code = ERes_pf(c,cty,ctx) })
@@ -552,13 +557,13 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri ?(name=PathAny) (c, cty,
    c is a constr
    cty is the type of constr *)
 
-let make_resolves env sigma flags pri ?name cr =
+let make_resolves env sigma flags pri poly ?name cr =
   let c, ctx = Universes.fresh_global_or_constr_instance env cr in
   let cty = Retyping.get_type_of env sigma c in
   let try_apply f =
     try Some (f (c, cty, ctx)) with Failure _ -> None in
   let ents = List.map_filter try_apply
-      [make_exact_entry sigma pri ?name; make_apply_entry env sigma flags pri ?name]
+    [make_exact_entry sigma pri poly ?name; make_apply_entry env sigma flags pri poly ?name]
   in
   if List.is_empty ents then
     errorlabstrm "Hint"
@@ -570,7 +575,7 @@ let make_resolves env sigma flags pri ?name cr =
 (* used to add an hypothesis to the local hint database *)
 let make_resolve_hyp env sigma (hname,_,htyp) =
   try
-    [make_apply_entry env sigma (true, true, false) None 
+    [make_apply_entry env sigma (true, true, false) None false
        ~name:(PathHints [VarRef hname])
        (mkVar hname, htyp, Univ.empty_universe_context_set)]
   with
@@ -582,6 +587,7 @@ let make_unfold eref =
   let g = global_of_evaluable_reference eref in
   (Some g,
    { pri = 4;
+     poly = false;
      pat = None;
      name = PathHints [g];
      code = Unfold_nth eref })
@@ -590,16 +596,18 @@ let make_extern pri pat tacast =
   let hdconstr = Option.map try_head_pattern pat in
   (hdconstr,
    { pri = pri;
+     poly = false;
      pat = pat;
      name = PathAny;
      code = Extern tacast })  
 
-let make_trivial env sigma ?(name=PathAny) r =
+let make_trivial env sigma poly ?(name=PathAny) r =
   let c,ctx = Universes.fresh_global_or_constr_instance env r in
   let t = hnf_constr env sigma (type_of env sigma c) in
   let hd = head_of_constr_reference (fst (head_constr t)) in
   let ce = mk_clenv_from dummy_goal (c,t) in
   (Some hd, { pri=1;
+	      poly = poly;
               pat = Some (snd (Patternops.pattern_of_constr sigma (clenv_type ce)));
 	      name = name;
               code=Res_pf_THEN_trivial_fail(c,t,ctx) })
@@ -766,8 +774,9 @@ let add_resolves env sigma clist local dbnames =
        Lib.add_anonymous_leaf
 	 (inAutoHint
 	    (local,dbname, AddHints
-     	      (List.flatten (List.map (fun (x, hnf, path, gr) ->
-	        make_resolves env sigma (true,hnf,Flags.is_verbose()) x ~name:path gr) clist)))))
+     	      (List.flatten (List.map (fun (pri, poly, hnf, path, gr) ->
+	        make_resolves env sigma (true,hnf,Flags.is_verbose()) 
+		  pri poly ~name:path gr) clist)))))
     dbnames
 
 let add_unfolds l local dbnames =
@@ -813,7 +822,7 @@ let add_trivials env sigma l local dbnames =
     (fun dbname ->
        Lib.add_anonymous_leaf (
 	 inAutoHint(local,dbname, 
-		    AddHints (List.map (fun (name, c) -> make_trivial env sigma ~name c) l))))
+		    AddHints (List.map (fun (name, poly, c) -> make_trivial env sigma poly ~name c) l))))
     dbnames
 
 let forward_intern_tac =
@@ -821,9 +830,11 @@ let forward_intern_tac =
 
 let set_extern_intern_tac f = forward_intern_tac := f
 
+type hnf = bool
+
 type hints_entry =
-  | HintsResolveEntry of (int option * bool * hints_path_atom * global_reference_or_constr) list
-  | HintsImmediateEntry of (hints_path_atom * global_reference_or_constr) list
+  | HintsResolveEntry of (int option * polymorphic * hnf * hints_path_atom * global_reference_or_constr) list
+  | HintsImmediateEntry of (hints_path_atom * polymorphic * global_reference_or_constr) list
   | HintsCutEntry of hints_path
   | HintsUnfoldEntry of evaluable_global_reference list
   | HintsTransparencyEntry of evaluable_global_reference list * bool
@@ -875,16 +886,16 @@ let interp_hints =
     let r' = evaluable_of_global_reference (Global.env()) gr in
     Dumpglob.add_glob (loc_of_reference r) gr;
     r' in
-  let fi c =
+  let fi (poly, c) =
     match c with
     | HintsReference c ->
       let gr = global_with_alias c in
-	(PathHints [gr], IsGlobal gr)
-    | HintsConstr c -> (PathAny, IsConstr (f c))
+	(PathHints [gr], poly, IsGlobal gr)
+    | HintsConstr c -> (PathAny, poly, IsConstr (f c))
   in
-  let fres (o, b, c) =
-    let path, gr = fi c in
-      (o, b, path, gr)
+  let fres (pri, poly, b, r) =
+    let path, poly, gr = fi (poly, r) in
+      (pri, poly, b, path, gr)
   in
   let fp = Constrintern.intern_constr_pattern Evd.empty (Global.env()) in
   match h with
@@ -896,10 +907,11 @@ let interp_hints =
   | HintsConstructors lqid ->
       let constr_hints_of_ind qid =
         let ind = global_inductive_with_alias qid in
+	let mib,_ = Global.lookup_inductive ind in
 	Dumpglob.dump_reference (fst (qualid_of_reference qid)) "<>" (string_of_reference qid) "ind";
         List.tabulate (fun i -> let c = (ind,i+1) in
 				let gr = ConstructRef c in
-				  None, true, PathHints [gr], IsGlobal gr)
+				  None, mib.Declarations.mind_polymorphic, true, PathHints [gr], IsGlobal gr)
 	  (nconstructors ind) in
 	HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
   | HintsExtern (pri, patcom, tacexp) ->
@@ -1107,7 +1119,7 @@ let expand_constructor_hints env lems =
 let add_hint_lemmas eapply lems hint_db gl =
   let lems = expand_constructor_hints (pf_env gl) lems in
   let hintlist' =
-    List.map_append (pf_apply make_resolves gl (eapply,true,false) None) lems in
+    List.map_append (pf_apply make_resolves gl (eapply,true,false) None false) lems in
   Hint_db.add_list hintlist' hint_db
 
 let make_local_hint_db ?ts eapply lems gl =

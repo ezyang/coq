@@ -91,6 +91,16 @@ let family_of_sort = function
   | Prop Pos -> InSet
   | Type _ -> InType
 
+let univ_of_sort = function
+  | Type u -> u
+  | Prop Pos -> Univ.type0_univ
+  | Prop Null -> Univ.type0m_univ
+
+let sort_of_univ u =
+  if is_type0m_univ u then Prop Null
+  else if is_type0_univ u then Prop Pos
+  else Type u
+
 (********************************************************************)
 (*       Constructions as implemented                               *)
 (********************************************************************)
@@ -590,12 +600,12 @@ let map_constr_with_binders g f l c = match kind_of_term c with
    application associativity, binders name and Cases annotations are
    not taken into account *)
 
-let compare_constr eq_universes f t1 t2 =
+let compare_constr eq_universes eq_sorts f t1 t2 =
   match kind_of_term t1, kind_of_term t2 with
   | Rel n1, Rel n2 -> Int.equal n1 n2
   | Meta m1, Meta m2 -> Int.equal m1 m2
   | Var id1, Var id2 -> Int.equal (Id.compare id1 id2) 0
-  | Sort s1, Sort s2 -> Int.equal (sorts_ord s1 s2) 0
+  | Sort s1, Sort s2 -> eq_sorts s1 s2
   | Cast (c1,_,_), _ -> f c1 t2
   | _, Cast (c2,_,_) -> f t1 c2
   | Prod (_,t1,c1), Prod (_,t2,c2) -> f t1 t2 && f c1 c2
@@ -619,14 +629,45 @@ let compare_constr eq_universes f t1 t2 =
       Int.equal ln1 ln2 && Array.equal f tl1 tl2 && Array.equal f bl1 bl2
   | _ -> false
 
+let compare_constr_leq eq_universes eq_sorts leq_sorts eq leq t1 t2 =
+  match kind_of_term t1, kind_of_term t2 with
+  | Rel n1, Rel n2 -> Int.equal n1 n2
+  | Meta m1, Meta m2 -> Int.equal m1 m2
+  | Var id1, Var id2 -> Int.equal (id_ord id1 id2) 0
+  | Sort s1, Sort s2 -> leq_sorts s1 s2
+  | Cast (c1,_,_), _ -> leq c1 t2
+  | _, Cast (c2,_,_) -> leq t1 c2
+  | Prod (_,t1,c1), Prod (_,t2,c2) -> eq t1 t2 && leq c1 c2
+  | Lambda (_,t1,c1), Lambda (_,t2,c2) -> eq t1 t2 && eq c1 c2
+  | LetIn (_,b1,t1,c1), LetIn (_,b2,t2,c2) -> eq b1 b2 && eq t1 t2 && leq c1 c2
+  | App (c1,l1), _ when isCast c1 -> leq (mkApp (pi1 (destCast c1),l1)) t2
+  | _, App (c2,l2) when isCast c2 -> leq t1 (mkApp (pi1 (destCast c2),l2))
+  | App (c1,l1), App (c2,l2) ->
+    Int.equal (Array.length l1) (Array.length l2) &&
+      eq c1 c2 && Array.equal eq l1 l2
+  | Evar (e1,l1), Evar (e2,l2) -> Int.equal e1 e2 && Array.equal eq l1 l2
+  | Const (c1,u1), Const (c2,u2) -> eq_constant c1 c2 && eq_universes u1 u2
+  | Ind (c1,u1), Ind (c2,u2) -> eq_ind c1 c2 && eq_universes u1 u2
+  | Construct (c1,u1), Construct (c2,u2) -> eq_constructor c1 c2 && eq_universes u1 u2
+  | Case (_,p1,c1,bl1), Case (_,p2,c2,bl2) ->
+      eq p1 p2 & eq c1 c2 && Array.equal eq bl1 bl2
+  | Fix ((ln1, i1),(_,tl1,bl1)), Fix ((ln2, i2),(_,tl2,bl2)) ->
+      Int.equal i1 i2 && Array.equal Int.equal ln1 ln2
+      && Array.equal eq tl1 tl2 && Array.equal eq bl1 bl2
+  | CoFix(ln1,(_,tl1,bl1)), CoFix(ln2,(_,tl2,bl2)) ->
+      Int.equal ln1 ln2 && Array.equal eq tl1 tl2 && Array.equal eq bl1 bl2
+  | _ -> false
+
 (*******************************)
 (*  alpha conversion functions *)
 (*******************************)
 
 (* alpha conversion : ignore print names and casts *)
 
+let eq_sorts s1 s2 = Int.equal (sorts_ord s1 s2) 0
+
 let rec eq_constr m n =
-  (m == n) || compare_constr LList.eq eq_constr m n
+  (m == n) || compare_constr LList.eq eq_sorts eq_constr m n
 
 let eq_constr m n = eq_constr m n (* to avoid tracing a recursive fun *)
 
@@ -641,17 +682,51 @@ let eq_constr_univs m n =
       try List.for_all2 eq_univs l l'
       with Invalid_argument _ -> anomaly "Ill-formed universe instance"
     in
-    let rec eq_constr' m n = 
-      m == n ||	compare_constr eq_universes eq_constr' m n
+    let eq_sorts s1 s2 = 
+      try cstrs := Univ.enforce_eq (univ_of_sort s1) (univ_of_sort s2) !cstrs; true
+      with _ -> false
     in
-    let res = compare_constr eq_universes eq_constr' m n in
+    let rec eq_constr' m n = 
+      m == n ||	compare_constr eq_universes eq_sorts eq_constr' m n
+    in
+    let res = compare_constr eq_universes eq_sorts eq_constr' m n in
       res, !cstrs
 
+let leq_constr_univs m n =
+  if m == n then true, Constraint.empty
+  else 
+    let cstrs = ref Constraint.empty in
+    let eq_univs l l' = 
+      cstrs := Univ.enforce_eq_level l l' !cstrs; true
+    in
+    let eq_universes l l' = 
+      try List.for_all2 eq_univs l l'
+      with Invalid_argument _ -> anomaly "Ill-formed universe instance"
+    in
+    let eq_sorts s1 s2 = 
+      try cstrs := Univ.enforce_eq (univ_of_sort s1) (univ_of_sort s2) !cstrs; true
+      with _ -> false
+    in
+    let leq_sorts s1 s2 = 
+      try cstrs := Univ.enforce_leq (univ_of_sort s1) (univ_of_sort s2) !cstrs; true
+      with _ -> false
+    in
+    let rec eq_constr' m n = 
+      m == n ||	compare_constr eq_universes eq_sorts eq_constr' m n
+    in
+    let rec compare_leq m n =
+      compare_constr_leq eq_universes eq_sorts leq_sorts eq_constr' leq_constr' m n
+    and leq_constr' m n = m == n || compare_leq m n in
+    let res = compare_leq m n in
+      res, !cstrs
+
+let always_true _ _ = true
+
 let rec eq_constr_nounivs m n =
-  (m == n) || compare_constr (fun _ _ -> true) eq_constr_nounivs m n
+  (m == n) || compare_constr always_true always_true eq_constr_nounivs m n
 
 (** Strict equality of universe instances. *)
-let compare_constr = compare_constr LList.eq
+let compare_constr = compare_constr LList.eq eq_sorts
 
 let constr_ord_int f t1 t2 =
   let (=?) f g i1 i2 j1 j2=
@@ -1181,16 +1256,6 @@ let lam_n_assum n t = fst (decompose_lam_n_assum n t)
 let strip_lam_assum t = snd (decompose_lam_assum t)
 let strip_lam t = snd (decompose_lam t)
 let strip_lam_n n t = snd (decompose_lam_n n t)
-
-let univ_of_sort = function
-  | Type u -> u
-  | Prop Pos -> Univ.type0_univ
-  | Prop Null -> Univ.type0m_univ
-
-let sort_of_univ u =
-  if is_type0m_univ u then Prop Null
-  else if is_type0_univ u then Prop Pos
-  else Type u
 
 let subst_univs_constr subst c =
   if Univ.is_empty_subst subst then c

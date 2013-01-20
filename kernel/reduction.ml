@@ -459,7 +459,10 @@ let clos_fconv trans cv_pb l2r evars env t1 t2 =
   ccnv cv_pb l2r infos el_id el_id (inject t1) (inject t2) empty_constraint
 
 let trans_fconv reds cv_pb l2r evars env t1 t2 =
-  let b, univs = eq_constr_univs t1 t2 in
+  let b, univs = 
+    if cv_pb = CUMUL then leq_constr_univs t1 t2 
+    else eq_constr_univs t1 t2 
+  in
     if b then univs
     else clos_fconv reds cv_pb l2r evars env t1 t2
 

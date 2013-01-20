@@ -111,10 +111,10 @@ val classes_transparent_state : unit -> transparent_state
 
 val register_add_instance_hint : 
   (global_reference_or_constr -> global_reference list -> 
-   bool (* local? *) -> int option -> unit) -> unit
+   bool (* local? *) -> int option -> polymorphic -> unit) -> unit
 val register_remove_instance_hint : (global_reference -> unit) -> unit
 val add_instance_hint : global_reference_or_constr -> global_reference list -> 
-  bool -> int option -> unit
+  bool -> int option -> polymorphic -> unit
 val remove_instance_hint : global_reference -> unit
 
 val solve_instanciations_problem : (env -> evar_map -> evar_filter -> bool -> bool -> evar_map) ref

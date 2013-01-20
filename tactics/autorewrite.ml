@@ -100,10 +100,10 @@ type raw_rew_rule = Loc.t * constr Univ.in_universe_context_set * bool * raw_tac
 (* Applies all the rules of one base *)
 let one_base general_rewrite_maybe_in tac_main bas =
   let lrul = find_rewrites bas in
-  let try_rewrite dir ctx c tc = 
+  let try_rewrite dir ctx c tc gl = 
     let subst, ctx' = Universes.fresh_universe_context_set_instance ctx in
     let c' = subst_univs_constr subst c in
-      Refiner.tclPUSHCONTEXT Evd.univ_flexible ctx' (general_rewrite_maybe_in dir c' tc)
+      Refiner.tclPUSHCONTEXT Evd.univ_flexible ctx' (general_rewrite_maybe_in dir c' tc) gl
   in
   let lrul = List.map (fun h -> 
     (h.rew_ctx,h.rew_lemma,h.rew_l2r,Tacinterp.eval_tactic h.rew_tac)) lrul in

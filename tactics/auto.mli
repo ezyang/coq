@@ -20,6 +20,7 @@ open Vernacexpr
 open Mod_subst
 open Misctypes
 open Pp
+open Decl_kinds
 
 (** Auto and related automation tactics *)
 
@@ -39,6 +40,7 @@ type hints_path_atom =
 
 type 'a gen_auto_tactic = {
   pri   : int;            (** A number between 0 and 4, 4 = lower priority *)
+  poly  : polymorphic;    (** Is the hint polymorpic and hence should be refreshed at each application *)
   pat   : constr_pattern option; (** A pattern for the concl of the Goal *)
   name  : hints_path_atom; (** A potential name to refer to the hint *) 
   code  : 'a auto_tactic; (** the tactic to apply when the concl matches pat *)
@@ -94,9 +96,11 @@ type hint_db_name = string
 
 type hint_db = Hint_db.t
 
+type hnf = bool
+
 type hints_entry =
-  | HintsResolveEntry of (int option * bool * hints_path_atom * global_reference_or_constr) list
-  | HintsImmediateEntry of (hints_path_atom * global_reference_or_constr) list
+  | HintsResolveEntry of (int option * polymorphic * hnf * hints_path_atom * global_reference_or_constr) list
+  | HintsImmediateEntry of (hints_path_atom * polymorphic * global_reference_or_constr) list
   | HintsCutEntry of hints_path
   | HintsUnfoldEntry of evaluable_global_reference list
   | HintsTransparencyEntry of evaluable_global_reference list * bool
@@ -134,7 +138,7 @@ val pr_hint_db : Hint_db.t -> std_ppcmds
    [c] is the term given as an exact proof to solve the goal;
    [ctyp] is the type of [c]. *)
 
-val make_exact_entry : evar_map -> int option -> ?name:hints_path_atom -> 
+val make_exact_entry : evar_map -> int option -> polymorphic -> ?name:hints_path_atom -> 
   (constr * types * Univ.universe_context_set) -> hint_entry
 
 (** [make_apply_entry (eapply,hnf,verbose) pri (c,cty)].
@@ -145,7 +149,7 @@ val make_exact_entry : evar_map -> int option -> ?name:hints_path_atom ->
    [cty] is the type of [c]. *)
 
 val make_apply_entry :
-  env -> evar_map -> bool * bool * bool -> int option -> ?name:hints_path_atom -> 
+  env -> evar_map -> bool * bool * bool -> int option -> polymorphic -> ?name:hints_path_atom -> 
   (constr * types * Univ.universe_context_set) -> hint_entry
 
 (** A constr which is Hint'ed will be:
@@ -156,7 +160,7 @@ val make_apply_entry :
          has missing arguments. *)
 
 val make_resolves :
-  env -> evar_map -> bool * bool * bool -> int option -> ?name:hints_path_atom -> 
+  env -> evar_map -> bool * bool * bool -> int option -> polymorphic -> ?name:hints_path_atom -> 
   global_reference_or_constr -> hint_entry list
 
 (** [make_resolve_hyp hname htyp].

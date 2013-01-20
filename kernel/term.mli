@@ -76,6 +76,10 @@ val eq_constr : constr -> constr -> bool
    application grouping and the universe equalities in [c]. *)
 val eq_constr_univs : constr -> constr -> bool Univ.constrained
 
+(** [leq_constr_univs a b] [true, c] if [a] is convertible to [b] modulo 
+    alpha, casts, application grouping and the universe inequalities in [c]. *)
+val leq_constr_univs : constr -> constr -> bool Univ.constrained
+
 (** [eq_constr_univs a b] [true, c] if [a] equals [b] modulo alpha, casts,
    application grouping and ignoring universe instances. *)
 val eq_constr_nounivs : constr -> constr -> bool
