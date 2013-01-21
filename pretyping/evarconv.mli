@@ -28,7 +28,9 @@ val e_cumul : ?ts:transparent_state -> env -> evar_map ref -> constr -> constr -
 (* For debugging *)
 val evar_conv_x : transparent_state ->
   env -> evar_map -> conv_pb -> constr -> constr -> evar_map * bool
-val evar_eqappr_x : transparent_state ->
+val evar_eqappr_x : 
+  ?rhs_is_already_stuck:bool ->
+  transparent_state ->
   env -> evar_map ->
     conv_pb -> constr * constr stack -> constr * constr stack ->
       evar_map * bool

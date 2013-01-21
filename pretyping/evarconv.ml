@@ -297,7 +297,16 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
       | None -> (i,false)
     in
     ise_try evd [f1; f2; f3] in
-
+  let eta env evd onleft sk term sk' term' =
+    assert (match sk with [] -> true | _ -> false);
+    let (na,c1,c'1) = destLambda term in
+    let c = nf_evar evd c1 in
+    let env' = push_rel (na,None,c) env in
+    let appr1 = whd_betaiota_deltazeta_for_iota_state ts env' evd (c'1, empty_stack) in
+    let appr2 = whd_nored_state evd (zip (term', sk' @ [Zshift 1]), [Zapp [mkRel 1]]) in
+      if onleft then evar_eqappr_x ts env' evd CONV appr1 appr2
+      else evar_eqappr_x ts env' evd CONV appr2 appr1
+  in
   let app_empty = match sk1, sk2 with [], [] -> true | _ -> false in
   (* Evar must be undefined since we have flushed evars *)
   match (flex_kind_of_term term1 sk1, flex_kind_of_term term2 sk2) with
@@ -344,16 +353,19 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 
 	| _, _ ->
 	let f1 i = 
-	  let b,univs = eq_constr_univs term1 term2 in
-	  if b then
-	    let i, b =
-	      try Evd.add_constraints i univs, true
-	      with Univ.UniverseInconsistency _ -> (i,false)
-	    in
-	      if b then exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
-	      else (i, false)
-	  else
-	     (i,false)
+	  let b,univs = 
+	    if pbty = CONV then eq_constr_univs term1 term2 
+	    else leq_constr_univs term1 term2 
+	  in
+	    if b then
+	      let i, b =
+		try Evd.add_constraints i univs, true
+		with Univ.UniverseInconsistency _ -> (i,false)
+	      in
+		if b then exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
+		else (i, false)
+	    else
+	      (i,false)
 	and f2 i =
 	  (try conv_record ts env i
              (try check_conv_record appr1 appr2
@@ -437,9 +449,12 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	    | Some v1 ->
 		evar_eqappr_x ts env i pbty
 		  (whd_betaiota_deltazeta_for_iota_state ts env i (v1,sk1)) appr2
-	    | None -> (i,false)
-	in
-	ise_try evd [f3; f4]
+	    | None -> (i, false)
+	and f5 i =
+	  if isLambda term2 then eta env evd false sk2 term2 sk1 term1
+	  else (i,false)
+	in	 
+	  ise_try evd [f3; f4; f5]
 
     | Rigid, MaybeFlexible ->
 	let f3 i =
@@ -451,27 +466,18 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 		evar_eqappr_x ts env i pbty
 		  appr1 (whd_betaiota_deltazeta_for_iota_state ts env i (v2,sk2))
 	    | None -> (i,false)
+	and f5 i =
+	  if isLambda term1 then eta env evd true sk1 term1 sk2 term2
+	  else (i,false)
 	in
-	ise_try evd [f3; f4]
+	  ise_try evd [f3; f4; f5]
 
     (* Eta-expansion *)
     | Rigid, _ when isLambda term1 ->
-	assert (match sk1 with [] -> true | _ -> false);
-	let (na,c1,c'1) = destLambda term1 in
-        let c = nf_evar evd c1 in
-	let env' = push_rel (na,None,c) env in
-        let appr1 = whd_betaiota_deltazeta_for_iota_state  ts env' evd (c'1, empty_stack) in
-	let appr2 = whd_nored_state evd (zip (term2, sk2 @ [Zshift 1]), [Zapp [mkRel 1]]) in
-	evar_eqappr_x ts env' evd CONV appr1 appr2
+        eta env evd true sk1 term1 sk2 term2
 
     | _, Rigid when isLambda term2 ->
-	assert (match sk2 with [] -> true | _ -> false);
-	let (na,c2,c'2) = destLambda term2 in
-        let c = nf_evar evd c2 in
-	let env' = push_rel (na,None,c) env in
-	let appr1 = whd_nored_state evd (zip (term1, sk1 @ [Zshift 1]), [Zapp [mkRel 1]]) in
-        let appr2 = whd_betaiota_deltazeta_for_iota_state ts env' evd (c'2, empty_stack) in
-	evar_eqappr_x ts env' evd CONV appr1 appr2
+        eta env evd false sk2 term2 sk1 term1
 
     | Rigid, Rigid -> begin
         match kind_of_term term1, kind_of_term term2 with
@@ -562,8 +568,8 @@ and conv_record trs env evd (c,bs,(params,params1),(us,us2),(ts,ts1),c1,(n,t2)) 
      (fun i -> evar_conv_x trs env i CONV c1 (applist (c,(List.rev ks))))]
 
 (* getting rid of the optional argument rhs_is_already_stuck *)
-let evar_eqappr_x ts env evd pbty appr1 appr2 =
-  evar_eqappr_x ts env evd pbty appr1 appr2
+(* let evar_eqappr_x ts env evd pbty appr1 appr2 = *)
+(*   evar_eqappr_x ts env evd pbty appr1 appr2 *)
 
 (* We assume here |l1| <= |l2| *)
 
