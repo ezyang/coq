@@ -1089,20 +1089,30 @@ let auto_unif_flags = {
 
 (* Try unification with the precompiled clause, then use registered Apply *)
 
-let unify_resolve_nodelta (c,clenv) gl =
-  let clenv' = connect_clenv gl clenv in
+let unify_resolve_nodelta poly (c,clenv) gl =
+  let clenv' = if poly then fst (Clenv.refresh_undefined_univs clenv) else clenv in
+  let clenv' = connect_clenv gl clenv' in
   let clenv'' = clenv_unique_resolver ~flags:auto_unif_flags clenv' gl in
   Clenvtac.clenv_refine false clenv'' gl
 
-let unify_resolve flags (c,clenv) gl =
-  let clenv' = connect_clenv gl clenv in
+let unify_resolve poly flags (c,clenv) gl =
+  let clenv' = if poly then fst (Clenv.refresh_undefined_univs clenv) else clenv in
+  let clenv' = connect_clenv gl clenv' in
   let clenv'' = clenv_unique_resolver ~flags clenv' gl in
   Clenvtac.clenv_refine false clenv'' gl
 
-let unify_resolve_gen = function
-  | None -> unify_resolve_nodelta
-  | Some flags -> unify_resolve flags
+let unify_resolve_gen poly = function
+  | None -> unify_resolve_nodelta poly
+  | Some flags -> unify_resolve poly flags
 
+let exact poly (c,clenv) =
+  let c' = 
+    if poly then
+      let evd', subst = Evd.refresh_undefined_universes clenv.evd in
+	subst_univs_constr subst c 
+    else c
+  in exact_check c'
+    
 (* Util *)
 
 let expand_constructor_hints env lems =
@@ -1360,15 +1370,15 @@ and my_find_search_delta db_list local_db hdc concl =
 	  in List.map (fun x -> (Some flags,x)) l)
       	(local_db::db_list)
 
-and tac_of_hint dbg db_list local_db concl (flags, ({pat=p; code=t})) =
+and tac_of_hint dbg db_list local_db concl (flags, ({pat=p; code=t;poly=poly})) =
   let tactic = 
     match t with
-    | Res_pf (c,cl) -> unify_resolve_gen flags (c,cl)
+    | Res_pf (c,cl) -> unify_resolve_gen poly flags (c,cl)
     | ERes_pf _ -> (fun gl -> error "eres_pf")
-    | Give_exact (c,_)  -> exact_check c
+    | Give_exact (c,cl)  -> exact poly (c,cl)
     | Res_pf_THEN_trivial_fail (c,cl) ->
       tclTHEN
-        (unify_resolve_gen flags (c,cl))
+        (unify_resolve_gen poly flags (c,cl))
 	(* With "(debug) trivial", we shouldn't end here, and
 	   with "debug auto" we don't display the details of inner trivial *)
         (trivial_fail_db (no_dbg ()) (not (Option.is_empty flags)) db_list local_db)

@@ -52,6 +52,9 @@ val mk_clenv_from_n :
 val mk_clenv_type_of : Goal.goal sigma -> constr -> clausenv
 val mk_clenv_from_env : env -> evar_map -> int option -> constr * types -> clausenv
 
+(** Refresh the universes in a clenv *)
+val refresh_undefined_univs : clausenv -> clausenv * Univ.universe_subst
+
 (** {6 linking of clenvs } *)
 
 val connect_clenv : Goal.goal sigma -> clausenv -> clausenv

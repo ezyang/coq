@@ -353,19 +353,16 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 
 	| _, _ ->
 	let f1 i = 
-	  let b,univs = 
-	    if pbty = CONV then eq_constr_univs term1 term2 
-	    else leq_constr_univs term1 term2 
-	  in
-	    if b then
-	      let i, b =
-		try Evd.add_constraints i univs, true
-		with Univ.UniverseInconsistency _ -> (i,false)
-	      in
-		if b then exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
-		else (i, false)
-	    else
-	      (i,false)
+	  let b,univs = eq_constr_univs term1 term2 in
+	  if b then
+	    let i, b =
+	      try Evd.add_constraints i univs, true
+	      with Univ.UniverseInconsistency _ -> (i,false)
+	    in
+	      if b then exact_ise_stack2 env i (evar_conv_x ts) sk1 sk2
+	      else (i, false)
+	  else
+	     (i,false)
 	and f2 i =
 	  (try conv_record ts env i
              (try check_conv_record appr1 appr2
@@ -429,16 +426,28 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	     evar_conv_x ts (push_rel (na,None,c) env) i CONV c'1 c'2)]
 
     | Flexible ev1, Rigid ->
-      miller_pfenning true
+      let f1 evd = 
+	miller_pfenning true
 	((* Postpone the use of an heuristic *)
 	  add_conv_pb (pbty,env,zip appr1,zip appr2) evd, true)
 	ev1 appr1 appr2 evd
+      and f2 evd =
+	if isLambda term2 then
+	  eta env evd false sk2 term2 sk1 term1
+	else (evd,false)
+      in ise_try evd [f1;f2]
 
     | Rigid, Flexible ev2 ->
-      miller_pfenning false
+      let f1 evd =
+	miller_pfenning false
 	((* Postpone the use of an heuristic *)
 	  add_conv_pb (pbty,env,zip appr1,zip appr2) evd, true)
 	ev2 appr2 appr1 evd
+      and f2 evd =
+	if isLambda term1 then
+	  eta env evd true sk1 term1 sk2 term2
+	else (evd,false)
+      in ise_try evd [f1;f2]
 
     | MaybeFlexible, Rigid ->
 	let f3 i =
@@ -449,12 +458,11 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	    | Some v1 ->
 		evar_eqappr_x ts env i pbty
 		  (whd_betaiota_deltazeta_for_iota_state ts env i (v1,sk1)) appr2
-	    | None -> (i, false)
-	and f5 i =
-	  if isLambda term2 then eta env evd false sk2 term2 sk1 term1
-	  else (i,false)
+	    | None -> 
+	      if isLambda term2 then eta env evd false sk2 term2 sk1 term1
+	      else (i,false)
 	in	 
-	  ise_try evd [f3; f4; f5]
+	  ise_try evd [f3; f4]
 
     | Rigid, MaybeFlexible ->
 	let f3 i =
@@ -465,12 +473,11 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 	    | Some v2 ->
 		evar_eqappr_x ts env i pbty
 		  appr1 (whd_betaiota_deltazeta_for_iota_state ts env i (v2,sk2))
-	    | None -> (i,false)
-	and f5 i =
-	  if isLambda term1 then eta env evd true sk1 term1 sk2 term2
-	  else (i,false)
+	    | None -> 
+	      if isLambda term1 then eta env evd true sk1 term1 sk2 term2
+	      else (i,false)
 	in
-	  ise_try evd [f3; f4; f5]
+	  ise_try evd [f3; f4]
 
     (* Eta-expansion *)
     | Rigid, _ when isLambda term1 ->

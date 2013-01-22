@@ -265,11 +265,6 @@ let rec dp_of_mp = function
   | MPbound (_,_,dp) -> dp
   | MPdot (mp,l) -> dp_of_mp mp
 
-let rec dp_of_mp = function
-  | MPfile sl -> sl
-  | MPbound (_,_,dp) -> dp
-  | MPdot (mp,l) -> dp_of_mp mp
-
 (** we compare labels first if both are MPdots *)
 let rec mp_ord mp1 mp2 =
   if mp1 == mp2 then 0

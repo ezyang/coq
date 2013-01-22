@@ -363,15 +363,15 @@ let rec mk_refgoals sigma goal goalacc conclty trm =
 
     | App (f,l) ->
 	let (acc',hdty,sigma,applicand) =
-	  (* match kind_of_term f with *)
-	  (*   | Ind _ | Const _ *)
-	  (* 	when (isInd f or has_polymorphic_type (fst (destConst f))) -> *)
-	  (* 	(\* Sort-polymorphism of definition and inductive types *\) *)
-	  (* 	goalacc, *)
-          (*       type_of_global_reference_knowing_conclusion env sigma f conclty, *)
-	  (* 	sigma, f *)
-	  (*   | _ -> *)
-		mk_hdgoals sigma goal goalacc f
+	  match kind_of_term f with
+	    | Ind _ | Const _
+		when (isInd f or has_polymorphic_type (fst (destConst f))) ->
+		(* Sort-polymorphism of definition and inductive types *)
+		goalacc,
+                type_of_global_reference_knowing_conclusion env sigma f conclty,
+		sigma, f
+	    | _ ->
+	      mk_hdgoals sigma goal goalacc f
 	in
 	let (acc'',conclty',sigma, args) =
 	  mk_arggoals sigma goal acc' hdty (Array.to_list l) in
