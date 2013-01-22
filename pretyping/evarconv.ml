@@ -354,7 +354,10 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false)
 
 	| _, _ ->
 	let f1 i = 
-	  let b,univs = eq_constr_univs term1 term2 in
+	  let b,univs = 
+	    if pbty = CONV then eq_constr_univs term1 term2 
+	    else leq_constr_univs term1 term2 
+	  in
 	  if b then
 	    let i, b =
 	      try Evd.add_constraints i univs, true
