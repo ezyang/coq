@@ -41,6 +41,10 @@ open Misctypes
 open Locus
 open Decl_kinds
 
+let pr_constr_or_ref = function
+  | IsConstr c -> pr_constr c
+  | IsGlobal gr -> pr_global gr
+
 (****************************************************************************)
 (*            The Type of Constructions Autotactic Hints                    *)
 (****************************************************************************)
@@ -891,7 +895,12 @@ let interp_hints =
     | HintsReference c ->
       let gr = global_with_alias c in
 	(PathHints [gr], poly, IsGlobal gr)
-    | HintsConstr c -> (PathAny, poly, IsConstr (f c))
+    | HintsConstr c -> 
+      if poly then
+	errorlabstrm "Hint" (Ppconstr.pr_constr_expr c ++ spc () ++ 
+			     str" is a term and cannot be made a polymorphic hint," ++
+			     str" only global references can be polymorphic hints.")
+      else (PathAny, poly, IsConstr (f c))
   in
   let fres (pri, poly, b, r) =
     let path, poly, gr = fi (poly, r) in
@@ -937,10 +946,6 @@ let add_hints local dbnames0 h =
 (**************************************************************************)
 (*                    Functions for printing the hints                    *)
 (**************************************************************************)
-
-let pr_constr_or_ref = function
-  | IsConstr c -> pr_constr c
-  | IsGlobal gr -> pr_global gr
 
 let pr_autotactic =
   function
