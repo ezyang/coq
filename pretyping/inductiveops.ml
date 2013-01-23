@@ -31,6 +31,11 @@ let type_of_constructor env (cstr,u) =
   Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
  Inductive.type_of_constructor (cstr,u) specif
 
+let type_of_constructor_in_ctx env cstr =
+ let specif =
+  Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
+ Inductive.type_of_constructor_in_ctx cstr specif
+
 (* Return constructor types in user form *)
 let type_of_constructors env (ind,u as indu) =
  let specif = Inductive.lookup_mind_specif env ind in

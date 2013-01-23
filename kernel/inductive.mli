@@ -50,7 +50,7 @@ val elim_sorts : mind_specif -> sorts_family list
 
 val constrained_type_of_constructor : pconstructor -> mind_specif -> types constrained
 val type_of_constructor : pconstructor -> mind_specif -> types
-(* val fresh_type_of_constructor : constructor -> mind_specif -> types constrained *)
+val type_of_constructor_in_ctx : constructor -> mind_specif -> types in_universe_context
 
 (** Return constructor types in normal form *)
 val arities_of_constructors : pinductive -> mind_specif -> types array
