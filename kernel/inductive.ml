@@ -185,6 +185,11 @@ let type_of_constructor_gen (cstr,u) (mib,mip as mspec) =
 let type_of_constructor cstru mspec = 
   fst (type_of_constructor_gen cstru mspec)
 
+let type_of_constructor_in_ctx cstr (mib,mip as mspec) =
+  let (u, cst) = mib.mind_universes in
+  let c = type_of_constructor_gen (cstr,u) mspec in
+    (fst c, mib.mind_universes)
+
 let constrained_type_of_constructor (cstr,u as cstru) (mib,mip as ind) =
   let ty, subst = type_of_constructor_gen cstru ind in
   let cst = instantiate_inductive_constraints mib subst in

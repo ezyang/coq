@@ -195,6 +195,10 @@ let constant_type env (kn,u) =
 	 instantiate_univ_context subst cb.const_universes)
     else cb.const_type, Univ.empty_constraint
 
+let constant_type_in_ctx env kn =
+  let cb = lookup_constant kn env in
+    cb.const_type, cb.const_universes
+
 type const_evaluation_result = NoBody | Opaque
 
 exception NotEvaluableConst of const_evaluation_result
