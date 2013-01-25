@@ -142,10 +142,10 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
     let impls, ((env', ctx), imps) = interp_context_evars evars env ctx in
     let c', imps' = interp_type_evars_impls ~impls ~evdref:evars ~fail_evar:false env' tclass in
     (** Abstract undefined variables in the type. *)
-    let subst = Evarutil.evd_comb0 Evd.nf_univ_variables evars in
-    let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
-    let c' = Term.subst_univs_constr subst c' in
-    let _ = evars := abstract_undefined_variables !evars in
+    (* let nf = Evarutil.evd_comb0 Evarutil.nf_evar_map_universes evars in *)
+    (* let ctx = Sign.map_rel_context nf ctx in *)
+    (* let c' = nf c' in *)
+    (* let _ = evars := abstract_undefined_variables !evars in *)
     let len = List.length ctx in
     let imps = imps @ Impargs.lift_implicits len imps' in
     let ctx', c = decompose_prod_assum c' in
@@ -183,7 +183,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	let (_, ty_constr) = instance_constructor (k,u) (List.rev subst) in
 	let termtype =
 	  let t = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
-	    Evarutil.e_nf_evars_and_universes evars t
+	    fst (Evarutil.e_nf_evars_and_universes evars) t
 	in
 	Evarutil.check_evars env Evd.empty !evars termtype;
 	let ctx = Evd.get_universe_context_set !evars in
@@ -311,7 +311,7 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
 	      (Flags.silently 
 	       (fun () ->
 		Lemmas.start_proof id kind (termtype, Evd.get_universe_context_set evm)
-		(fun _ -> instance_hook k pri global imps ?hook);
+		(fun _ _ -> instance_hook k pri global imps ?hook);
 		if not (Option.is_empty term) then 
 		  Pfedit.by (!refine_ref (evm, Option.get term))
 		else if Flags.is_auto_intros () then

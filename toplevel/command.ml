@@ -80,7 +80,7 @@ let interp_definition bl p red_option c ctypopt =
 	let ctx = Sign.map_rel_context (Term.subst_univs_constr subst) ctx in
 	let env_bl = push_rel_context ctx env in
 	let c, imps2 = interp_constr_evars_impls ~impls ~evdref ~fail_evar:false env_bl c in
-	let nf = e_nf_evars_and_universes evdref in
+	let nf,_ = e_nf_evars_and_universes evdref in
 	let body = nf (it_mkLambda_or_LetIn c ctx) in
 	imps1@(Impargs.lift_implicits nb_args imps2),
 	{ const_entry_body = body;
@@ -97,7 +97,7 @@ let interp_definition bl p red_option c ctypopt =
 	(* let _ = evdref := Evd.abstract_undefined_variables !evdref in *)
 	let c, imps2 = interp_casted_constr_evars_impls ~impls ~evdref
 	  ~fail_evar:false env_bl c ty in
-	let nf = e_nf_evars_and_universes evdref in 
+	let nf,_ = e_nf_evars_and_universes evdref in 
 	let body = nf (it_mkLambda_or_LetIn c ctx) in
 	let typ = nf (it_mkProd_or_LetIn ty ctx) in
 	let beq x1 x2 = if x1 then x2 else not x2 in
@@ -416,12 +416,12 @@ let interp_mutual_inductive (paramsl,indl) notations poly finite =
   let evd = consider_remaining_unif_problems env_params !evdref in
   evdref := Typeclasses.resolve_typeclasses ~filter:Typeclasses.no_goals ~fail:true env_params evd;
   (* Compute renewed arities *)
-  let nf = e_nf_evars_and_universes evdref in
+  let nf,_ = e_nf_evars_and_universes evdref in
   let arities = List.map nf arities in
   let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf cl,impsl)) constructors in
   let _ = List.iter (fun ty -> make_conclusion_flexible evdref ty) arities in
   let arities = inductive_levels env_ar_params evdref arities constructors in
-  let nf' = e_nf_evars_and_universes evdref in
+  let nf',_ = e_nf_evars_and_universes evdref in
   let nf x = nf' (nf x) in
   let arities = List.map nf' arities in
   let constructors = List.map (fun (idl,cl,impsl) -> (idl,List.map nf' cl,impsl)) constructors in

@@ -322,6 +322,7 @@ type program_info = {
   prg_body: constr;
   prg_type: constr;
   prg_ctx:  Univ.universe_context_set;
+  prg_subst : Univ.universe_full_subst;
   prg_obligations: obligations;
   prg_deps : Id.t list;
   prg_fixkind : fixpoint_kind option ;
@@ -373,17 +374,18 @@ let _ =
 
 let evar_of_obligation o = make_evar (Global.named_context_val ()) o.obl_type
 
-let get_body obl = 
+let get_body subst obl = 
   match obl.obl_body with
   | None -> assert false
   | Some (DefinedObl c) -> 
-    let pc, ctx = Universes.fresh_constant_instance (Global.env ()) c in
-      DefinedObl pc, ctx
+    let _, ctx = Environ.constant_type_in_ctx (Global.env ()) c in
+    let pc = Universes.subst_univs_full_puniverses subst (c, fst ctx) in
+      DefinedObl pc
   | Some (TermObl c) -> 
-      TermObl c, Univ.empty_universe_context_set
+      TermObl (Universes.subst_univs_full_constr subst c)
 
-let get_obligation_body expand obl =
-  let c, ctx = get_body obl in
+let get_obligation_body expand subst obl =
+  let c = get_body subst obl in
   let c' = 
     if expand && obl.obl_status == Evar_kinds.Expand then
       (match c with
@@ -392,24 +394,22 @@ let get_obligation_body expand obl =
     else (match c with
     | DefinedObl pc -> mkConstU pc
     | TermObl c -> c)
-  in c', ctx
+  in c'
 
-let obl_substitution expand obls deps =
+let obl_substitution expand subst obls deps =
   Int.Set.fold
-    (fun x (acc, ctx) ->
+    (fun x acc ->
        let xobl = obls.(x) in
-       let oblb, ctx' =
-	 try get_obligation_body expand xobl
+       let oblb =
+	 try get_obligation_body expand subst xobl
 	 with _ -> assert(false)
        in 
-       let acc' = (xobl.obl_name, (xobl.obl_type, oblb)) :: acc in
-       let ctx' = Univ.union_universe_context_set ctx ctx' in
-	 acc', ctx')
-    deps ([], Univ.empty_universe_context_set)
+	 (xobl.obl_name, (xobl.obl_type, oblb)) :: acc)
+    deps []
 
-let subst_deps expand obls deps t =
-  let subst,ctx = obl_substitution expand obls deps in
-    Term.replace_vars (List.map (fun (n, (_, b)) -> n, b) subst) t, ctx
+let subst_deps expand subst obls deps t =
+  let subst = obl_substitution expand subst obls deps in
+    Term.replace_vars (List.map (fun (n, (_, b)) -> n, b) subst) t
 
 let rec prod_app t n =
   match kind_of_term (strip_outer_cast t) with
@@ -437,7 +437,7 @@ let replace_appvars subst =
   in map_constr aux
        
 let subst_prog expand obls ints prg =
-  let subst, ctx = obl_substitution expand obls ints in
+  let subst = obl_substitution expand prg.prg_subst obls ints in
     if get_hide_obligations () then
       (replace_appvars subst prg.prg_body,
        replace_appvars subst ((* Termops.refresh_universes *) prg.prg_type))
@@ -446,9 +446,9 @@ let subst_prog expand obls ints prg =
 	(Term.replace_vars subst' prg.prg_body,
 	 Term.replace_vars subst' ((* Termops.refresh_universes *) prg.prg_type))
 
-let subst_deps_obl obls obl =
-  let t',ctx = subst_deps true obls obl.obl_deps obl.obl_type in
-    { obl with obl_type = t' }, ctx
+let subst_deps_obl subst obls obl =
+  let t' = subst_deps true subst obls obl.obl_deps obl.obl_type in
+    { obl with obl_type = t' }
 
 module ProgMap = Map.Make(struct type t = Id.t let compare = Id.compare end)
 
@@ -644,7 +644,7 @@ let init_prog_info n b t ctx deps fixkind notations obls impls kind reduce hook 
 	  obls, b
   in
     { prg_name = n ; prg_body = b; prg_type = reduce t; 
-      prg_ctx = ctx;
+      prg_ctx = ctx; prg_subst = Univ.LMap.empty;
       prg_obligations = (obls', Array.length obls');
       prg_deps = deps; prg_fixkind = fixkind ; prg_notations = notations ;
       prg_implicits = impls; prg_kind = kind; prg_reduce = reduce; prg_hook = hook; }
@@ -755,7 +755,7 @@ let solve_by_tac evi t poly ctx =
   let id = Id.of_string "H" in
   try
     Pfedit.start_proof id (goal_kind poly) evi.evar_hyps (evi.evar_concl, ctx)
-    (fun _ _ -> ());
+    (fun _ _ _ -> ());
     Pfedit.by (tclCOMPLETE t);
     let _,(const,_,_,_) = Pfedit.cook_proof ignore in
       Pfedit.delete_current_proof (); 
@@ -775,11 +775,12 @@ let rec solve_obligation prg num tac =
     else
       match deps_remaining obls obl.obl_deps with
       | [] ->
-	  let obl,ctx = subst_deps_obl obls obl in
+	  let ctx = prg.prg_ctx in
+	  let obl = subst_deps_obl prg.prg_subst obls obl in
 	  let kind = kind_of_obligation (pi2 prg.prg_kind) obl.obl_status in
 	    Lemmas.start_proof obl.obl_name kind 
-	      (obl.obl_type, ctx)
-	      (fun strength gr ->
+	      (Universes.subst_univs_full_constr prg.prg_subst obl.obl_type, ctx)
+	      (fun subst strength gr ->
 		let cst = match gr with ConstRef cst -> cst | _ -> assert false in
 		let obl =
 		  let transparent = evaluable_constant cst (Global.env ()) in
@@ -799,7 +800,15 @@ let rec solve_obligation prg num tac =
 		in
 		let obls = Array.copy obls in
 		let _ = obls.(num) <- obl in
-		let res = try update_obls prg obls (pred rem)
+		let ctx = Univ.universe_context_set_of_universe_context
+		  (snd (constant_type_in_ctx (Global.env ()) cst))
+		in
+		let res = try update_obls 
+		  {prg with prg_body = Universes.subst_univs_full_constr subst prg.prg_body;
+		   prg_type = Universes.subst_univs_full_constr subst prg.prg_type;
+		   prg_ctx = ctx;
+		   prg_subst = Univ.LMap.union prg.prg_subst subst}
+		obls (pred rem)
 		  with e -> pperror (Errors.print (Cerrors.process_vernac_interp_error e))
 		in
 		  match res with
@@ -834,7 +843,7 @@ and solve_obligation_by_tac prg obls i tac =
     | None ->
 	try
 	  if List.is_empty (deps_remaining obls obl.obl_deps) then
-	    let obl,ctx = subst_deps_obl obls obl in
+	    let obl = subst_deps_obl prg.prg_subst obls obl in
 	    let tac =
 	      match tac with
 	      | Some t -> t
@@ -844,7 +853,7 @@ and solve_obligation_by_tac prg obls i tac =
 		  | None -> snd (get_default_tactic ())
 	    in
 	    let t, ctx = 
-	      solve_by_tac (evar_of_obligation obl) tac (pi2 prg.prg_kind) ctx
+	      solve_by_tac (evar_of_obligation obl) tac (pi2 prg.prg_kind) prg.prg_ctx
 	    in
 	      obls.(i) <- declare_obligation prg obl t ctx;
 	      true
@@ -973,9 +982,9 @@ let admit_prog prg =
       (fun i x ->
         match x.obl_body with
         | None ->
-            let x,ctx = subst_deps_obl obls x in
+            let x = subst_deps_obl prg.prg_subst obls x in
             let kn = Declare.declare_constant x.obl_name 
-              (ParameterEntry (None,(x.obl_type,ctx),None), IsAssumption Conjectural)
+              (ParameterEntry (None,(x.obl_type,prg.prg_ctx),None), IsAssumption Conjectural)
             in
               assumption_message x.obl_name;
               obls.(i) <- { x with obl_body = Some (DefinedObl kn) }

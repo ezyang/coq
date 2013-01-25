@@ -178,7 +178,7 @@ let has_unresolved_evar p =
 
 (* Returns the list of partial proofs to initial goals *)
 let partial_proof p =
-  List.map fst (fst (Proofview.return p.state.proofview)) (*FIXME: unsafe?*)
+  List.map fst (fst (fst (Proofview.return p.state.proofview))) (*FIXME: unsafe?*)
 
 
 
