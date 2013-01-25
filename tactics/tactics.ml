@@ -79,8 +79,8 @@ let _ =
       optwrite = (fun b -> dependent_propositions_elimination := b) }
 
 let finish_evar_resolution env initial_sigma c =
-  snd (Pretyping.solve_remaining_evars true true solve_by_implicit_tactic
-         env initial_sigma c)
+  Pretyping.solve_remaining_evars true true solve_by_implicit_tactic
+    env initial_sigma c
 
 (*********************************************)
 (*                 Tactics                   *)
@@ -1759,12 +1759,9 @@ let make_pattern_test env sigma0 (sigma,c) =
   { match_fun = matching_fun; merge_fun = merge_fun; 
     testing_state = None; last_found = None },
   (fun test -> match test.testing_state with
-  | None -> tclIDTAC, finish_evar_resolution env sigma0 (sigma,c)
-  | Some (sigma,_) -> 
-  (* let tac gl =  *)
-  (*   let ctx = Evd.get_universe_context_set sigma in *)
-  (*     tclEVARS (Evd.merge_context_set Evd.univ_flexible (project gl) ctx) gl *)
-  (* in *) tclIDTAC, nf_evar sigma c)
+  | None -> let evd, c' = finish_evar_resolution env sigma0 (sigma,c) in
+      tclEVARS evd, c'
+  | Some (sigma,_) -> tclIDTAC, nf_evar sigma c)
 
 let letin_abstract id c (test,out) (occs,check_occs) gl =
   let env = pf_env gl in
@@ -3223,7 +3220,7 @@ let induct_destruct isrec with_evars (lc,elim,names,cls) gl =
     if not (Option.is_empty cls) then
       error "'in' clause not supported here.";
     let lc = List.map
-      (map_induction_arg (pf_apply finish_evar_resolution gl)) lc in
+      (map_induction_arg (fun x -> snd (pf_apply finish_evar_resolution gl x))) lc in
     begin match lc with
     | [_] ->
       (* Hook to recover standard induction on non-standard induction schemes *)
@@ -3232,7 +3229,8 @@ let induct_destruct isrec with_evars (lc,elim,names,cls) gl =
 	(fun (c,lbind) ->
 	  if lbind != NoBindings then
 	    error "'with' clause not supported here.";
-	  new_induct_gen_l isrec with_evars elim names [c]) (List.hd lc) gl
+	 (* tclTHEN (tclEVARS evd) *)
+	  (new_induct_gen_l isrec with_evars elim names [c])) (List.hd lc) gl
     | _ ->
       let newlc =
 	List.map (fun x ->

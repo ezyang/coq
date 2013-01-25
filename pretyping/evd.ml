@@ -890,8 +890,8 @@ let refresh_undefined_univ_variables uctx =
 
 let refresh_undefined_universes ({evars = (sigma, uctx)} as d) =
   let uctx', subst = refresh_undefined_univ_variables uctx in
-  let metas' = Metamap.map (map_clb (subst_univs_constr subst)) d.metas in
-    {d with evars = (sigma, uctx'); metas = metas'}, subst
+  let d' = cmap (subst_univs_constr subst) {d with evars = (sigma,uctx')} in
+    d', subst
 
 let normalize_evar_universe_context uctx subst = 
   let undef, _ = Univ.LMap.partition (fun i b -> b = None) uctx.uctx_univ_variables in

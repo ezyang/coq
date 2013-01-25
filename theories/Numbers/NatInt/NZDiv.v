@@ -492,7 +492,7 @@ Proof.
  intros a b c Ha Hb Hc.
  apply div_unique with (b*((a/b) mod c) + a mod b); trivial.
  (* begin 0<= ... <b*c *)
- destruct (mod_bound_pos (a/b) c), (mod_bound_pos a b); auto using div_pos.
+ destruct (mod_bound_pos (a/b) c); destruct (mod_bound_pos a b); auto using div_pos.
  split.
  apply add_nonneg_nonneg; auto.
  apply mul_nonneg_nonneg; order.
