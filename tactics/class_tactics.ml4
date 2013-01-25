@@ -114,8 +114,9 @@ let clenv_of_prods nprods (c, clenv) gls =
   else 
     let ty = pf_type_of gls c in
     let diff = nb_prod ty - nprods in
-      if diff >= 0 then
-	Some (mk_clenv_from_n gls (Some diff) (c,ty))
+      if diff = 0 then Some clenv
+      else if diff > 0 then Some clenv
+	(* FIXME: universe polymorphic hints? Some (mk_clenv_from_n gls (Some diff) (c,ty)) *)
       else None
 
 let with_prods nprods (c, clenv) f gls =

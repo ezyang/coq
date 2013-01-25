@@ -67,7 +67,7 @@ let nf_evars_and_universes evm =
 
 let e_nf_evars_and_universes evdref =
   let subst = evd_comb0 Evd.nf_constraints evdref in
-    nf_evars_universes !evdref subst
+    nf_evars_universes !evdref subst, subst
 
 let nf_evar_map_universes evm =
   let evm, subst = Evd.nf_constraints evm in

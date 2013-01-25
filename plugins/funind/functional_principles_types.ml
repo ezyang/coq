@@ -326,7 +326,7 @@ let generate_functional_principle
 	  id_of_f,Indrec.make_elimination_ident id_of_f (family_of_sort type_sort)
   in
   let names = ref [new_princ_name] in
-  let hook new_principle_type _ _  =
+  let hook new_principle_type _ _ _  =
     if sorts = None
     then
       (*     let id_of_f = Label.to_id (con_label f) in *)
@@ -516,7 +516,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
 	this_block_funs
 	0
 	(prove_princ_for_struct false 0 (Array.of_list funs))
-	(fun _ _ _ -> ())
+	(fun _ _ _ _ -> ())
   with e ->
     begin
       begin
@@ -590,7 +590,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
 		 this_block_funs
 		 !i
 		 (prove_princ_for_struct false !i (Array.of_list funs))
-		 (fun _ _ _ -> ())
+		 (fun _ _ _ _ -> ())
 	     in
 	     const
 	 with Found_type i ->

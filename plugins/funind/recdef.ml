@@ -1257,7 +1257,7 @@ let open_new_goal (build_proof:tactic -> tactic -> unit) using_lemmas ref_ goal_
   let na = next_global_ident_away name [] in
   if Termops.occur_existential gls_type then
     Errors.error "\"abstract\" cannot handle existentials";
-  let hook _ _ =
+  let hook _ _ _ =
     let opacity =
       let na_ref = Libnames.Ident (Loc.ghost,na) in
       let na_global = Nametab.global na_ref in
@@ -1414,7 +1414,7 @@ let (com_eqn : int -> Id.t ->
     let f_constr = constr_of_global f_ref in
     let equation_lemma_type = subst1 f_constr equation_lemma_type in
     (start_proof eq_name (Global, false, Proof Lemma)
-       (Environ.named_context_val env) (equation_lemma_type,(*FIXME*)Univ.empty_universe_context_set) (fun _ _ -> ());
+       (Environ.named_context_val env) (equation_lemma_type,(*FIXME*)Univ.empty_universe_context_set) (fun _ _ _ -> ());
      by
        (start_equation f_ref terminate_ref
 	  (fun  x ->
@@ -1490,7 +1490,7 @@ let recursive_definition is_mes function_name rec_impls type_of_f r rec_arg_num 
   let tcc_lemma_name = add_suffix function_name "_tcc" in
   let tcc_lemma_constr = ref None in
   (* let _ = Pp.msgnl (str "relation := " ++ Printer.pr_lconstr_env env_with_pre_rec_args relation) in *)
-  let hook _ _ = 
+  let hook _ _ _ = 
     let term_ref = Nametab.locate (qualid_of_ident term_id) in
     let f_ref = declare_f function_name (IsProof Lemma) arg_types term_ref in
     let _ = Table.extraction_inline true [Ident (Loc.ghost,term_id)] in 
