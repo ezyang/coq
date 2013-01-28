@@ -67,7 +67,7 @@ type lemma_possible_guards = int list list
 type proof_info = {
   strength : Decl_kinds.goal_kind ;
   compute_guard :  lemma_possible_guards;
-  hook : Univ.universe_full_subst -> unit Tacexpr.declaration_hook ;
+  hook : Univ.universe_full_subst Univ.in_universe_context -> unit Tacexpr.declaration_hook ;
   mode : proof_mode
 }
 
@@ -278,7 +278,7 @@ let close_proof () =
 		      const_entry_opaque = true })
       proofs_and_types
     in
-    (id, (entries,cg,str,hook subst))
+    (id, (entries,cg,str,hook (subst, ctx)))
   with
     |  Proof.UnfinishedProof ->
 	 Errors.error "Attempt to save an incomplete proof"

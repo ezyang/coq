@@ -826,8 +826,10 @@ let check_context_subset (univs, cst) (univs', cst') =
   let newunivs, dangling = List.partition (fun u -> LSet.mem u univs) univs' in
     (* Some universe variables that don't appear in the term 
        are still mentionned in the constraints. This is the 
-       case for "fake" universe variables that correspond to +1s.
-       assert(not (constraints_depend cst' dangling));*)
+       case for "fake" universe variables that correspond to +1s. *)
+    (* if not (CList.is_empty dangling) then  *)
+    (*   todo ("A non-empty set of inferred universes do not appear in the term or type"); *)
+      (* (not (constraints_depend cst' dangling));*)
     (* TODO: check implication *)
   (** Remove local universes that do not appear in any constraint, they
       are really entirely parametric. *)

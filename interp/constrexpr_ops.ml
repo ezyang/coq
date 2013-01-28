@@ -92,10 +92,16 @@ and cases_pattern_notation_substitution_eq (s1, n1) (s2, n2) =
   List.equal cases_pattern_expr_eq s1 s2 &&
   List.equal (List.equal cases_pattern_expr_eq) n1 n2
 
+let eq_universes u1 u2 =
+  match u1, u2 with
+  | None, None -> true
+  | Some l, Some l' -> List.equal (=) l l'
+  | _, _ -> false
+
 let rec constr_expr_eq e1 e2 =
   if e1 == e2 then true
   else match e1, e2 with
-  | CRef (r1,_), CRef (r2,_) -> eq_reference r1 r2
+  | CRef (r1,u1), CRef (r2,u2) -> eq_reference r1 r2 && eq_universes u1 u2
   | CFix(_,id1,fl1), CFix(_,id2,fl2) ->
       eq_located Id.equal id1 id2 &&
       List.equal fix_expr_eq fl1 fl2

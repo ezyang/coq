@@ -348,7 +348,7 @@ let admit () =
     declare_constant id (ParameterEntry e,IsAssumption Conjectural) in
   Pfedit.delete_current_proof ();
   assumption_message id;
-  hook Univ.LMap.empty Global (ConstRef kn)
+  hook (Univ.LMap.empty,Univ.empty_universe_context) Global (ConstRef kn)
 
 (* Miscellaneous *)
 
