@@ -1450,31 +1450,6 @@ let project_evar_on_evar g env evd aliases k2 (evk1,argsv1 as ev1) (evk2,argsv2 
   else
     raise (CannotProject filter1)
 
-let solve_evar_evar_l2r f g env evd aliases ev1 (evk2,_ as ev2) =
-  try
-    let evd,body = project_evar_on_evar g env evd aliases 0 ev1 ev2 in
-    Evd.define evk2 body evd
-  with EvarSolvedOnTheFly (evd,c) ->
-    f env evd ev2 c
-
-let solve_evar_evar ?(force=false) f g env evd (evk1,args1 as ev1) (evk2,args2 as ev2) =
-  if are_canonical_instances args1 args2 env then
-    (* If instances are canonical, we solve the problem in linear time *)
-    let sign = evar_filtered_context (Evd.find evd evk2) in
-    let id_inst = Array.map (fun (id,_,_) -> mkVar id) (Array.of_list sign) in
-    Evd.define evk2 (mkEvar(evk1,id_inst)) evd
-  else
-    let evd,ev1,ev2 =
-      (* If an evar occurs in the instance of the other evar and the
-         use of an heuristic is forced, we restrict *)
-      if force then ensure_evar_independent g env evd ev1 ev2 else (evd,ev1,ev2) in
-    let aliases = make_alias_map env in
-    try solve_evar_evar_l2r f g env evd aliases ev1 ev2
-    with CannotProject filter1 ->
-    try solve_evar_evar_l2r f g env evd aliases ev2 ev1
-    with CannotProject filter2 ->
-    postpone_evar_evar f env evd filter1 ev1 filter2 ev2
-
 type conv_fun =
   env ->  evar_map -> conv_pb -> constr -> constr -> evar_map * bool
 
@@ -1501,6 +1476,33 @@ let check_evar_instance evd evk1 body pbty conv_algo =
   if b then evd else
     user_err_loc (fst (evar_source evk1 evd),"",
 		  str "Unable to find a well-typed instantiation")
+
+
+let solve_evar_evar_l2r f g env evd aliases ev1 (evk2,_ as ev2) =
+  try
+    let evd,body = project_evar_on_evar g env evd aliases 0 ev1 ev2 in
+    let evd' = Evd.define evk2 body evd in
+    check_evar_instance evd' evk2 body None g
+  with EvarSolvedOnTheFly (evd,c) ->
+    f env evd ev2 c
+
+let solve_evar_evar ?(force=false) f g env evd (evk1,args1 as ev1) (evk2,args2 as ev2) =
+  if are_canonical_instances args1 args2 env then
+    (* If instances are canonical, we solve the problem in linear time *)
+    let sign = evar_filtered_context (Evd.find evd evk2) in
+    let id_inst = Array.map (fun (id,_,_) -> mkVar id) (Array.of_list sign) in
+    Evd.define evk2 (mkEvar(evk1,id_inst)) evd
+  else
+    let evd,ev1,ev2 =
+      (* If an evar occurs in the instance of the other evar and the
+         use of an heuristic is forced, we restrict *)
+      if force then ensure_evar_independent g env evd ev1 ev2 else (evd,ev1,ev2) in
+    let aliases = make_alias_map env in
+    try solve_evar_evar_l2r f g env evd aliases ev1 ev2
+    with CannotProject filter1 ->
+    try solve_evar_evar_l2r f g env evd aliases ev2 ev1
+    with CannotProject filter2 ->
+    postpone_evar_evar f env evd filter1 ev1 filter2 ev2
 
 (* Solve pbs ?e[t1..tn] = ?e[u1..un] which arise often in fixpoint
  * definitions. We try to unify the ti with the ui pairwise. The pairs

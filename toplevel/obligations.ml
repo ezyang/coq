@@ -780,7 +780,7 @@ let rec solve_obligation prg num tac =
 	  let kind = kind_of_obligation (pi2 prg.prg_kind) obl.obl_status in
 	    Lemmas.start_proof obl.obl_name kind 
 	      (Universes.subst_univs_full_constr prg.prg_subst obl.obl_type, ctx)
-	      (fun subst strength gr ->
+	      (fun (subst,ctx) strength gr ->
 		let cst = match gr with ConstRef cst -> cst | _ -> assert false in
 		let obl =
 		  let transparent = evaluable_constant cst (Global.env ()) in
@@ -800,9 +800,7 @@ let rec solve_obligation prg num tac =
 		in
 		let obls = Array.copy obls in
 		let _ = obls.(num) <- obl in
-		let ctx = Univ.universe_context_set_of_universe_context
-		  (snd (constant_type_in_ctx (Global.env ()) cst))
-		in
+		let ctx = Univ.universe_context_set_of_universe_context ctx in
 		let res = try update_obls 
 		  {prg with prg_body = Universes.subst_univs_full_constr subst prg.prg_body;
 		   prg_type = Universes.subst_univs_full_constr subst prg.prg_type;
