@@ -391,6 +391,9 @@ let tclEVARS sigma gls = tclIDTAC {gls with sigma=sigma}
 let tclPUSHCONTEXT rigid ctx tac gl = 
   tclTHEN (tclEVARS (Evd.merge_context_set rigid (project gl) ctx)) tac gl
 
+let tclPUSHEVARUNIVCONTEXT ctx gl = 
+  tclEVARS (Evd.merge_universe_context (project gl) ctx) gl
+
 let tclPUSHCONSTRAINTS cst gl = 
   tclEVARS (Evd.add_constraints (project gl) cst) gl
 

@@ -1759,9 +1759,12 @@ let make_pattern_test env sigma0 (sigma,c) =
   { match_fun = matching_fun; merge_fun = merge_fun; 
     testing_state = None; last_found = None },
   (fun test -> match test.testing_state with
-  | None -> let evd, c' = finish_evar_resolution env sigma0 (sigma,c) in
-      tclEVARS evd, c'
-  | Some (sigma,_) -> tclIDTAC, nf_evar sigma c)
+  | None -> 
+    let evd, c = finish_evar_resolution env sigma0 (sigma,c) in
+      tclPUSHEVARUNIVCONTEXT (Evd.evar_universe_context evd), c
+  | Some (sigma,_) -> 
+     let univs, subst = nf_univ_variables sigma in
+       tclIDTAC, subst_univs_constr subst (nf_evar sigma c))
 
 let letin_abstract id c (test,out) (occs,check_occs) gl =
   let env = pf_env gl in
@@ -3220,7 +3223,7 @@ let induct_destruct isrec with_evars (lc,elim,names,cls) gl =
     if not (Option.is_empty cls) then
       error "'in' clause not supported here.";
     let lc = List.map
-      (map_induction_arg (fun x -> snd (pf_apply finish_evar_resolution gl x))) lc in
+      (map_induction_arg (pf_apply (fun x y c -> snd (finish_evar_resolution x y c)) gl)) lc in
     begin match lc with
     | [_] ->
       (* Hook to recover standard induction on non-standard induction schemes *)
