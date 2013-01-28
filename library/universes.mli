@@ -105,6 +105,7 @@ val nf_evars_and_universes_local : (existential -> constr option) -> universe_su
 val nf_evars_and_full_universes_local : (existential -> constr option) -> 
   universe_full_subst -> constr -> constr
 
+val subst_univs_full_puniverses : universe_full_subst -> 'a puniverses -> 'a puniverses
 val subst_univs_full_constr : universe_full_subst -> constr -> constr
 
 (** Get fresh variables for the universe context.

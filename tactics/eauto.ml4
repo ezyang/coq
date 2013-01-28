@@ -68,8 +68,12 @@ let rec prolog l n gl =
   let prol = (prolog l (n-1)) in
   (tclFIRST (List.map (fun t -> (tclTHEN t prol)) (one_step l gl))) gl
 
+let out_term = function
+  | IsConstr (c, _) -> c
+  | IsGlobRef gr -> fst (Universes.fresh_global_instance (Global.env ()) gr)
+
 let prolog_tac l n gl =
-  let l = List.map (prepare_hint (pf_env gl)) l in
+  let l = List.map (fun x -> out_term (prepare_hint false (pf_env gl) x)) l in
   let n =
     match n with
       | ArgArg n -> n

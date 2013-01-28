@@ -989,7 +989,7 @@ let generate_equation_lemma fnames f fun_num nb_params nb_args rec_args_num =
     (mk_equation_id f_id)
     (Decl_kinds.Global, false, (Decl_kinds.Proof Decl_kinds.Theorem))
     (lemma_type, (*FIXME*) Univ.empty_universe_context_set)
-    (fun _ _ -> ());
+    (fun _ _ _ -> ());
   Pfedit.by (prove_replacement);
   Lemmas.save_named false
 

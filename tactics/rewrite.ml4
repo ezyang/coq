@@ -1875,8 +1875,8 @@ let add_morphism_infer (glob,poly) m n =
 	Flags.silently
 	  (fun () ->
 	    Lemmas.start_proof instance_id kind (instance, ctx)
-	      (fun _ -> function
-		Globnames.ConstRef cst ->
+	      (fun _ _ -> function
+		 | Globnames.ConstRef cst ->
 		  add_instance (Typeclasses.new_instance (Lazy.force proper_class) None
 				glob poly (ConstRef cst));
 		  declare_projection n instance_id (ConstRef cst)

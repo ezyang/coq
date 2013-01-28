@@ -146,7 +146,7 @@ let next = let n = ref 0 in fun () -> incr n; !n
 
 let build_constant_by_tactic id sign typ tac =
   start_proof id (Global,false(*FIXME*),Proof Theorem) sign 
-    typ (fun _ _ -> ());
+    typ (fun _ _ _ -> ());
   try
     by tac;
     let _,(const,_,_,_) = cook_proof (fun _ -> ()) in

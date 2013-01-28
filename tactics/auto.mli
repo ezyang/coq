@@ -98,9 +98,14 @@ type hint_db = Hint_db.t
 
 type hnf = bool
 
+type hint_term =
+  | IsGlobRef of global_reference
+  | IsConstr of constr * Univ.universe_context_set
+
 type hints_entry =
-  | HintsResolveEntry of (int option * polymorphic * hnf * hints_path_atom * global_reference_or_constr) list
-  | HintsImmediateEntry of (hints_path_atom * polymorphic * global_reference_or_constr) list
+  | HintsResolveEntry of (int option * polymorphic * hnf * hints_path_atom * 
+			  hint_term) list
+  | HintsImmediateEntry of (hints_path_atom * polymorphic * hint_term) list
   | HintsCutEntry of hints_path
   | HintsUnfoldEntry of evaluable_global_reference list
   | HintsTransparencyEntry of evaluable_global_reference list * bool
@@ -126,7 +131,7 @@ val interp_hints : hints_expr -> hints_entry
 
 val add_hints : locality_flag -> hint_db_name list -> hints_entry -> unit
 
-val prepare_hint : env -> open_constr -> constr
+val prepare_hint : bool (* Check no remaining evars *) -> env -> open_constr -> hint_term
 
 val pr_searchtable : unit -> std_ppcmds
 val pr_applicable_hint : unit -> std_ppcmds
@@ -161,7 +166,7 @@ val make_apply_entry :
 
 val make_resolves :
   env -> evar_map -> bool * bool * bool -> int option -> polymorphic -> ?name:hints_path_atom -> 
-  global_reference_or_constr -> hint_entry list
+  hint_term -> hint_entry list
 
 (** [make_resolve_hyp hname htyp].
    used to add an hypothesis to the local hint database;

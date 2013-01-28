@@ -306,7 +306,7 @@ let start_proof_with_initialization kind recguard thms snl hook =
   match thms with
   | [] -> anomaly "No proof to start"
   | (id,(t,(_,imps)))::other_thms ->
-      let hook strength ref =
+      let hook _ strength ref =
         let other_thms_data =
           if List.is_empty other_thms then [] else
             (* there are several theorems defined mutually *)
@@ -348,7 +348,7 @@ let admit () =
     declare_constant id (ParameterEntry e,IsAssumption Conjectural) in
   Pfedit.delete_current_proof ();
   assumption_message id;
-  hook Global (ConstRef kn)
+  hook Univ.LMap.empty Global (ConstRef kn)
 
 (* Miscellaneous *)
 

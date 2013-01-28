@@ -114,8 +114,9 @@ let clenv_of_prods nprods (c, clenv) gls =
   else 
     let ty = pf_type_of gls c in
     let diff = nb_prod ty - nprods in
-      if diff >= 0 then
-	Some (mk_clenv_from_n gls (Some diff) (c,ty))
+      if diff = 0 then Some clenv
+      else if diff > 0 then Some clenv
+	(* FIXME: universe polymorphic hints? Some (mk_clenv_from_n gls (Some diff) (c,ty)) *)
       else None
 
 let with_prods nprods (c, clenv) f gls =
@@ -258,7 +259,7 @@ let make_resolve_hyp env sigma st flags only_classes pri (id, _, cty) =
 	  let hints = build_subclasses ~check:false env sigma (VarRef id) None in
 	    (List.map_append
 	       (fun (path, pri, c) -> make_resolves env sigma ~name:(PathHints path)
-		  (true,false,Flags.is_verbose()) pri false (IsConstr c))
+		  (true,false,Flags.is_verbose()) pri false (IsConstr (c,Univ.empty_universe_context_set)))
 	       hints)
 	else []
       in

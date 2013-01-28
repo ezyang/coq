@@ -198,7 +198,7 @@ val nf_evar_map : evar_map -> evar_map
 val nf_evar_map_undefined : evar_map -> evar_map
 
 val nf_evars_and_universes : evar_map -> evar_map * (constr -> constr)
-val e_nf_evars_and_universes : evar_map ref -> constr -> constr
+val e_nf_evars_and_universes : evar_map ref -> (constr -> constr) * Univ.universe_full_subst
 
 (** Normalize the evar map w.r.t. universes, after simplification of constraints.
     Return the substitution function for constrs as well. *)

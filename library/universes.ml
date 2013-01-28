@@ -447,7 +447,7 @@ let nf_evars_and_universes_local f subst =
     | _ -> map_constr aux c
   in aux
 
-let subst_full_puniverses subst (c, u as cu) =
+let subst_univs_full_puniverses subst (c, u as cu) =
   let u' = CList.smartmap (Univ.subst_univs_full_level_fail subst) u in
     if u' == u then cu else (c, u')
 
@@ -459,13 +459,13 @@ let nf_evars_and_full_universes_local f subst =
       | None -> c
       | Some c -> aux c)
     | Const pu -> 
-      let pu' = subst_full_puniverses subst pu in
+      let pu' = subst_univs_full_puniverses subst pu in
 	if pu' == pu then c else mkConstU pu'
     | Ind pu ->
-      let pu' = subst_full_puniverses subst pu in
+      let pu' = subst_univs_full_puniverses subst pu in
 	if pu' == pu then c else mkIndU pu'
     | Construct pu ->
-      let pu' = subst_full_puniverses subst pu in
+      let pu' = subst_univs_full_puniverses subst pu in
 	if pu' == pu then c else mkConstructU pu'
     | Sort (Type u) ->
       let u' = Univ.subst_univs_full_universe subst u in

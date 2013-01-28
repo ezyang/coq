@@ -58,7 +58,6 @@ let ppconstr_univ x = Constrextern.with_universes ppconstr x
 let ppglob_constr = (fun x -> pp(pr_lglob_constr x))
 let pppattern = (fun x -> pp(pr_constr_pattern x))
 let pptype = (fun x -> try pp(pr_ltype x) with e -> pp (str (Printexc.to_string e)))
-
 let ppfconstr c = ppconstr (Closure.term_of_fconstr c)
 
 let ppbigint n = pp (str (Bigint.to_string n));;
@@ -120,6 +119,10 @@ let ppexistentialset evars =
 let ppclenv clenv = pp(pr_clenv clenv)
 let ppgoalgoal gl = pp(Goal.pr_goal gl)
 let ppgoal g = pp(Printer.pr_goal g)
+let ppgoalsigma g = pp(Printer.pr_goal g ++ pr_evar_map None (Refiner.project g))
+
+let ppopenconstr (x : Evd.open_constr) =
+  let (evd,c) = x in pp (pr_evar_map (Some 2) evd ++ pr_constr c)
 (* spiwack: deactivated until a replacement is found
 let pppftreestate p = pp(print_pftreestate p)
 *)
