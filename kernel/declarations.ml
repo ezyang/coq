@@ -297,6 +297,11 @@ type mutual_inductive_body = {
   (* Is it polymorphic or not *)
     mind_polymorphic : bool;
 
+  (* Is pattern-matching allowed on this type.
+     None ~> plain behavior; Some true ~> pattern-matching allowed;
+     Some false ~> pattern-matching is blocked at pre-typing level. *)
+    mind_private : bool option ref;
+
   (* Local universe variables and constraints *)
   (* Universes constraints enforced by the inductive declaration *)
     mind_universes : universe_context;
@@ -336,6 +341,7 @@ let subst_mind_body sub mib =
     mind_polymorphic = mib.mind_polymorphic;
     (* FIXME: Really? No need to substitute in universe levels?
        copying mind_constraints before *)
+    mind_private = mib.mind_private;
     mind_universes = mib.mind_universes }
 
 let hcons_indarity a =

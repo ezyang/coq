@@ -42,6 +42,11 @@ let mkLambda_string s t c = mkLambda (Name (Id.of_string s), t, c)
 (* Building curryfied elimination          *)
 (*******************************************)
 
+let check_privacy_block mib =
+  match !(mib.mind_private) with
+      Some false -> errorlabstrm ""(str"case analysis on a private inductive type")
+    | _ -> ()
+
 (**********************************************************************)
 (* Building case analysis schemes *)
 (* Christine Paulin, 1996 *)
@@ -52,6 +57,7 @@ let mis_make_case_com dep env sigma (ind, u as pind) (mib,mip as specif) kind =
     mib.mind_params_ctxt
   in
 
+  check_privacy_block mib;
   if not (List.mem kind (elim_sorts specif)) then
     raise
       (RecursionSchemeError
