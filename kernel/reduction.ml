@@ -205,15 +205,18 @@ let sort_cmp pb s0 s1 cuniv =
       end
     | (Prop c1, Prop c2) ->
         if c1 == c2 then cuniv else raise NotConvertible
-    | (Prop c1, Type u) when is_cumul pb -> 
-      enforce_leq (if is_pos c1 then type0_univ else type0m_univ) u cuniv
-    | (Type u, Prop c) when is_cumul pb -> 
-      enforce_leq u (if is_pos c then type0_univ else type0m_univ) cuniv
+    | (Prop c1, Type u) -> 
+      (match pb with
+         CUMUL -> enforce_leq (if is_pos c1 then type0_univ else type0m_univ) u cuniv
+	| CONV -> enforce_eq (if is_pos c1 then type0_univ else type0m_univ) u cuniv)
+    | (Type u, Prop c) ->
+      (match pb with
+	  CUMUL -> enforce_leq u (if is_pos c then type0_univ else type0m_univ) cuniv
+	| CONV -> enforce_eq u (if is_pos c then type0_univ else type0m_univ) cuniv)
     | (Type u1, Type u2) ->
 	(match pb with
            | CONV -> enforce_eq u1 u2 cuniv
 	   | CUMUL -> enforce_leq u1 u2 cuniv)
-    | (_, _) -> raise NotConvertible
 
 
 let conv_sort env s0 s1 = sort_cmp CONV s0 s1 empty_constraint
