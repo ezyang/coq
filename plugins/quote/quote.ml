@@ -220,13 +220,8 @@ let compute_rhs bodyi index_of_f =
 (*s Now the function [compute_ivs] itself *)
 
 let compute_ivs gl f cs =
-<<<<<<< HEAD
   let cst = try destConst f with DestKO -> i_can't_do_that () in
-  let body = Environ.constant_value (Global.env()) cst in
-=======
-  let cst = try destConst f with _ -> i_can't_do_that () in
   let body = Environ.constant_value_in (Global.env()) cst in
->>>>>>> This commit adds full universe polymorphism to Coq.
   match decomp_term body with
     | Fix(([| len |], 0), ([| name |], [| typ |], [| body2 |])) ->
         let (args3, body3) = decompose_lam body2 in
