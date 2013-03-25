@@ -252,10 +252,11 @@ TACTIC EXTEND rewrite_star
 
 let add_rewrite_hint name ort t lcsr =
   let env = Global.env() and sigma = Evd.empty in
+  let poly = Flags.use_polymorphic_flag () in 
   let f ce = 
     let c, ctx = Constrintern.interp_constr sigma env ce in
     let ctx =
-      if Flags.use_polymorphic_flag () then ctx
+      if poly then ctx
       else (Global.add_constraints (snd ctx); Univ.ContextSet.empty)
     in
       Constrexpr_ops.constr_loc ce, (c, ctx), ort, t in

@@ -94,7 +94,7 @@ val minimize_univ_variables :
            Univ.universe option Univ.LMap.t ->
            Univ.LSet.t ->
            (Univ.constraint_type * Univ.LMap.key) list Univ.LMap.t ->
-           'a Univ.LMap.t ->
+           (Univ.constraint_type * Univ.LMap.key) list Univ.LMap.t ->
            Univ.constraints ->
            Univ.LSet.t * Univ.universe option Univ.LMap.t *
            (bool * bool * Univ.universe) Univ.LMap.t * Univ.constraints

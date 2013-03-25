@@ -476,51 +476,37 @@ let minimize_univ_variables ctx us algs left right cstrs =
 	    (* We set u as the canonical universe representing lbound *)
 	    instantiate_with_lbound u lbound false true acc
     in
-    let lbound = compute_lbound left in
-      match lbound with
-      | None -> (* Nothing to do *)
-	acc, (true, false, Universe.make u)
-      | Some lbound ->
-	instantiate_lbound lbound
+    let acc' acc = 
+      match right with
+      | None -> acc
+      | Some cstrs -> 
+	let dangling = List.filter (fun (d, r) -> not (LSet.mem r ctx)) cstrs in
+	  if List.is_empty dangling then acc
+	  else
+	    let ((ctx', us, insts, cstrs), (enf,_,inst as b)) = acc in
+	    let lev = Option.get (Universe.level inst) in
+	    let cstrs' = List.fold_left (fun cstrs (d, r) -> 
+	      Constraint.add (lev, d, r) cstrs)
+	      cstrs dangling
+	    in
+	      (ctx', us, insts, cstrs'), b
+    in
+      if not (LSet.mem u ctx) then acc' (acc, (true, false, Universe.make u))
+      else
+	let lbound = compute_lbound left in
+	  match lbound with
+	  | None -> (* Nothing to do *)
+	    acc' (acc, (true, false, Universe.make u))
+	  | Some lbound ->
+	    acc' (instantiate_lbound lbound)
   and aux (ctx', us, seen, cstrs as acc) u =
     try acc, LMap.find u seen 
-    with Not_found ->
-      let acc, inst = instance acc u in
-	(acc, inst)
+    with Not_found -> instance acc u
   in
     LMap.fold (fun u v (ctx', us, seen, cstrs as acc) -> 
       if v = None then fst (aux acc u)
       else LSet.remove u ctx', us, seen, cstrs)
       us (ctx, us, lbounds, cstrs)
-      
-    
-    (* LMap.fold (fun u v (ctx', us, insts, cstrs as acc) ->  *)
-    (* if v = None then *)
-    (*   let lbound, lev, hasup =  *)
-    (* 	instantiate_univ_variables insts ucstrsl ucstrsr u cstrs *)
-    (*   in *)
-    (* 	    match hasup with *)
-    (* 	    | Some cstrs' -> *)
-    (* 	       (\* We found upper bound constraints, u must be kept *\) *)
-    (* 	       instantiate_with_lbound u lbound false true (ctx', us, insts, cstrs') *)
-    (* 	    | None -> (\* No upper bounds *\) *)
-    (* 	      if Univ.LSet.mem u algs then  *)
-    (* 		(\* u is algebraic and has no upper bound constraints: *)
-    (* 		   we instantiate it with it's lower bound, if any *\) *)
-    (* 		instantiate_with_lbound u lbound true false acc *)
-    (* 	      else (\* u is not algebraic but has no upper bounds, *)
-    (* 		      we instantiate it with its lower bound if it is a  *)
-    (* 		      different level, otherwise we keep it. *\) *)
-    (* 		if not (Level.eq lev u) then *)
-    (* 		  instantiate_with_lbound u lbound false false acc *)
-    (* 		else (\* We couldn't do anything, we can only share us lower bound *\) *)
-    (* 		  try let can = find_inst insts lbound in  *)
-    (* 		      let ucan = Universe.make can in *)
-    (* 			instantiate_with_lbound u (Some ucan) false false acc *)
-    (* 		  with Not_found ->  *)
-    (* 		    instantiate_with_lbound u lbound false true acc *)
-    (* 	else acc *)
-    (* else (Univ.LSet.remove u ctx', us, insts, cstrs)) *)
       
 let normalize_context_set ctx us algs = 
   let (ctx, csts) = ContextSet.levels ctx, ContextSet.constraints ctx in

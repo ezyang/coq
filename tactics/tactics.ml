@@ -3577,22 +3577,27 @@ let abstract_subproof id tac gl =
     try flush_and_check_evars (project gl) concl
     with Uninstantiated_evar _ ->
       error "\"abstract\" cannot handle existentials." in
-  let ctx, concl = 
+  let evd, ctx, concl = 
     let evd, nf = nf_evars_and_universes (project gl) in
     let ctx = Evd.get_universe_context_set evd in
-      ctx, nf concl
+      evd, ctx, nf concl
   in
-  let const = Pfedit.build_constant_by_tactic id secsign 
+  let poly = 
+    let _, k, _, _ = Pfedit.current_proof_statement () in
+      pi2 k
+  in
+  let const = Pfedit.build_constant_by_tactic id poly secsign 
     (concl, ctx)
     (tclCOMPLETE (tclTHEN (tclDO (List.length sign) intro) tac)) in
   let cd = Entries.DefinitionEntry const in
   let decl = (cd, IsProof Lemma) in
   (** ppedrot: seems legit to have abstracted subproofs as local*)
   let cst = Declare.declare_constant ~internal:Declare.KernelSilent ~local:true id decl in
-  let lem = mkConst cst in
-  exact_no_check
-    (applist (lem,List.rev (Array.to_list (instance_from_named_context sign))))
-    gl
+  let evd, lem = Evd.fresh_global Evd.univ_flexible (Global.env ()) evd (ConstRef cst) in
+    tclTHEN (tclEVARS evd)
+      (exact_no_check
+	 (applist (lem,List.rev (Array.to_list (instance_from_named_context sign)))))
+      gl
 
 let tclABSTRACT name_op tac gl =
   let s = match name_op with

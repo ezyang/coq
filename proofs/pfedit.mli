@@ -166,7 +166,7 @@ val instantiate_nth_evar_com : int -> Constrexpr.constr_expr -> unit
 
 (** [build_by_tactic typ tac] returns a term of type [typ] by calling [tac] *)
 
-val build_constant_by_tactic : Id.t -> named_context_val -> 
+val build_constant_by_tactic : Id.t -> polymorphic -> named_context_val -> 
   types Univ.in_universe_context_set -> tactic ->
   Entries.definition_entry
 val build_by_tactic : env -> types Univ.in_universe_context_set -> tactic -> constr
