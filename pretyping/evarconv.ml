@@ -93,7 +93,7 @@ let position_problem l2r = function
 
 let check_conv_record (t1,sk1) (t2,sk2) =
   try
-    let proji = global_of_constr t1 in
+    let proji = Universes.global_of_constr t1 in
     let canon_s,sk2_effective =
       try
 	match kind_of_term t2 with
@@ -109,7 +109,7 @@ let check_conv_record (t1,sk1) (t2,sk2) =
       with Not_found ->
 	lookup_canonical_conversion (proji,Default_cs),[]
     in
-    let { o_DEF = c; o_INJ=n; o_TABS = bs;
+    let { o_DEF = c; o_CTX = ctx; o_INJ=n; o_TABS = bs;
           o_TPARAMS = params; o_NPARAMS = nparams; o_TCOMPS = us } = canon_s in
     let params1, c1, extra_args1 =
       match strip_n_app nparams sk1 with
@@ -119,7 +119,10 @@ let check_conv_record (t1,sk1) (t2,sk2) =
       let l',s' = strip_app sk2_effective in
       let bef,aft = List.chop (List.length us) l' in
       (bef, append_stack_app_list aft s') in
-    c,bs,(params,params1),(us,us2),(extra_args1,extra_args2),c1,
+    let subst, ctx' = Universes.fresh_universe_context_set_instance ctx in
+    let c' = subst_univs_level_constr subst c in
+    let bs' = List.map (subst_univs_level_constr subst) bs in
+      ctx',c',bs',(params,params1),(us,us2),(extra_args1,extra_args2),c1,
     (n,zip(t2,sk2))
   with Failure _ | Not_found ->
     raise Not_found
@@ -601,7 +604,8 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false) ts env evd pbty
 
       end
 
-and conv_record trs env evd (c,bs,(params,params1),(us,us2),(ts,ts1),c1,(n,t2)) =
+and conv_record trs env evd (ctx,c,bs,(params,params1),(us,us2),(ts,ts1),c1,(n,t2)) =
+  let evd = Evd.merge_context_set Evd.univ_flexible evd ctx in
   let (evd',ks,_) =
     List.fold_left
       (fun (i,ks,m) b ->

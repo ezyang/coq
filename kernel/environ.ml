@@ -202,6 +202,11 @@ let constant_type_in_ctx env kn =
   let cb = lookup_constant kn env in
     cb.const_type, cb.const_universes
 
+let constant_context env kn =
+  let cb = lookup_constant kn env in
+    if cb.const_polymorphic then cb.const_universes
+    else Context.empty
+
 type const_evaluation_result = NoBody | Opaque
 
 exception NotEvaluableConst of const_evaluation_result

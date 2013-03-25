@@ -109,10 +109,14 @@ let typecheck_params_and_fields def id t ps nots fs =
   let arity = nf t' in
   let evars = 
     let _, univ = compute_constructor_level evars env_ar newfs in
-    let ty = mkSort (Type univ) in
-      try Evarconv.the_conv_x_leq env_ar ty arity evars 
-      with Reduction.NotConvertible ->
-        Pretype_errors.error_cannot_unify env_ar evars (ty, arity)
+    let aritysort = destSort arity in
+      if is_prop_sort aritysort || 
+	(is_set_sort aritysort && engagement env0 = Some ImpredicativeSet) then
+	evars
+      else Evd.set_leq_sort evars (Type univ) aritysort
+	(* try Evarconv.the_conv_x_leq env_ar ty arity evars  *)
+	(* with Reduction.NotConvertible -> *)
+        (*   Pretype_errors.error_cannot_unify env_ar evars (ty, arity) *)
   in
   let evars, nf = Evarutil.nf_evars_and_universes evars in
   let newps = Sign.map_rel_context nf newps in

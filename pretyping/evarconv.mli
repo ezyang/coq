@@ -39,7 +39,7 @@ val evar_eqappr_x : ?rhs_is_already_stuck:bool -> transparent_state ->
 val consider_remaining_unif_problems : ?ts:transparent_state -> env -> evar_map -> evar_map
 
 val check_conv_record : constr * types stack -> constr * types stack ->
-  constr * constr list * (constr list * constr list) *
+  Univ.universe_context_set * constr * constr list * (constr list * constr list) *
     (constr list * types list) *
     (constr stack * types stack) * constr *
     (int * constr)

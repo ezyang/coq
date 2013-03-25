@@ -631,10 +631,11 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
 	  else error_cannot_unify (fst curenvnb) sigma (cM,cN)
 
   and solve_canonical_projection curenvnb pb b cM f1l1 cN f2l2 (sigma,ms,es) =
-    let (c,bs,(params,params1),(us,us2),(ts,ts1),c1,(n,t2)) =
+    let (ctx,c,bs,(params,params1),(us,us2),(ts,ts1),c1,(n,t2)) =
       try Evarconv.check_conv_record f1l1 f2l2
       with Not_found -> error_cannot_unify (fst curenvnb) sigma (cM,cN)
     in
+    let sigma = Evd.merge_context_set Evd.univ_flexible sigma ctx in
     let (evd,ks,_) =
       List.fold_left
 	(fun (evd,ks,m) b ->

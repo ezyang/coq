@@ -145,6 +145,7 @@ let ppuni_level u = pp (Level.pr u)
 let ppuniverses u = pp (str"[" ++ Universe.pr u ++ str"]")
 
 let ppuniverse_set l = pp (LSet.pr l)
+let ppuniverse_instance l = pp (Instance.pr l)
 let ppuniverse_list l = pp (pr_universe_list l)
 let ppuniverse_context l = pp (pr_universe_context l)
 let ppuniverse_context_set l = pp (pr_universe_context_set l)
