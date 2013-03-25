@@ -228,6 +228,8 @@ sig
   val pr : t -> Pp.std_ppcmds
 
   val append : t -> t -> t
+
+  val levels : t -> LSet.t
 end
 
 type universe_instance = Instance.t

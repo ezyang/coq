@@ -830,7 +830,7 @@ let is_record mind = (Global.lookup_mind (fst mind)).mind_record
 
 let find_ind_eliminator ind s gl =
   let gr = lookup_eliminator ind s in
-  let evd, c = pf_apply (Evd.fresh_global Evd.univ_flexible_alg) gl gr in
+  let evd, c = pf_apply (Evd.fresh_global Evd.univ_flexible) gl gr in
     evd, c
 
 let find_eliminator c gl =
@@ -909,7 +909,7 @@ type conjunction_status =
   | DefinedRecord of constant option list
   | NotADefinedRecordUseScheme of constr
 
-let make_projection sigma params cstr sign elim i n c =
+let make_projection sigma inst params cstr sign elim i n c =
   let elim = match elim with
   | NotADefinedRecordUseScheme elim ->
       (* bugs: goes from right to left when i increases! *)
@@ -930,7 +930,7 @@ let make_projection sigma params cstr sign elim i n c =
       (* goes from left to right when i increases! *)
       match List.nth l i with
       | Some proj ->
-         let proj = Universes.constr_of_global (ConstRef proj) in
+         let proj = mkConstU (proj, inst) in
 	 let t = Retyping.get_type_of (Global.env()) sigma proj in
 	 let args = extended_rel_vect 0 sign in
 	  Some (beta_applist (proj,params),prod_applist t (params@[mkApp (c,args)]))
@@ -949,7 +949,7 @@ let descend_in_conjunctions tac exit c gl =
 	let sort = elimination_sort_of_goal gl in
 	let id = fresh_id [] (Id.of_string "H") gl in
 	let IndType (indf,_) = pf_apply find_rectype gl ccl in
-	let params = snd (dest_ind_family indf) in
+	let (_,inst), params = dest_ind_family indf in
 	let cstr = (get_constructors (pf_env gl) indf).(0) in
 	let elim =
 	  try DefinedRecord (Recordops.lookup_projections ind)
@@ -958,9 +958,9 @@ let descend_in_conjunctions tac exit c gl =
 	    NotADefinedRecordUseScheme (snd elim) in
 	tclFIRST
 	  (List.init n (fun i gl ->
-	    match make_projection (project gl) params cstr sign elim i n c with
+	    match make_projection (project gl) inst params cstr sign elim i n c with
 	    | None -> tclFAIL 0 (mt()) gl
-	    | Some (p,pt) ->
+	    | Some (p,pt) -> 
 	    tclTHENS
 	      (internal_cut id pt)
 	      [refine p; (* Might be ill-typed due to forbidden elimination. *)

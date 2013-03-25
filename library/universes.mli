@@ -150,3 +150,8 @@ val fresh_universe_context_set_instance : universe_context_set ->
   universe_level_subst * universe_context_set
 
 val pr_universe_opt_subst : universe_opt_subst -> Pp.std_ppcmds
+
+(** Shrink a universe context to a restricted set of variables *)
+
+val universes_of_constr : constr -> universe_set
+val shrink_universe_context : universe_context_set -> universe_set -> universe_context_set

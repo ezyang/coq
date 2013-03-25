@@ -588,3 +588,26 @@ let normalize_context_set ctx us algs =
 
 (* let normalize_conkey = Profile.declare_profile "normalize_context_set" *)
 (* let normalize_context_set a b c = Profile.profile3 normalize_conkey normalize_context_set a b c *)
+
+let universes_of_constr c =
+  let rec aux s c = 
+    match kind_of_term c with
+    | Const (_, u) | Ind (_, u) | Construct (_, u) ->
+      LSet.union (Instance.levels u) s
+    | Sort u -> 
+      let u = univ_of_sort u in
+	LSet.union (Universe.levels u) s
+    | _ -> fold_constr aux s c
+  in aux LSet.empty c
+
+let shrink_universe_context (univs,csts) s =
+  let univs' = LSet.inter univs s in
+    Constraint.fold (fun (l,d,r as c) (univs',csts) ->
+      if LSet.mem l univs' then
+	let univs' = if LSet.mem r univs then LSet.add r univs' else univs' in
+	  (univs', Constraint.add c csts)
+      else if LSet.mem r univs' then
+	let univs' = if LSet.mem l univs then LSet.add l univs' else univs' in
+	  (univs', Constraint.add c csts)
+      else (univs', csts))
+      csts (univs',Constraint.empty)
