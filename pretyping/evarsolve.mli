@@ -31,7 +31,7 @@ type conv_fun =
 type conv_fun_bool =
   env ->  evar_map -> conv_pb -> constr -> constr -> bool
 
-val evar_define : conv_fun -> ?choose:bool -> env -> evar_map -> 
+val evar_define : conv_fun -> ?choose:bool -> ?dir:bool -> env -> evar_map -> 
   existential -> constr -> evar_map
 
 val refresh_universes : bool -> evar_map -> types -> evar_map * types

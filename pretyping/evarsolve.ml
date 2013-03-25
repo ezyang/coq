@@ -1055,13 +1055,14 @@ let refresh_universes dir evd t =
   let evdref = ref evd in
   let modified = ref false in
   let rec refresh t = match kind_of_term t with
-    | Sort (Type u) when Univ.universe_level u = None ->
+    | Sort (Type u as s) when Univ.universe_level u = None ||
+			   Evd.is_sort_variable evd s = None ->
       (modified := true;
        (* s' will appear in the term, it can't be algebraic *)
        let s' = evd_comb0 (new_sort_variable Evd.univ_flexible) evdref in
 	 evdref :=
-	   (if dir then set_leq_sort !evdref s' (Type u) else
-	     set_leq_sort !evdref (Type u) s');
+	   (if dir then set_leq_sort !evdref s' s else
+	     set_leq_sort !evdref s s');
          mkSort s')
     | Prod (na,u,v) -> mkProd (na,u,refresh v)
     | _ -> t in
@@ -1289,7 +1290,7 @@ let rec invert_definition conv_algo choose env evd (evk,argsv as ev) rhs =
  * context "hyps" and not referring to itself.
  *)
 
-and evar_define conv_algo ?(choose=false) env evd (evk,argsv as ev) rhs =
+and evar_define conv_algo ?(choose=false) ?(dir=false) env evd (evk,argsv as ev) rhs =
   match kind_of_term rhs with
   | Evar (evk2,argsv2 as ev2) ->
       if Int.equal evk evk2 then
@@ -1308,7 +1309,7 @@ and evar_define conv_algo ?(choose=false) env evd (evk,argsv as ev) rhs =
     (* so we recheck acyclicity *)
     if occur_evar evk body then raise (OccurCheckIn (evd',body));
     (* needed only if an inferred type *)
-    let evd', body = refresh_universes false evd' body in
+    let evd', body = refresh_universes dir evd' body in
 (* Cannot strictly type instantiations since the unification algorithm
  * does not unify applications from left to right.
  * e.g problem f x == g y yields x==y and f==g (in that order)
@@ -1397,7 +1398,10 @@ let solve_simple_eqn conv_algo ?(choose=false) env evd (pbty,(evk1,args1 as ev1)
       | Some false when isEvar t2 ->
           add_conv_pb (Reduction.CUMUL,env,t2,mkEvar ev1) evd
       | _ ->
-          evar_define conv_algo ~choose env evd ev1 t2 in
+	let direction = 
+	  match pbty with Some d -> d | None -> false
+	in
+          evar_define conv_algo ~choose ~dir:direction env evd ev1 t2 in
     reconsider_conv_pbs conv_algo evd
   with
     | NotInvertibleUsingOurAlgorithm t ->

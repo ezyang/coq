@@ -427,7 +427,7 @@ let instantiate_with_lbound u lbound alg enforce (ctx, us, insts, cstrs) =
 let minimize_univ_variables ctx us algs left right cstrs =
   let left, lbounds = 
     Univ.LMap.fold (fun r lower (left, lbounds as acc)  ->
-      if Univ.LMap.mem r us then acc
+      if Univ.LMap.mem r us || not (Univ.LSet.mem r ctx) then acc
       else (* Fixed universe, just compute its glb for sharing *)
 	let lbounds' = 
 	  match compute_lbound (List.map (fun (d,l) -> d, Universe.make l) lower) with
