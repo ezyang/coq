@@ -114,13 +114,8 @@ let rec rational_of_constr c =
 	 | "Rminus" ->
 	     rminus (rational_of_constr args.(0))
                     (rational_of_constr args.(1))
-<<<<<<< HEAD
 	 | _ -> raise NoRational)
-  | Const kn ->
-=======
-	 | _ -> failwith "not a rational")
   | Const (kn,_) ->
->>>>>>> This commit adds full universe polymorphism to Coq.
       (match (string_of_R_constant kn) with
 	       "R1" -> r1
               |"R0" -> r0
@@ -159,7 +154,6 @@ let rec flin_of_constr c =
 	     let a = rational_of_constr args.(0) in
 	     flin_add_cste (flin_zero()) (rinv a)
 	 | "Rdiv"->
-<<<<<<< HEAD
 	     (let b = rational_of_constr args.(1) in
 	      try
                 let a = rational_of_constr args.(0) in
@@ -167,17 +161,7 @@ let rec flin_of_constr c =
 	      with NoRational ->
                 flin_add (flin_zero()) args.(0) (rinv b))
          |_-> raise NoLinear)
-  | Const c ->
-=======
-	     (let b=(rational_of_constr args.(1)) in
-		try (let a = (rational_of_constr args.(0)) in
-		       (flin_add_cste (flin_zero()) (rdiv a b)))
-		with _-> (flin_add (flin_zero())
-		            args.(0)
-                            (rinv b)))
-         |_->assert false)
   | Const (c,_) ->
->>>>>>> This commit adds full universe polymorphism to Coq.
         (match (string_of_R_constant c) with
 	       "R1" -> flin_one ()
               |"R0" -> flin_zero ()
@@ -209,19 +193,11 @@ exception NoIneq
 
 let ineq1_of_constr (h,t) =
     match (kind_of_term t) with
-<<<<<<< HEAD
       | App (f,args) ->
         (match kind_of_term f with
-          | Const c when Array.length args = 2 ->
+          | Const (c,_) when Array.length args = 2 ->
             let t1= args.(0) in
             let t2= args.(1) in
-=======
-       App (f,args) ->
-         (match kind_of_term f with
-           Const (c,_) when Array.length args = 2 ->
-             let t1= args.(0) in
-             let t2= args.(1) in
->>>>>>> This commit adds full universe polymorphism to Coq.
             (match (string_of_R_constant c) with
 	      |"Rlt" -> [{hname=h;
                            htype="Rlt";
@@ -251,29 +227,16 @@ let ineq1_of_constr (h,t) =
 			   hflin= flin_minus (flin_of_constr t2)
                                              (flin_of_constr t1);
 			   hstrict=false}]
-<<<<<<< HEAD
               |_-> raise NoIneq)
-          | Ind (kn,i) ->
+          | Ind ((kn,i),_) ->
             if not (eq_gr (IndRef(kn,i)) Coqlib.glob_eq) then raise NoIneq;
             let t0= args.(0) in
             let t1= args.(1) in
             let t2= args.(2) in
 	    (match (kind_of_term t0) with
-              | Const c ->
+              | Const (c,_) ->
 		(match (string_of_R_constant c) with
 		  | "R"->
-=======
-                |_->assert false)
-          | Ind ((kn,i),_) ->
-	      if IndRef(kn,i) = Coqlib.glob_eq then
-		           let t0= args.(0) in
-                           let t1= args.(1) in
-                           let t2= args.(2) in
-		    (match (kind_of_term t0) with
-                         Const (c,_) ->
-			   (match (string_of_R_constant c) with
-			      "R"->
->>>>>>> This commit adds full universe polymorphism to Coq.
                          [{hname=h;
                            htype="eqTLR";
 		           hleft=t1;
@@ -541,7 +504,7 @@ let rec fourier gl=
                         (list_of_sign (pf_hyps gl)) in
     let lineq =ref [] in
     List.iter (fun h -> try (lineq:=(ineq1_of_constr h)@(!lineq))
-		        with NoIneq _ -> ())
+		        with NoIneq -> ())
               hyps;
     (* lineq = les inéquations découlant des hypothèses *)
     if !lineq=[] then Errors.error "No inequalities";
