@@ -30,7 +30,8 @@ Local Obligation Tactic := simpl_relation.
    The relation [R] will be instantiated by [respectful] and [A] by an arrow
    type for usual morphisms. *)
 Section Proper.
-  Context {A B : Type}.
+  Let U := Type.
+  Context {A B : U}.
 
   Class Proper (R : relation A) (m : A) : Prop :=
     proper_prf : R m m.
@@ -143,7 +144,8 @@ Ltac f_equiv :=
  end.
 
 Section Relations.
-  Context {A : Type} {B : Type} (P : A -> Type).
+  Let U := Type.
+  Context {A B : U} (P : A -> U).
 
   (** [forall_def] reifies the dependent product as a definition. *)
   
@@ -206,6 +208,7 @@ End Relations.
 
 Typeclasses Opaque respectful pointwise_relation forall_relation.
 Arguments forall_relation {A P}%type sig%signature _ _.
+Arguments pointwise_relation A%type {B}%type R%signature _ _.
   
 Hint Unfold Reflexive : core.
 Hint Unfold Symmetric : core.
@@ -243,7 +246,8 @@ Hint Extern 4 (subrelation (@forall_relation ?A ?B ?R) (@forall_relation _ _ ?S)
 
 Section GenericInstances.
   (* Share universes *)
-  Context {A B C : Type}.
+  Let U := Type.
+  Context {A B C : U}.
 
   (** We can build a PER on the Coq function space if we have PERs on the domain and
    codomain. *)

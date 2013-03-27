@@ -262,8 +262,8 @@ let decompose_applied_relation env sigma flags orig (c,l) left2right =
     match find_rel ctype with
     | Some c -> c
     | None ->
-	let ctx,t' = Reductionops.splay_prod_assum env sigma ctype in (* Search for underlying eq *)
-	match find_rel (it_mkProd_or_LetIn t' ctx) with
+	let ctx,t' = Reductionops.splay_prod env sigma ctype in (* Search for underlying eq *)
+	match find_rel (it_mkProd_or_LetIn t' (List.map (fun (n,t) -> n, None, t) ctx)) with
 	| Some c -> c
 	| None -> error "The term does not end with an applied homogeneous relation."
 

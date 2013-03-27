@@ -183,7 +183,11 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
       begin
 	if not (Lib.is_modtype ()) then
 	  error "Declare Instance while not in Module Type.";
-	let (_, ty_constr) = instance_constructor (k,u) (List.rev subst) in
+	let subst = List.fold_left2
+	  (fun subst' s (_, b, _) -> if Option.is_empty b then s :: subst' else subst')
+	  [] subst (snd k.cl_context)
+	in
+	let (_, ty_constr) = instance_constructor (k,u) subst in
 	let termtype =
 	  let t = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
 	    fst (Evarutil.e_nf_evars_and_universes evars) t
