@@ -246,14 +246,6 @@ let eq_puniverses evd f (x,u) (y,v) =
       with _ -> UnifFailure (evd, NotSameHead)
   else UnifFailure (evd, NotSameHead)
 
-let eq_puniverses evd f (x,u) (y,v) =
-  if f x y then 
-    let evdref = ref evd in
-      try List.iter2 (fun x y -> evdref := Evd.set_eq_level !evdref x y) u v;
-	  (!evdref, true)
-      with _ -> (evd, false)
-  else (evd, false)
-
 let rec evar_conv_x ts env evd pbty term1 term2 =
   let term1 = whd_head_evar evd term1 in
   let term2 = whd_head_evar evd term2 in
@@ -341,6 +333,7 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false) ts env evd pbty
     if onleft then evar_eqappr_x ts env' evd CONV out1 out2
     else evar_eqappr_x ts env' evd CONV out2 out1
   in
+
   let app_empty = match sk1, sk2 with [], [] -> true | _ -> false in
   (* Evar must be undefined since we have flushed evars *)
   match (flex_kind_of_term term1 sk1, flex_kind_of_term term2 sk2) with
@@ -886,7 +879,7 @@ let rec solve_unconstrained_evars_with_canditates evd =
       | a::l ->
           try
             let conv_algo = evar_conv_x full_transparent_state in
-            let evd = check_evar_instance evd evk a None (* FIXME Not sure *) conv_algo in
+            let evd = check_evar_instance evd evk a conv_algo in
             let evd = Evd.define evk a evd in
             match reconsider_conv_pbs conv_algo evd with
             | Success evd -> solve_unconstrained_evars_with_canditates evd

@@ -79,9 +79,7 @@ type 'a universe_map = 'a LMap.t
 
 module Universe :
 sig
-  type t = 
-    | Atom of universe_level
-    | Max of universe_list * universe_list
+  type t
   (** Type of universes. A universe is defined as a set of constraints w.r.t.
       other universes. *)
 

@@ -391,12 +391,6 @@ let build_coq_jmeq_data_in env =
 let build_coq_identity_data_in env =
   build_coq_identity_data (), Univ.ContextSet.empty
 
-let build_coq_jmeq_data_in env =
-  build_coq_jmeq_data (), Univ.empty_universe_context_set
-
-let build_coq_identity_data_in env =
-  build_coq_identity_data (), Univ.empty_universe_context_set
-
 let equalities =
   [coq_eq_pattern, no_check, build_coq_eq_data_in;
    coq_jmeq_pattern, check_jmeq_loaded, build_coq_jmeq_data_in;

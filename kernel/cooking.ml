@@ -148,18 +148,6 @@ let constr_of_def = function
   | Def cs -> Lazyconstr.force cs
   | OpaqueDef lc -> Lazyconstr.force_opaque lc
 
-let univ_variables_of c = 
-  let rec aux univs c = 
-    match kind_of_term c with
-    | Sort (Type u) ->
-      (match Univ.universe_level u with
-      | Some l -> Univ.LSet.add l univs
-      | None -> univs)
-    | Term.Const (_, u) | Term.Ind (_, u) | Term.Construct (_, u) -> 
-      CList.fold_left (fun acc u -> Univ.LSet.add u acc) univs u
-    | _ -> fold_constr aux univs c
-  in aux Univ.LSet.empty c
-
 let cook_constant env r =
   let cb = r.d_from in
   let to_abstract, abs_ctx = r.d_abstract in

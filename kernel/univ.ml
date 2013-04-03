@@ -78,12 +78,6 @@ module Level = struct
     | Set -> true
     | _ -> false
 
-  let set = Set
-  let prop = Prop
-  let is_small = function
-    | Level _ -> false
-    | _ -> true
-
   (* A specialized comparison function: we compare the [int] part first.
      This way, most of the time, the [DirPath.t] part is not considered.
 
@@ -1105,9 +1099,6 @@ let exists_bigger g strict ul l =
   Huniv.exists (fun ul' -> 
     check_smaller_expr g strict (Hunivelt.node ul) (Hunivelt.node ul')) l
 
-let exists_bigger g strict ul l =
-  List.exists (fun ul' -> check_smaller g strict ul ul') l
-
 let check_leq g u v =
   u == v ||
   match Universe.level u with
@@ -1661,16 +1652,6 @@ let check_univ_leq_one u v = Universe.exists (Expr.leq u) v
 let check_univ_leq u v = 
   Universe.for_all (fun u -> check_univ_leq_one u v) u
 
-let check_univ_eq u v =
-  match u, v with
-  | (Atom u, Atom v)
-  | Atom u, Max ([v],[])
-  | Max ([u],[]), Atom v -> Level.eq u v
-  | Max (gel,gtl), Max (gel',gtl') ->
-    compare_list Level.eq gel gel' &&
-    compare_list Level.eq gtl gtl'
-  | _, _ -> false
-
 let enforce_leq u v c =
   match Huniv.node v with
   | Universe.Huniv.Cons (v, n) when Universe.is_empty n -> 
@@ -1679,10 +1660,6 @@ let enforce_leq u v c =
 
 let enforce_leq u v c =
   if check_univ_leq u v then c
-  else enforce_leq u v c
-
-let enforce_leq u v c =
-  if check_univ_eq u v then c
   else enforce_leq u v c
 
 let enforce_eq u v c =
@@ -2091,10 +2068,7 @@ module Huniverse_set =
       let equal s s' =
 	LSet.equal s s'
       let hash = Hashtbl.hash
-    end
-
-module Huniv =
-  Hashcons.Make(Hunivcons)
+    end)
 
 let hcons_universe_set = 
   Hashcons.simple_hcons Huniverse_set.generate Level.hcons
