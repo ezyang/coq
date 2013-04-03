@@ -1000,7 +1000,7 @@ Module PositiveSet <: S with Module E:=PositiveOrderedTypeBits.
       constructor.
        intros x H. apply E.lt_not_eq in H. apply H. reflexivity.
        intro. apply E.lt_trans.
-      intros ? ? <- ? ? <-. reflexivity.
+     solve_proper.
       apply elements_3.
   Qed.
 

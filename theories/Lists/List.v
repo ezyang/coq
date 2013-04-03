@@ -65,8 +65,6 @@ End ListNotations.
 
 Import ListNotations.
 
-(** ** Facts about lists *)
-
 Section Facts.
 
   Variable A : Type.

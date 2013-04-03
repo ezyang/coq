@@ -138,6 +138,9 @@ val constant_type_in_ctx : env -> constant -> types Univ.in_universe_context
 val constant_opt_value : env -> constant puniverses -> (constr * Univ.constraints) option
 val constant_value_and_type : env -> constant puniverses -> 
   types option * constr * Univ.constraints
+(** The universe context associated to the constant, empty if not 
+    polymorphic *)
+val constant_context : env -> constant -> Univ.universe_context
 
 (* These functions should be called under the invariant that [env] 
    already contains the constraints corresponding to the constant 
@@ -168,6 +171,9 @@ val lookup_modtype : module_path -> env -> module_type_body
 (** {5 Universe constraints } *)
 
 val add_constraints : Univ.constraints -> env -> env
+val push_context : Univ.universe_context -> env -> env
+val push_context_set : Univ.universe_context_set -> env -> env
+val push_constraints_to_env : 'a Univ.constrained -> env -> env
 
 val push_constraints_to_env : 'a Univ.constrained -> env -> env
 

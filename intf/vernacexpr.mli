@@ -12,7 +12,6 @@ open Names
 open Tacexpr
 open Misctypes
 open Constrexpr
-open Notation_term
 open Decl_kinds
 open Libnames
 
@@ -26,6 +25,7 @@ type lreference = reference
 type class_rawexpr = FunClass | SortClass | RefClass of reference or_by_notation
 
 type goal_identifier = string
+type scope_name = string
 
 type goal_reference =
   | OpenSubgoals
@@ -38,11 +38,11 @@ type printable =
   | PrintSectionContext of reference
   | PrintInspect of int
   | PrintGrammar of string
-  | PrintLoadPath of Dir_path.t option
+  | PrintLoadPath of DirPath.t option
   | PrintModules
   | PrintModule of reference
   | PrintModuleType of reference
-  | PrintNamespace of Dir_path.t
+  | PrintNamespace of DirPath.t
   | PrintMLLoadPath
   | PrintMLModules
   | PrintName of reference or_by_notation
@@ -179,9 +179,6 @@ type inductive_expr =
 type one_inductive_expr =
   lident * local_binder list * constr_expr option * constructor_expr list
 
-type module_ast_inl = module_ast Declaremods.annotated
-type module_binder = bool option * lident list * module_ast_inl
-
 type grammar_tactic_prod_item_expr =
   | TacTerm of string
   | TacNonTerm of Loc.t * string * (Names.Id.t * string) option
@@ -203,12 +200,44 @@ type scheme =
   | CaseScheme of bool * reference or_by_notation * sort_expr
   | EqualityScheme of reference or_by_notation
 
-type inline = int option (* inlining level, none for no inlining *)
-
 type bullet =
     | Dash
     | Star
     | Plus
+
+(** {6 Types concerning the module layer} *)
+
+(** Rigid / flexible module signature *)
+
+type 'a module_signature =
+  | Enforce of 'a (** ... : T *)
+  | Check of 'a list (** ... <: T1 <: T2, possibly empty *)
+
+(** Which module inline annotations should we honor,
+    either None or the ones whose level is less or equal
+    to the given integer *)
+
+type inline =
+  | NoInline
+  | DefaultInline
+  | InlineAt of int
+
+(** Should we adapt a few scopes during functor application ? *)
+
+type scope_subst = (string * string) list
+
+(** The type of annotations for functor applications *)
+
+type funct_app_annot =
+  { ann_inline : inline;
+    ann_scope_subst : scope_subst }
+
+type 'a annotated = ('a * funct_app_annot)
+
+type module_ast_inl = module_ast annotated
+type module_binder = bool option * lident list * module_ast_inl
+
+(** {6 The type of vernacular expressions} *)
 
 type vernac_expr =
   (* Control *)
@@ -232,17 +261,16 @@ type vernac_expr =
       scope_name option
 
   (* Gallina *)
-  | VernacDefinition of definition_kind * lident * definition_expr *
-      unit declaration_hook
+  | VernacDefinition of definition_kind * lident * definition_expr
   | VernacStartTheoremProof of theorem_kind * polymorphic *
       (lident option * (local_binder list * constr_expr * (lident option * recursion_order_expr) option)) list *
-        bool * unit declaration_hook
+        bool
   | VernacEndProof of proof_end
   | VernacExactProof of constr_expr
   | VernacAssumption of assumption_kind * inline * simple_binder with_coercion list
   | VernacInductive of polymorphic * inductive_flag * infer_flag * (inductive_expr * decl_notation list) list
-  | VernacFixpoint of (fixpoint_expr * decl_notation list) list
-  | VernacCoFixpoint of (cofixpoint_expr * decl_notation list) list
+  | VernacFixpoint of locality * (fixpoint_expr * decl_notation list) list
+  | VernacCoFixpoint of locality * (cofixpoint_expr * decl_notation list) list
   | VernacScheme of (lident option * scheme) list
   | VernacCombinedScheme of lident * lident list
 
@@ -253,9 +281,9 @@ type vernac_expr =
       export_flag option * lreference list
   | VernacImport of export_flag * lreference list
   | VernacCanonical of reference or_by_notation
-  | VernacCoercion of locality * polymorphic * reference or_by_notation *
+  | VernacCoercion of locality_flag * polymorphic * reference or_by_notation *
       class_rawexpr * class_rawexpr
-  | VernacIdentityCoercion of locality * polymorphic * lident *
+  | VernacIdentityCoercion of locality_flag * polymorphic * lident *
       class_rawexpr * class_rawexpr
 
   (* Type classes *)
@@ -279,7 +307,7 @@ type vernac_expr =
   | VernacDeclareModule of bool option * lident *
       module_binder list * module_ast_inl
   | VernacDefineModule of bool option * lident * module_binder list *
-      module_ast_inl Declaremods.module_signature * module_ast_inl list
+      module_ast_inl module_signature * module_ast_inl list
   | VernacDeclareModuleType of lident *
       module_binder list * module_ast_inl list * module_ast_inl list
   | VernacInclude of module_ast_inl list
@@ -291,7 +319,7 @@ type vernac_expr =
 
   (* Auxiliary file and library management *)
   | VernacRequireFrom of export_flag option * string
-  | VernacAddLoadPath of rec_flag * string * Dir_path.t option
+  | VernacAddLoadPath of rec_flag * string * DirPath.t option
   | VernacRemoveLoadPath of string
   | VernacAddMLPath of rec_flag * string
   | VernacDeclareMLModule of locality_flag * string list

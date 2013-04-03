@@ -131,7 +131,7 @@ let induction_arg_of_constr (c,lbind as clbind) = match lbind with
   | NoBindings ->
     begin
       try ElimOnIdent (Constrexpr_ops.constr_loc c,snd(Constrexpr_ops.coerce_to_id c))
-      with _ -> ElimOnConstr clbind
+      with e when Errors.noncritical e -> ElimOnConstr clbind
     end
   | _ -> ElimOnConstr clbind
 
@@ -346,6 +346,7 @@ GEXTEND Gram
       | IDENT "lazy"; s = strategy_flag -> Lazy s
       | IDENT "compute"; delta = delta_flag -> Cbv (all_with delta)
       | IDENT "vm_compute"; po = OPT pattern_occ -> CbvVm po
+      | IDENT "native_compute"; po = OPT pattern_occ -> CbvNative po
       | IDENT "unfold"; ul = LIST1 unfold_occ SEP "," -> Unfold ul
       | IDENT "fold"; cl = LIST1 constr -> Fold cl
       | IDENT "pattern"; pl = LIST1 pattern_occ SEP"," -> Pattern pl ] ]
@@ -359,6 +360,7 @@ GEXTEND Gram
       | IDENT "lazy"; s = strategy_flag -> Lazy s
       | IDENT "compute"; delta = delta_flag -> Cbv (all_with delta)
       | IDENT "vm_compute"; po = OPT pattern_occ -> CbvVm po
+      | IDENT "native_compute"; po = OPT pattern_occ -> CbvNative po
       | IDENT "unfold"; ul = LIST1 unfold_occ SEP "," -> Unfold ul
       | IDENT "fold"; cl = LIST1 constr -> Fold cl
       | IDENT "pattern"; pl = LIST1 pattern_occ SEP"," -> Pattern pl

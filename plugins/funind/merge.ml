@@ -71,7 +71,7 @@ let ident_global_exist id =
     let ans = CRef (Libnames.Ident (Loc.ghost,id),None) in
     let _ = ignore (Constrintern.intern_constr Evd.empty (Global.env()) ans) in
     true
-  with _ -> false
+  with e when Errors.noncritical e -> false
 
 (** [next_ident_fresh id] returns a fresh identifier (ie not linked in
     global env) with base [id]. *)
@@ -659,9 +659,9 @@ let build_link_map_aux (allargs1:Id.t array) (allargs2:Id.t array)
 
 let build_link_map allargs1 allargs2 lnk =
   let allargs1 =
-    Array.of_list (List.rev (List.map (fun (x,_,_) -> id_of_name x) allargs1)) in
+    Array.of_list (List.rev_map (fun (x,_,_) -> id_of_name x) allargs1) in
   let allargs2 =
-    Array.of_list (List.rev (List.map (fun (x,_,_) -> id_of_name x) allargs2)) in
+    Array.of_list (List.rev_map (fun (x,_,_) -> id_of_name x) allargs2) in
   build_link_map_aux allargs1 allargs2 lnk
 
 
@@ -782,10 +782,10 @@ let merge_inductive_body (shift:merge_infos) avoid (oib1:one_inductive_body)
 
   let params1 =
     try fst (glob_decompose_prod_n shift.nrecprms1 (List.hd lcstr1))
-    with _ -> [] in
+    with e when Errors.noncritical e -> [] in
   let params2 =
     try fst (glob_decompose_prod_n shift.nrecprms2 (List.hd lcstr2))
-    with _ -> [] in
+    with e when Errors.noncritical e -> [] in
 
   let lcstr1 = List.combine (Array.to_list oib1.mind_consnames) lcstr1 in
   let lcstr2 = List.combine (Array.to_list oib2.mind_consnames) lcstr2 in

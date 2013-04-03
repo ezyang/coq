@@ -19,7 +19,7 @@ open Names
 open Term
 
 (* For Inline, the int is an inlining level, and the constr (if present)
-   is the term into which we should inline *)
+   is the term into which we should inline. *)
 
 type delta_hint =
   | Inline of int * constr option
@@ -44,6 +44,9 @@ module Deltamap = struct
     MPmap.fold fmp mm (KNmap.fold fkn km i)
   let join map1 map2 = fold add_mp add_kn map1 map2
 end
+
+(* Invariant: in the [delta_hint] map, an [Equiv] should only
+   relate [kernel_name] with the same label (and section dirpath). *)
 
 type delta_resolver = Deltamap.t
 
@@ -83,13 +86,14 @@ let string_of_hint = function
   | Equiv kn -> string_of_kn kn
 
 let debug_string_of_delta resolve =
-  let kn_to_string kn hint s =
-    s^", "^(string_of_kn kn)^"=>"^(string_of_hint hint)
+  let kn_to_string kn hint l =
+    (string_of_kn kn ^ "=>" ^ string_of_hint hint) :: l
   in
-  let mp_to_string mp mp' s =
-    s^", "^(string_of_mp mp)^"=>"^(string_of_mp mp')
+  let mp_to_string mp mp' l =
+    (string_of_mp mp ^ "=>" ^ string_of_mp mp') :: l
   in
-  Deltamap.fold mp_to_string kn_to_string resolve ""
+  let l = Deltamap.fold mp_to_string kn_to_string resolve [] in
+  String.concat ", " (List.rev l)
 
 let list_contents sub =
   let one_pair (mp,reso) = (string_of_mp mp,debug_string_of_delta reso) in
@@ -119,7 +123,9 @@ let debug_pr_subst sub =
 
 let add_inline_delta_resolver kn (lev,oc) = Deltamap.add_kn kn (Inline (lev,oc))
 
-let add_kn_delta_resolver kn kn' = Deltamap.add_kn kn (Equiv kn')
+let add_kn_delta_resolver kn kn' =
+  assert (Label.equal (label kn) (label kn'));
+  Deltamap.add_kn kn (Equiv kn')
 
 let add_mp_delta_resolver mp1 mp2 = Deltamap.add_mp mp1 mp2
 
@@ -140,8 +146,8 @@ let kn_in_delta kn resolver =
       | Inline _ -> false
   with Not_found -> false
 
-let con_in_delta con resolver = kn_in_delta (user_con con) resolver
-let mind_in_delta mind resolver = kn_in_delta (user_mind mind) resolver
+let con_in_delta con resolver = kn_in_delta (Constant.user con) resolver
+let mind_in_delta mind resolver = kn_in_delta (MutInd.user mind) resolver
 
 let mp_of_delta resolve mp =
  try Deltamap.find_mp mp resolve with Not_found -> mp
@@ -154,6 +160,8 @@ let find_prefix resolve mp =
     | p -> Deltamap.find_mp p resolve
   in
   try sub_mp mp with Not_found -> mp
+
+(** Applying a resolver to a kernel name *)
 
 exception Change_equiv_to_inline of (int * constr)
 
@@ -173,35 +181,25 @@ let solve_delta_kn resolve kn =
 
 let kn_of_delta resolve kn =
   try solve_delta_kn resolve kn
-  with _ -> kn
+  with Change_equiv_to_inline _ -> kn
+
+(** Try a 1st resolver, and then a 2nd in case it had no effect *)
+
+let kn_of_deltas resolve1 resolve2 kn =
+  let kn' = kn_of_delta resolve1 kn in
+  if kn' == kn then kn_of_delta resolve2 kn else kn'
 
 let constant_of_delta_kn resolve kn =
-  constant_of_kn_equiv kn (kn_of_delta resolve kn)
+  Constant.make kn (kn_of_delta resolve kn)
 
-let gen_of_delta resolve x kn fix_can =
-  try
-    let new_kn = solve_delta_kn resolve kn in
-    if kn == new_kn then x else fix_can new_kn
-  with _ -> x
-
-let constant_of_delta resolve con =
-  let kn = user_con con in
-  gen_of_delta resolve con kn (constant_of_kn_equiv kn)
-
-let constant_of_delta2 resolve con =
-  let kn, kn' = canonical_con con, user_con con in
-  gen_of_delta resolve con kn (constant_of_kn_equiv kn')
+let constant_of_deltas_kn resolve1 resolve2 kn =
+  Constant.make kn (kn_of_deltas resolve1 resolve2 kn)
 
 let mind_of_delta_kn resolve kn =
-  mind_of_kn_equiv kn (kn_of_delta resolve kn)
+  MutInd.make kn (kn_of_delta resolve kn)
 
-let mind_of_delta resolve mind =
-  let kn = user_mind mind in
-  gen_of_delta resolve mind kn (mind_of_kn_equiv kn)
-
-let mind_of_delta2 resolve mind =
-  let kn, kn' = canonical_mind mind, user_mind mind in
-  gen_of_delta resolve mind kn (mind_of_kn_equiv kn')
+let mind_of_deltas_kn resolve1 resolve2 kn =
+  MutInd.make kn (kn_of_deltas resolve1 resolve2 kn)
 
 let inline_of_delta inline resolver =
   match inline with
@@ -214,17 +212,17 @@ let inline_of_delta inline resolver =
       in
       Deltamap.fold_kn extract resolver []
 
-let find_inline_of_delta kn resolve =
-  match Deltamap.find_kn kn resolve with
+let search_delta_inline resolve kn1 kn2 =
+  let find kn = match Deltamap.find_kn kn resolve with
     | Inline (_,o) -> o
-    | _ -> raise Not_found
-
-let constant_of_delta_with_inline resolve con =
-  let kn1,kn2 = canonical_con con,user_con con in
-  try find_inline_of_delta kn2 resolve
+    | Equiv _ -> raise Not_found
+  in
+  try find kn1
   with Not_found ->
-    try find_inline_of_delta kn1 resolve
-    with Not_found -> None
+    if kn1 == kn2 then None
+    else
+      try find kn2
+      with Not_found -> None
 
 let subst_mp0 sub mp = (* 's like subst *)
  let rec aux mp =
@@ -267,78 +265,75 @@ let subst_kn sub kn =
 
 exception No_subst
 
-type sideconstantsubst =
-  | User
-  | Canonical
-
-let gen_subst_mp f sub mp1 mp2 =
-  match subst_mp0 sub mp1, subst_mp0 sub mp2 with
+let subst_dual_mp sub mp1 mp2 =
+  let o1 = subst_mp0 sub mp1 in
+  let o2 = if mp1 == mp2 then o1 else subst_mp0 sub mp2 in
+  match o1, o2 with
     | None, None -> raise No_subst
-    | Some (mp',resolve), None -> User, (f mp' mp2), resolve
-    | None, Some (mp',resolve) -> Canonical, (f mp1 mp'), resolve
-    | Some (mp1',_), Some (mp2',resolve2) -> Canonical, (f mp1' mp2'), resolve2
+    | Some (mp1',resolve), None -> mp1', mp2, resolve, true
+    | None, Some (mp2',resolve) -> mp1, mp2', resolve, false
+    | Some (mp1',_), Some (mp2',resolve) -> mp1', mp2', resolve, false
+
+let progress f x ~orelse =
+  let y = f x in
+  if y != x then y else orelse
 
 let subst_mind sub mind =
-  let kn1,kn2 = user_mind mind, canonical_mind mind in
-  let mp1,dir,l = repr_kn kn1 in
-  let mp2,_,_ = repr_kn kn2 in
-  let rebuild_mind mp1 mp2 = make_mind_equiv mp1 mp2 dir l in
+  let mpu,dir,l = MutInd.repr3 mind in
+  let mpc = KerName.modpath (MutInd.canonical mind) in
   try
-    let side,mind',resolve = gen_subst_mp rebuild_mind sub mp1 mp2 in
-    match side with
-      | User -> mind_of_delta resolve mind'
-      | Canonical -> mind_of_delta2 resolve mind'
+    let mpu,mpc,resolve,user = subst_dual_mp sub mpu mpc in
+    let knu = KerName.make mpu dir l in
+    let knc = if mpu == mpc then knu else KerName.make mpc dir l in
+    let knc' =
+      progress (kn_of_delta resolve) (if user then knu else knc) ~orelse:knc
+    in
+    MutInd.make knu knc'
   with No_subst -> mind
 
-let subst_ind sub ((mind,i) as t) =
-  let mind' = subst_mind sub mind in
-    if mind' == mind then t
-    else (mind',i)
+let subst_ind sub (ind,i as indi) =
+  let ind' = subst_mind sub ind in
+    if ind' == ind then indi else ind',i
 
-let subst_pind sub (ind,u as t) =
-  let ind' = subst_ind sub ind in
-    if ind' == ind then t
-    else (ind',u)
+let subst_pind sub (ind,u) =
+  (subst_ind sub ind, u)
 
-let subst_con0 sub con =
-  let kn1,kn2 = user_con con,canonical_con con in
-  let mp1,dir,l = repr_kn kn1 in
-  let mp2,_,_ = repr_kn kn2 in
-  let rebuild_con mp1 mp2 = make_con_equiv mp1 mp2 dir l in
-  let side,con',resolve = gen_subst_mp rebuild_con sub mp1 mp2 in
-  match constant_of_delta_with_inline resolve con' with
+let subst_con0 sub (cst,u) =
+  let mpu,dir,l = Constant.repr3 cst in
+  let mpc = KerName.modpath (Constant.canonical cst) in
+  let mpu,mpc,resolve,user = subst_dual_mp sub mpu mpc in
+  let knu = KerName.make mpu dir l in
+  let knc = if mpu == mpc then knu else KerName.make mpc dir l in
+  match search_delta_inline resolve knu knc with
     | Some t ->
       (* In case of inlining, discard the canonical part (cf #2608) *)
-      constant_of_kn (user_con con'), Some t
+      Constant.make1 knu, t
     | None ->
-      let con'' = match side with
-	| User -> constant_of_delta resolve con'
-	| Canonical -> constant_of_delta2 resolve con'
+      let knc' =
+        progress (kn_of_delta resolve) (if user then knu else knc) ~orelse:knc
       in
-      if con'' == con then raise No_subst else con'', None
+      let cst' = Constant.make knu knc' in
+      cst', mkConstU (cst',u)
 
-let subst_con sub (con,u as conu) =
-  try let con', can = subst_con0 sub con in
-      let can = match can with None -> mkConstU (con',u) | Some t -> t in
-	con', can
-  with No_subst -> con, mkConstU conu
+let subst_con sub cst =
+  try subst_con0 sub cst
+  with No_subst -> fst cst, mkConstU cst
 
 let subst_con_kn sub con =
-  subst_con sub (con,[])
+  subst_con sub (con,Univ.Instance.empty)
 
 let subst_pcon sub (con,u as pcon) = 
-  try let con', can = subst_con0 sub con in 
+  try let con', can = subst_con0 sub pcon in 
 	con',u
   with No_subst -> pcon
 
 let subst_pcon_term sub (con,u as pcon) = 
-  try let con', can = subst_con0 sub con in 
-      let can = match can with None -> mkConstU (con',u) | Some t -> t in
+  try let con', can = subst_con0 sub pcon in 
 	(con',u), can
   with No_subst -> pcon, mkConstU pcon
 
 let subst_constant sub con =
-  try fst (subst_con0 sub con)
+  try fst (subst_con0 sub (con,Univ.Instance.empty))
   with No_subst -> con
 
 (* Here the semantics is completely unclear.
@@ -418,7 +413,7 @@ let rec map_kn f f' c =
 
 let subst_mps sub c =
   if is_empty_subst sub then c
-  else map_kn (subst_mind sub) (subst_con sub) c
+  else map_kn (subst_mind sub) (subst_con0 sub) c
 
 let rec replace_mp_in_mp mpfrom mpto mp =
   match mp with

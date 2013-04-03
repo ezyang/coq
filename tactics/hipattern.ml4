@@ -58,9 +58,12 @@ let is_non_recursive_type t = op2bool (match_with_non_recursive_type t)
 
 (* Test dependencies *)
 
+(* NB: we consider also the let-in case in the following function,
+   since they may appear in types of inductive constructors (see #2629) *)
+
 let rec has_nodep_prod_after n c =
   match kind_of_term c with
-    | Prod (_,_,b) ->
+    | Prod (_,_,b) | LetIn (_,_,_,b) ->
 	( n>0 || not (dependent (mkRel 1) b))
 	&& (has_nodep_prod_after (n-1) b)
     | _            -> true
@@ -289,7 +292,7 @@ let match_arrow_pattern t =
   match matches coq_arrow_pattern t with
     | [(m1,arg);(m2,mind)] ->
       assert (Id.equal m1 meta1 && Id.equal m2 meta2); (arg, mind)
-    | _ -> anomaly "Incorrect pattern matching"
+    | _ -> anomaly (Pp.str "Incorrect pattern matching")
 
 let match_with_nottype t =
   try
@@ -352,9 +355,10 @@ let is_sigma_type t=op2bool (match_with_sigma_type t)
 
 let rec first_match matcher env = function
   | [] -> raise PatternMatchingFailure
-  | (pat,build_set)::l ->
-      try (build_set env,matcher pat)
-      with PatternMatchingFailure -> first_match matcher env l
+  | (pat,check,build_set)::l when check () ->
+      (try (build_set env,matcher pat)
+       with PatternMatchingFailure -> first_match matcher env l)
+  | _::l -> first_match matcher env l
 
 (*** Equality *)
 
@@ -365,7 +369,10 @@ let coq_identity_pattern = coq_eq_pattern_gen coq_identity_ref
 let coq_jmeq_pattern = lazy PATTERN [ %coq_jmeq_ref ?X1 ?X2 ?X3 ?X4 ]
 
 let match_eq eqn eq_pat =
-  let pat = try Lazy.force eq_pat with _ -> raise PatternMatchingFailure in
+  let pat =
+    try Lazy.force eq_pat
+    with e when Errors.noncritical e -> raise PatternMatchingFailure
+  in
   match matches pat eqn with
     | [(m1,t);(m2,x);(m3,y)] ->
 	assert (Id.equal m1 meta1 && Id.equal m2 meta2 && Id.equal m3 meta3);
@@ -373,7 +380,16 @@ let match_eq eqn eq_pat =
     | [(m1,t);(m2,x);(m3,t');(m4,x')] ->
         assert (Id.equal m1 meta1 && Id.equal m2 meta2 && Id.equal m3 meta3 && Id.equal m4 meta4);
 	HeterogenousEq (t,x,t',x')
-    | _ -> anomaly "match_eq: an eq pattern should match 3 or 4 terms"
+    | _ -> anomaly ~label:"match_eq" (Pp.str "an eq pattern should match 3 or 4 terms")
+
+let no_check () = true
+let check_jmeq_loaded () = Library.library_is_loaded Coqlib.jmeq_module
+
+let build_coq_jmeq_data_in env =
+  build_coq_jmeq_data (), Univ.ContextSet.empty
+
+let build_coq_identity_data_in env =
+  build_coq_identity_data (), Univ.ContextSet.empty
 
 let build_coq_jmeq_data_in env =
   build_coq_jmeq_data (), Univ.empty_universe_context_set
@@ -382,9 +398,9 @@ let build_coq_identity_data_in env =
   build_coq_identity_data (), Univ.empty_universe_context_set
 
 let equalities =
-  [coq_eq_pattern, build_coq_eq_data_in;
-   coq_jmeq_pattern, build_coq_jmeq_data_in;
-   coq_identity_pattern, build_coq_identity_data_in]
+  [coq_eq_pattern, no_check, build_coq_eq_data_in;
+   coq_jmeq_pattern, check_jmeq_loaded, build_coq_jmeq_data_in;
+   coq_identity_pattern, no_check, build_coq_identity_data_in]
 
 let find_eq_data env eqn = (* fails with PatternMatchingFailure *)
   first_match (match_eq eqn) env equalities
@@ -420,7 +436,7 @@ let match_eq_nf gls eqn eq_pat =
     | [(m1,t);(m2,x);(m3,y)] ->
         assert (Id.equal m1 meta1 && Id.equal m2 meta2 && Id.equal m3 meta3);
 	(t,pf_whd_betadeltaiota gls x,pf_whd_betadeltaiota gls y)
-    | _ -> anomaly "match_eq: an eq pattern should match 3 terms"
+    | _ -> anomaly ~label:"match_eq" (Pp.str "an eq pattern should match 3 terms")
 
 let dest_nf_eq gls eqn =
   try
@@ -441,12 +457,12 @@ let match_sigma ex ex_pat =
         assert (Id.equal m1 meta1 && Id.equal m2 meta2 && Id.equal m3 meta3 && Id.equal m4 meta4);
 	(a,p,car,cdr)
     | _ ->
-	anomaly "match_sigma: a successful sigma pattern should match 4 terms"
+	anomaly ~label:"match_sigma" (Pp.str "a successful sigma pattern should match 4 terms")
 
 let find_sigma_data_decompose ex = (* fails with PatternMatchingFailure *)
   first_match (match_sigma ex) (Global.env())
-    [coq_existT_pattern, (fun _ -> build_sigma_type ());
-     coq_exist_pattern, (fun _ -> build_sigma ())]
+    [coq_existT_pattern, no_check, (fun _ -> build_sigma_type ());
+     coq_exist_pattern, no_check, (fun _ -> build_sigma ())]
 
 (* Pattern "(sig ?1 ?2)" *)
 let coq_sig_pattern = lazy PATTERN [ %coq_sig_ref ?X1 ?X2 ]
@@ -454,7 +470,7 @@ let coq_sig_pattern = lazy PATTERN [ %coq_sig_ref ?X1 ?X2 ]
 let match_sigma t =
   match matches (Lazy.force coq_sig_pattern) t with
     | [(_,a); (_,p)] -> (a,p)
-    | _ -> anomaly "Unexpected pattern"
+    | _ -> anomaly (Pp.str "Unexpected pattern")
 
 let is_matching_sigma t = is_matching (Lazy.force coq_sig_pattern) t
 
@@ -492,7 +508,7 @@ let match_eqdec t =
   match subst with
   | [(_,typ);(_,c1);(_,c2)] ->
       eqonleft, Universes.constr_of_global (Lazy.force op), c1, c2, typ
-  | _ -> anomaly "Unexpected pattern"
+  | _ -> anomaly (Pp.str "Unexpected pattern")
 
 (* Patterns "~ ?" and "? -> False" *)
 let coq_not_pattern = lazy PATTERN [ ~ _ ]

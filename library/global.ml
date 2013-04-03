@@ -66,6 +66,8 @@ let add_module id me inl =
     the instantiated constraints. *)
 
 let add_constraints c = global_env := add_constraints c !global_env
+let push_context_set c = global_env := push_context_set c !global_env
+let push_context c = global_env := push_context c !global_env
 
 let set_engagement c = global_env := set_engagement c !global_env
 
@@ -126,14 +128,12 @@ let constant_of_delta_kn kn =
   (* TODO : are resolver and resolver_param orthogonal ?
      the effect of resolver is lost if resolver_param isn't
      trivial at that spot. *)
-    Mod_subst.constant_of_delta resolver_param
-      (Mod_subst.constant_of_delta_kn resolver kn)
+  Mod_subst.constant_of_deltas_kn resolver_param resolver kn
 
 let mind_of_delta_kn kn =
   let resolver,resolver_param = (delta_of_senv !global_env) in
   (* TODO idem *)
-    Mod_subst.mind_of_delta resolver_param
-      (Mod_subst.mind_of_delta_kn resolver kn)
+  Mod_subst.mind_of_deltas_kn resolver_param resolver kn
 
 let exists_objlabel id = exists_objlabel id !global_env
 
@@ -145,9 +145,9 @@ let start_library dir =
 let export s = export !global_env s
 
 let import cenv digest =
-  let mp,newenv = import cenv digest !global_env in
+  let mp,newenv,values = import cenv digest !global_env in
     global_env := newenv;
-    mp
+    mp, values
 
 
 
@@ -170,7 +170,7 @@ let type_of_global_unsafe r =
        oib.Declarations.mind_arity.Declarations.mind_user_arity
   | ConstructRef cstr ->
      let (mib,oib as specif) = Inductive.lookup_mind_specif env (inductive_of_constructor cstr) in
-     let inst = fst mib.Declarations.mind_universes in
+     let inst = Univ.Context.instance mib.Declarations.mind_universes in
        Inductive.type_of_constructor (cstr,inst) specif
 
 
@@ -197,6 +197,6 @@ let current_dirpath () =
   current_dirpath (safe_env ())
 
 let with_global f = 
-  let (a, (ctx, cst)) = f (env ()) (current_dirpath ()) in
-    add_constraints cst; a
+  let (a, ctx) = f (env ()) (current_dirpath ()) in
+    push_context_set ctx; a
 

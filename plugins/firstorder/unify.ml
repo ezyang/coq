@@ -77,7 +77,7 @@ let unif t1 t2=
 		  for i=0 to l-1 do
 		    Queue.add (va.(i),vb.(i)) bige
 		  done
-	  | _->if not (fst (eq_constr_univs nt1 nt2)) then raise (UFAIL (nt1,nt2))
+	  | _->if not (eq_constr_nounivs nt1 nt2) then raise (UFAIL (nt1,nt2))
     done;
       assert false
 	(* this place is unreachable but needed for the sake of typing *)
@@ -124,7 +124,7 @@ let unif_atoms i dom t1 t2=
     | Not_found ->Some (Phantom dom)
 
 let renum_metas_from k n t= (* requires n = max (free_rels t) *)
-  let l=List.tabulate (fun i->mkMeta (k+i)) n in
+  let l=List.init n (fun i->mkMeta (k+i)) in
     substl l t
 
 let more_general (m1,t1) (m2,t2)=

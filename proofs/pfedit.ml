@@ -55,7 +55,10 @@ let start_proof id str hyps c ?init_tac ?compute_guard hook =
    | None -> Proofview.tclUNIT ()
   in
   try Proof_global.run_tactic tac
-  with e -> Proof_global.discard_current (); raise e
+  with reraise ->
+    let reraise = Errors.push reraise in
+    Proof_global.discard_current ();
+    raise reraise
 
 let restart_proof () = undo_todepth 1
 
@@ -64,7 +67,7 @@ let cook_proof hook =
   hook prf;
   match Proof_global.close_proof () with
   | (i,([e],cg,str,h)) -> (i,(e,cg,str,h))
-  | _ -> Errors.anomaly "Pfedit.cook_proof: more than one proof term."
+  | _ -> Errors.anomaly ~label:"Pfedit.cook_proof" (Pp.str "more than one proof term.")
 
 let xml_cook_proof = ref (fun _ -> ())
 let set_xml_cook_proof f = xml_cook_proof := f
@@ -113,7 +116,7 @@ let get_current_goal_context () =
 let current_proof_statement () =
   match Proof_global.V82.get_current_initial_conclusions () with
     | (id,([concl],strength,hook)) -> id,strength,concl,hook
-    | _ -> Errors.anomaly "Pfedit.current_proof_statement: more than one statement"
+    | _ -> Errors.anomaly ~label:"Pfedit.current_proof_statement" (Pp.str "more than one statement")
 
 let solve_nth ?(with_end_tac=false) gi tac = 
   try 
@@ -144,22 +147,22 @@ open Decl_kinds
 
 let next = let n = ref 0 in fun () -> incr n; !n
 
-let build_constant_by_tactic id sign typ tac =
-  start_proof id (Global,false(*FIXME*),Proof Theorem) sign 
+let build_constant_by_tactic id poly sign typ tac =
+  start_proof id (Global,poly,Proof Theorem) sign 
     typ (fun _ _ _ -> ());
   try
     by tac;
     let _,(const,_,_,_) = cook_proof (fun _ -> ()) in
     delete_current_proof ();
     const
-  with e ->
+  with reraise ->
     delete_current_proof ();
-    raise e
+    raise reraise
 
 let build_by_tactic env typ tac =
   let id = Id.of_string ("temporary_proof"^string_of_int (next())) in
   let sign = val_of_named_context (named_context env) in
-  (build_constant_by_tactic id sign typ tac).const_entry_body
+  (build_constant_by_tactic id false (*FIXME?*)sign typ tac).const_entry_body
 
 (**********************************************************************)
 (* Support for resolution of evars in tactic interpretation, including

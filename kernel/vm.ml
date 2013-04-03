@@ -222,7 +222,7 @@ let whd_val : values -> whd =
 	   | 1 -> Vfix(Obj.obj o, None)
 	   | 2 -> Vfix(Obj.obj (Obj.field o 1), Some (Obj.obj o))
 	   | 3 -> Vatom_stk(Aid(RelKey(int_tcode (fun_code o) 1)), [])
-	   | _ -> Errors.anomaly "Vm.whd : kind_of_closure does not work")
+	   | _ -> Errors.anomaly ~label:"Vm.whd " (Pp.str "kind_of_closure does not work"))
 	else Vconstr_block(Obj.obj o)
 
 
@@ -249,9 +249,9 @@ let nargs : arguments -> int = fun args -> (Obj.size (Obj.repr args)) - 2
 let arg args i =
   if  0 <= i && i < (nargs args) then
     val_of_obj (Obj.field (Obj.repr args) (i+2))
-  else raise (Invalid_argument
+  else invalid_arg
 		("Vm.arg size = "^(string_of_int (nargs args))^
-		 " acces "^(string_of_int i)))
+		 " acces "^(string_of_int i))
 
 let apply_arguments vf vargs =
   let n = nargs vargs in
@@ -488,7 +488,7 @@ let btag : vblock -> int = fun b -> Obj.tag (Obj.repr b)
 let bsize : vblock -> int = fun b -> Obj.size (Obj.repr b)
 let bfield b i =
   if 0 <= i && i < (bsize b) then val_of_obj (Obj.field (Obj.repr b) i)
-  else raise (Invalid_argument "Vm.bfield")
+  else invalid_arg "Vm.bfield"
 
 
 (* Functions over vswitch *)

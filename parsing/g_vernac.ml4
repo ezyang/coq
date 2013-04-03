@@ -68,8 +68,6 @@ let default_command_entry =
   Gram.Entry.of_parser "command_entry"
     (fun strm -> Gram.parse_tokens_after_filter (get_command_entry ()) strm)
 
-let no_hook_poly _ _ _ = ()
-let no_hook _ _ = ()
 GEXTEND Gram
   GLOBAL: vernac gallina_ext tactic_mode noedit_mode subprf subgoal_command;
   vernac: FIRST
@@ -172,15 +170,17 @@ GEXTEND Gram
           [ "with"; id = identref; bl = binders; ":"; c = lconstr ->
           (Some id,(bl,c,None)) ] ->
           VernacStartTheoremProof (thm, use_poly (),
-				   (Some id,(bl,c,None))::l, false, no_hook)
+				   (Some id,(bl,c,None))::l, false)
       | stre = assumption_token; nl = inline; bl = assum_list ->
 	  VernacAssumption (add_polymorphism stre, nl, bl)
       | stre = assumptions_token; nl = inline; bl = assum_list ->
 	  test_plurial_form bl;
 	  VernacAssumption (add_polymorphism stre, nl, bl)
-      | (f,(l,k)) = def_token; id = identref; b = def_body ->
+      | (l,k) = def_token; id = identref; b = def_body ->
 	  let poly = use_poly () in
-          VernacDefinition ((l, poly, k), id, b, f poly)
+          VernacDefinition ((l, poly, k), id, b)
+      | IDENT "Let"; id = identref; b = def_body ->
+          VernacDefinition ((Discharge, false, Definition), id, b)
       (* Gallina inductive declarations *)
       | f = finite_token;
         indl = LIST1 inductive_definition SEP "with" ->
@@ -188,9 +188,13 @@ GEXTEND Gram
 	  let indl=List.map (fun ((a,b,c,d),e) -> ((a,b,c,k,d),e)) indl in
           VernacInductive (use_poly (), f,false,indl)
       | "Fixpoint"; recs = LIST1 rec_definition SEP "with" ->
-          VernacFixpoint recs
+          VernacFixpoint (use_locality_exp (), recs)
+      | IDENT "Let"; "Fixpoint"; recs = LIST1 rec_definition SEP "with" ->
+          VernacFixpoint (Discharge, recs)
       | "CoFixpoint"; corecs = LIST1 corec_definition SEP "with" ->
-          VernacCoFixpoint corecs
+          VernacCoFixpoint (use_locality_exp (), corecs)
+      | IDENT "Let"; "CoFixpoint"; corecs = LIST1 corec_definition SEP "with" ->
+          VernacCoFixpoint (Discharge, corecs)
       | IDENT "Scheme"; l = LIST1 scheme SEP "with" -> VernacScheme l
       | IDENT "Combined"; IDENT "Scheme"; id = identref; IDENT "from";
 	l = LIST1 identref SEP "," -> VernacCombinedScheme (id, l) ] ]
@@ -218,31 +222,29 @@ GEXTEND Gram
   ;
   def_token:
     [ [ "Definition" ->
-	no_hook_poly, (Global, Definition)
-      | IDENT "Let" ->
-	no_hook_poly, (Local, Definition)
+	(use_locality_exp (), Definition)
       | IDENT "Example" ->
-	no_hook_poly, (Global, Example)
+	(use_locality_exp (), Example)
       | IDENT "SubClass"  ->
-        Class.add_subclass_hook, (use_locality_exp (), SubClass) ] ]
+        (use_locality_exp (), SubClass) ] ]
   ;
   assumption_token:
-    [ [ "Hypothesis" -> (Local, Logical)
-      | "Variable" -> (Local, Definitional)
-      | "Axiom" -> (Global, Logical)
-      | "Parameter" -> (Global, Definitional)
-      | IDENT "Conjecture" -> (Global, Conjectural) ] ]
+    [ [ "Hypothesis" -> (Discharge, Logical)
+      | "Variable" -> (Discharge, Definitional)
+      | "Axiom" -> (use_locality_exp (), Logical)
+      | "Parameter" -> (use_locality_exp (), Definitional)
+      | IDENT "Conjecture" -> (use_locality_exp (), Conjectural) ] ]
   ;
   assumptions_token:
-    [ [ IDENT "Hypotheses" -> (Local, Logical)
-      | IDENT "Variables" -> (Local, Definitional)
-      | IDENT "Axioms" -> (Global, Logical)
-      | IDENT "Parameters" -> (Global, Definitional) ] ]
+    [ [ IDENT "Hypotheses" -> (Discharge, Logical)
+      | IDENT "Variables" -> (Discharge, Definitional)
+      | IDENT "Axioms" -> (use_locality_exp (), Logical)
+      | IDENT "Parameters" -> (use_locality_exp (), Definitional) ] ]
   ;
   inline:
-    [ [ IDENT "Inline"; "("; i = INT; ")" -> Some (int_of_string i)
-      | IDENT "Inline" -> Some (Flags.get_inline_level())
-      | -> None] ]
+    [ [ IDENT "Inline"; "("; i = INT; ")" -> InlineAt (int_of_string i)
+      | IDENT "Inline" -> DefaultInline
+      | -> NoInline] ]
   ;
   finite_token:
     [ [ "Inductive" -> (Inductive_kw,Finite)
@@ -363,7 +365,7 @@ GEXTEND Gram
 	   (oc,DefExpr (id,mkCLambdaN (!@loc) l b,Some (mkCProdN (!@loc) l t)))
       | l = binders; ":="; b = lconstr -> fun id ->
          match b with
-	 | CCast(_,b, (CastConv t|CastVM t)) ->
+	 | CCast(_,b, (CastConv t|CastVM t|CastNative t)) ->
 	     (None,DefExpr(id,mkCLambdaN (!@loc) l b,Some (mkCProdN (!@loc) l t)))
          | _ ->
 	     (None,DefExpr(id,mkCLambdaN (!@loc) l b,None)) ] ]
@@ -555,39 +557,38 @@ GEXTEND Gram
           d = def_body ->
           let s = coerce_reference_to_id qid in
 	  VernacDefinition
-	    (add_polymorphism (Global,CanonicalStructure),(Loc.ghost,s),d,
-	     (fun _ -> Recordops.declare_canonical_structure))
+	    (add_polymorphism (Global,CanonicalStructure),(Loc.ghost,s),d)
 
       (* Coercions *)
       | IDENT "Coercion"; qid = global; d = def_body ->
           let s = coerce_reference_to_id qid in
 	  let poly = use_poly () in
 	  VernacDefinition ((use_locality_exp (),poly,Coercion),
-			    (Loc.ghost,s),d,Class.add_coercion_hook poly)
+			    (Loc.ghost,s),d)
+
       | IDENT "Coercion"; IDENT "Local"; qid = global; d = def_body ->
           let s = coerce_reference_to_id qid in
 	  let poly = use_poly () in
 	  VernacDefinition ((enforce_locality_exp true, poly, Coercion),
-			    (Loc.ghost,s),d,Class.add_coercion_hook poly)
+			    (Loc.ghost,s),d)
       | IDENT "Identity"; IDENT "Coercion"; IDENT "Local"; f = identref;
          ":"; s = class_rawexpr; ">->"; t = class_rawexpr ->
-	   VernacIdentityCoercion (enforce_locality_exp true, use_poly (),
-				   f, s, t)
+	   VernacIdentityCoercion (enforce_locality true, use_poly (), f, s, t)
       | IDENT "Identity"; IDENT "Coercion"; f = identref; ":";
          s = class_rawexpr; ">->"; t = class_rawexpr ->
-	   VernacIdentityCoercion (use_locality_exp (), use_poly (), f, s, t)
+	   VernacIdentityCoercion (use_locality (), use_poly (), f, s, t)
       | IDENT "Coercion"; IDENT "Local"; qid = global; ":";
 	 s = class_rawexpr; ">->"; t = class_rawexpr ->
-	  VernacCoercion (enforce_locality_exp true, use_poly (), AN qid, s, t)
+	  VernacCoercion (enforce_locality true, use_poly (), AN qid, s, t)
       | IDENT "Coercion"; IDENT "Local"; ntn = by_notation; ":";
 	 s = class_rawexpr; ">->"; t = class_rawexpr ->
-	  VernacCoercion (enforce_locality_exp true, use_poly (), ByNotation ntn, s, t)
+	  VernacCoercion (enforce_locality true, use_poly (), ByNotation ntn, s, t)
       | IDENT "Coercion"; qid = global; ":"; s = class_rawexpr; ">->";
          t = class_rawexpr ->
-	  VernacCoercion (use_locality_exp (), use_poly (), AN qid, s, t)
+	  VernacCoercion (use_locality (), use_poly (), AN qid, s, t)
       | IDENT "Coercion"; ntn = by_notation; ":"; s = class_rawexpr; ">->";
          t = class_rawexpr ->
-	  VernacCoercion (use_locality_exp (), use_poly (), ByNotation ntn, s, t)
+	  VernacCoercion (use_locality (), use_poly (), ByNotation ntn, s, t)
 
       | IDENT "Context"; c = binders ->
 	  VernacContext c

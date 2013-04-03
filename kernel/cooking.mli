@@ -14,18 +14,21 @@ open Univ
 
 (** {6 Cooking the constants. } *)
 
-type work_list = (universe_list * Id.t array) Cmap.t * 
-  (universe_list * Id.t array) Mindmap.t
+type work_list = (Instance.t * Id.t array) Cmap.t * 
+  (Instance.t * Id.t array) Mindmap.t
 
 type recipe = {
   d_from : constant_body;
   d_abstract : Sign.named_context in_universe_context;
   d_modlist : work_list }
 
-val cook_constant :
-  env -> recipe ->
-    constant_def * constant_type * bool * universe_context * Sign.section_context
+type inline = bool
 
+type result =
+  constant_def * constant_type * bool * universe_context * inline
+    * Sign.section_context option
+
+val cook_constant : env -> recipe -> result
 
 (** {6 Utility functions used in module [Discharge]. } *)
 

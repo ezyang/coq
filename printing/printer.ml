@@ -21,6 +21,7 @@ open Refiner
 open Pfedit
 open Constrextern
 open Ppconstr
+open Declarations
 
 let emacs_str s =
   if !Flags.print_emacs then s else ""
@@ -115,13 +116,68 @@ let _ = Termops.set_print_constr pr_lconstr_env
 
 let pr_in_comment pr x = str "(* " ++ pr x ++ str " *)"
 let pr_univ_cstr (c:Univ.constraints) =
-  if !Detyping.print_universes && not (Univ.is_empty_constraint c) then
+  if !Detyping.print_universes && not (Univ.Constraint.is_empty c) then
     fnl()++pr_in_comment (fun c -> v 0 (Univ.pr_constraints c)) c
   else
     mt()
 
+(** Term printers resilient to [Nametab] errors *)
+
+(** When the nametab isn't up-to-date, the term printers above
+    could raise [Not_found] during [Nametab.shortest_qualid_of_global].
+    In this case, we build here a fully-qualified name based upon
+    the kernel modpath and label of constants, and the idents in
+    the [mutual_inductive_body] for the inductives and constructors
+    (needs an environment for this). *)
+
+let id_of_global env = function
+  | ConstRef kn -> Label.to_id (Constant.label kn)
+  | IndRef (kn,0) -> Label.to_id (MutInd.label kn)
+  | IndRef (kn,i) ->
+    (Environ.lookup_mind kn env).mind_packets.(i).mind_typename
+  | ConstructRef ((kn,i),j) ->
+    (Environ.lookup_mind kn env).mind_packets.(i).mind_consnames.(j-1)
+  | VarRef v -> v
+
+let cons_dirpath id dp = DirPath.make (id :: DirPath.repr dp)
+
+let rec dirpath_of_mp = function
+  | MPfile sl -> sl
+  | MPbound uid -> DirPath.make [MBId.to_id uid]
+  | MPdot (mp,l) -> cons_dirpath (Label.to_id l) (dirpath_of_mp mp)
+
+let dirpath_of_global = function
+  | ConstRef kn -> dirpath_of_mp (Constant.modpath kn)
+  | IndRef (kn,_) | ConstructRef ((kn,_),_) ->
+    dirpath_of_mp (MutInd.modpath kn)
+  | VarRef _ -> DirPath.empty
+
+let qualid_of_global env r =
+  Libnames.make_qualid (dirpath_of_global r) (id_of_global env r)
+
+let safe_gen f env c =
+  let orig_extern_ref = Constrextern.get_extern_reference () in
+  let extern_ref loc vars r =
+    try orig_extern_ref loc vars r
+    with e when Errors.noncritical e ->
+      Libnames.Qualid (loc, qualid_of_global env r)
+  in
+  Constrextern.set_extern_reference extern_ref;
+  try
+    let p = f env c in
+    Constrextern.set_extern_reference orig_extern_ref;
+    p
+  with e when Errors.noncritical e ->
+    Constrextern.set_extern_reference orig_extern_ref;
+    str "??"
+
+let safe_pr_lconstr_env = safe_gen pr_lconstr_env
+let safe_pr_constr_env = safe_gen pr_constr_env
+let safe_pr_lconstr t = safe_pr_lconstr_env (Global.env()) t
+let safe_pr_constr t = safe_pr_constr_env (Global.env()) t
+
 let pr_universe_ctx c =
-  if !Detyping.print_universes && not (Univ.is_empty_universe_context c) then
+  if !Detyping.print_universes && not (Univ.Context.is_empty c) then
     fnl()++pr_in_comment (fun c -> v 0 (Univ.pr_universe_context c)) c
   else
     mt()
@@ -135,10 +191,11 @@ let pr_global = pr_global_env Id.Set.empty
 let pr_puniverses f env (c,u) =
   f env c ++ 
   (if !Constrextern.print_universes then
-    str"(*" ++ prlist_with_sep spc Univ.Level.pr u ++ str"*)"
+    str"(*" ++ Univ.Instance.pr u ++ str"*)"
    else mt ())
 
 let pr_constant env cst = pr_global_env (Termops.vars_of_env env) (ConstRef cst)
+let pr_existential_key evk = str (string_of_existential evk)
 let pr_existential env ev = pr_lconstr_env env (mkEvar ev)
 let pr_inductive env ind = pr_lconstr_env env (mkInd ind)
 let pr_constructor env cstr = pr_lconstr_env env (mkConstruct cstr)
@@ -224,8 +281,8 @@ let pr_context_unlimited env =
   (sign_env ++ db_env)
 
 let pr_ne_context_of header env =
-  if Environ.rel_context env = empty_rel_context &
-    Environ.named_context env = empty_named_context  then (mt ())
+  if List.is_empty (Environ.rel_context env) &&
+    List.is_empty (Environ.named_context env)  then (mt ())
   else let penv = pr_context_unlimited env in (header ++ penv ++ fnl ())
 
 let pr_context_limit n env =
@@ -268,9 +325,9 @@ let pr_predicate pr_elt (b, elts) =
   let pr_elts = prlist_with_sep spc pr_elt elts in
     if b then
       str"all" ++
-	(if elts = [] then mt () else str" except: " ++ pr_elts)
+	(if List.is_empty elts then mt () else str" except: " ++ pr_elts)
     else
-      if elts = [] then str"none" else pr_elts
+      if List.is_empty elts then str"none" else pr_elts
 
 let pr_cpred p = pr_predicate (pr_constant (Global.env())) (Cpred.elements p)
 let pr_idpred p = pr_predicate Nameops.pr_id (Id.Pred.elements p)
@@ -282,7 +339,7 @@ let pr_transparent_state (ids, csts) =
 (* display complete goal *)
 let default_pr_goal gs =
   let (g,sigma) = Goal.V82.nf_evar (project gs) (sig_it gs) in
-  let env = Goal.V82.unfiltered_env sigma g in
+  let env = Goal.V82.env sigma g in
   let preamb,thesis,penv,pc =
     mt (), mt (),
     pr_context_of env,
@@ -310,11 +367,11 @@ let pr_concl n sigma g =
 
 (* display evar type: a context and a type *)
 let pr_evgl_sign gl =
-  let ps = pr_named_context_of (evar_unfiltered_env gl) in
+  let ps = pr_named_context_of (evar_env gl) in
   let _, l = List.filter2 (fun b c -> not b) (evar_filter gl) (evar_context gl) in
-  let ids = List.rev (List.map pi1 l) in
+  let ids = List.rev_map pi1 l in
   let warn =
-    if ids = [] then mt () else
+    if List.is_empty ids then mt () else
       (str "(" ++ prlist_with_sep pr_comma pr_id ids ++ str " cannot be used)")
   in
   let pc = pr_lconstr gl.evar_concl in
@@ -339,7 +396,7 @@ let default_pr_subgoal n sigma =
   let rec prrec p = function
     | [] -> error "No such goal."
     | g::rest ->
-	if p = 1 then
+	if Int.equal p 1 then
           let pg = default_pr_goal { sigma=sigma ; it=g } in
           v 0 (str "subgoal " ++ int n ++ pr_goal_tag g
 	       ++ str " is:" ++ cut () ++ pg)
@@ -405,7 +462,7 @@ let default_pr_subgoals ?(pr_first=true) close_cmd sigma seeds stack goals =
 	       str ".")
 	| None ->
 	    let exl = Evarutil.non_instantiated sigma in
-	    if exl = [] then
+	    if List.is_empty exl then
 	      (str"No more subgoals."
 	       ++ emacs_print_dependent_evars sigma seeds)
 	    else
@@ -530,7 +587,7 @@ let pr_prim_rule = function
       (str"fix " ++ pr_id f ++ str"/" ++ int n)
 
   | FixRule (f,n,others,j) ->
-      if j<>0 then msg_warning (strbrk "Unsupported printing of \"fix\"");
+      if not (Int.equal j 0) then msg_warning (strbrk "Unsupported printing of \"fix\"");
       let rec print_mut = function
 	| (f,n,ar)::oth ->
            pr_id f ++ str"/" ++ int n ++ str" : " ++ pr_lconstr ar ++ print_mut oth
@@ -542,7 +599,7 @@ let pr_prim_rule = function
       (str"cofix " ++ pr_id f)
 
   | Cofix (f,others,j) ->
-      if j<>0 then msg_warning (strbrk "Unsupported printing of \"fix\"");
+      if not (Int.equal j 0) then msg_warning (strbrk "Unsupported printing of \"fix\"");
       let rec print_mut = function
 	| (f,ar)::oth ->
 	  (pr_id f ++ str" : " ++ pr_lconstr ar ++ print_mut oth)
@@ -606,7 +663,8 @@ let pr_assumptionset env s =
 	str (string_of_mp mp ^ "." ^ Label.to_string lab)
     in
     let safe_pr_ltype typ =
-      try str " : " ++ pr_ltype typ with _ -> mt ()
+      try str " : " ++ pr_ltype typ
+      with e when Errors.noncritical e -> mt ()
     in
     let fold t typ accu =
       let (v, a, o, tr) = accu in
@@ -666,12 +724,11 @@ let pr_polymorphic b =
 
 (** Inductive declarations *)
 
-open Declarations
 open Termops
 open Reduction
 
 let print_params env params =
-  if params = [] then mt () else pr_rel_context env params ++ brk(1,2)
+  if List.is_empty params then mt () else pr_rel_context env params ++ brk(1,2)
 
 let print_constructors envpar names types =
   let pc =
@@ -689,7 +746,8 @@ let print_one_inductive env mib ((_,i) as ind) =
   let params = mib.mind_params_ctxt in
   let args = extended_rel_list 0 params in
   let arity = hnf_prod_applist env (build_ind_type env mip) args in
-  let u = if mib.mind_polymorphic then fst mib.mind_universes else [] in
+  let u = if mib.mind_polymorphic then Univ.Context.instance mib.mind_universes else
+      Univ.Instance.empty in
   let cstrtypes = Inductive.type_of_constructors (ind,u) (mib,mip) in
   let cstrtypes = Array.map (fun c -> hnf_prod_applist env c args) cstrtypes in
   let envpar = push_rel_context params env in
@@ -699,7 +757,7 @@ let print_one_inductive env mib ((_,i) as ind) =
   brk(0,2) ++ print_constructors envpar mip.mind_consnames cstrtypes
 
 let print_mutual_inductive env mind mib =
-  let inds = List.tabulate (fun x -> (mind,x)) (Array.length mib.mind_packets)
+  let inds = List.init (Array.length mib.mind_packets) (fun x -> (mind, x))
   in
   hov 0 (pr_polymorphic mib.mind_polymorphic ++
     str (if mib.mind_finite then "Inductive " else "CoInductive ") ++
@@ -724,7 +782,8 @@ let print_record env mind mib =
   let mip = mib.mind_packets.(0) in
   let params = mib.mind_params_ctxt in
   let args = extended_rel_list 0 params in
-  let u = if mib.mind_polymorphic then fst mib.mind_universes else [] in
+  let u = if mib.mind_polymorphic then Univ.Context.instance mib.mind_universes else
+      Univ.Instance.empty in
   let arity = hnf_prod_applist env (build_ind_type env mip) args in
   let cstrtypes = Inductive.type_of_constructors ((mind,0),u) (mib,mip) in
   let cstrtype = hnf_prod_applist env cstrtypes.(0) args in

@@ -12,6 +12,7 @@ open Names
 open Univ
 open Term
 open Declarations
+open Declareops
 open Environ
 open Reduction
 open Type_errors
@@ -55,10 +56,15 @@ let make_inductive_subst mib u =
     make_universe_subst u mib.mind_universes
   else Univ.empty_subst
 
+let inductive_instance mib =
+  if mib.mind_polymorphic then 
+    Context.instance mib.mind_universes
+  else Instance.empty
+
 let instantiate_inductive_constraints mib subst =
   if mib.mind_polymorphic then
     instantiate_univ_context subst mib.mind_universes
-  else Univ.empty_constraint
+  else Constraint.empty
 
 (************************************************************************)
 
@@ -67,7 +73,7 @@ let instantiate_inductive_constraints mib subst =
 let ind_subst mind mib u =
   let ntypes = mib.mind_ntypes in
   let make_Ik k = mkIndU ((mind,ntypes-k-1),u) in
-  List.tabulate make_Ik ntypes
+  List.init ntypes make_Ik
 
 (* Instantiate inductives in constructor type *)
 let constructor_instantiate mind u subst mib c =
@@ -76,7 +82,7 @@ let constructor_instantiate mind u subst mib c =
 
 let instantiate_params full t args sign =
   let fail () =
-    anomaly "instantiate_params: type, ctxt and args mismatch" in
+    anomaly ~label:"instantiate_params" (Pp.str "type, ctxt and args mismatch") in
   let (rem_args, subs, ty) =
     Sign.fold_rel_context
       (fun (_,copt,_) (largs,subs,ty) ->
@@ -130,11 +136,11 @@ Remark: Set (predicative) is encoded as Type(0)
 
 let univ_of_sort = function
 | Type u -> u
-| Prop Null -> type0m_univ
-| Prop Pos -> type0_univ
+| Prop Null -> Universe.type0m
+| Prop Pos -> Universe.type0
 
 let cons_subst u su subst =
-  try (u, sup su (List.assoc u subst)) :: List.remove_assoc u subst
+  try (u, Universe.sup su (List.assoc u subst)) :: List.remove_assoc u subst
   with Not_found -> (u, su) :: subst
 
 exception SingletonInductiveBecomesProp of Id.t
@@ -183,13 +189,13 @@ let constrained_type_of_inductive env ((mib,mip),u as pind) =
   let cst = instantiate_inductive_constraints mib subst in
     (ty, cst)
 
-let type_of_inductive_knowing_parameters env ?(polyprop=false) mip args = 
-  type_of_inductive env mip
-
-(* The max of an array of universes *)
+let cumulate_constructor_univ u = function
+  | Prop Null -> u
+  | Prop Pos -> Universe.sup Universe.type0 u
+  | Type u' -> Universe.sup u u'
 
 let max_inductive_sort =
-  Array.fold_left (fun u s -> sup u (univ_of_sort s)) type0m_univ
+  Array.fold_left cumulate_constructor_univ Universe.type0m
 
 (************************************************************************)
 (* Type of a constructor *)
@@ -211,8 +217,8 @@ let type_of_constructor cstru mspec =
   fst (type_of_constructor_gen cstru mspec)
 
 let type_of_constructor_in_ctx cstr (mib,mip as mspec) =
-  let (u, cst) = mib.mind_universes in
-  let c = type_of_constructor_gen (cstr,u) mspec in
+  let u = Context.instance mib.mind_universes in
+  let c = type_of_constructor_gen (cstr, u) mspec in
     (fst c, mib.mind_universes)
 
 let constrained_type_of_constructor (cstr,u as cstru) (mib,mip as ind) =
@@ -298,7 +304,7 @@ let is_correct_arity env c pj ind specif params =
           let univ =
             try conv env a1 a1'
             with NotConvertible -> raise (LocalArity None) in
-          srec (push_rel (na1,None,a1) env) t ar' (union_constraints u univ)
+          srec (push_rel (na1,None,a1) env) t ar' (Constraint.union u univ)
       | Prod (_,a1,a2), [] -> (* whnf of t was not needed here! *)
           let ksort = match kind_of_term (whd_betadeltaiota env a2) with
             | Sort s -> family_of_sort s
@@ -308,13 +314,13 @@ let is_correct_arity env c pj ind specif params =
             try conv env a1 dep_ind
             with NotConvertible -> raise (LocalArity None) in
 	  check_allowed_sort ksort specif;
-	  union_constraints u univ
+	  Constraint.union u univ
       | _, (_,Some _,_ as d)::ar' ->
 	  srec (push_rel d env) (lift 1 pt') ar' u
       | _ ->
 	  raise (LocalArity None)
   in
-  try srec env pj.uj_type (List.rev arsign) empty_constraint
+  try srec env pj.uj_type (List.rev arsign) Constraint.empty
   with LocalArity kinds ->
     error_elim_arity env ind (elim_sorts specif) c pj kinds
 
@@ -414,8 +420,10 @@ type subterm_spec =
   | Dead_code
   | Not_subterm
 
+let eq_wf_paths = Rtree.eq_rtree Declareops.eq_recarg
+
 let spec_of_tree t = lazy
-  (if Rtree.eq_rtree eq_recarg (Lazy.force t) mk_norec
+  (if eq_wf_paths (Lazy.force t) mk_norec
    then Not_subterm
    else Subterm(Strict,Lazy.force t))
 
@@ -427,7 +435,7 @@ let subterm_spec_glb =
       | Not_subterm, _ -> Not_subterm
       | _, Not_subterm -> Not_subterm
       | Subterm (a1,t1), Subterm (a2,t2) ->
-          if Rtree.eq_rtree eq_recarg t1 t2 then Subterm (size_glb a1 a2, t1)
+          if eq_wf_paths t1 t2 then Subterm (size_glb a1 a2, t1)
           (* branches do not return objects with same spec *)
           else Not_subterm in
   Array.fold_left glb2 Dead_code
@@ -524,7 +532,7 @@ let branches_specif renv c_spec ci =
 		    vra
 	      | Dead_code -> Array.make nca Dead_code
 	      | _ -> Array.make nca Not_subterm) in
-	 List.tabulate (fun j -> lazy (Lazy.force lvra).(j)) nca)
+	 List.init nca (fun j -> lazy (Lazy.force lvra).(j)))
       car 
 
 (* [subterm_specif renv t] computes the recursive structure of [t] and
@@ -777,7 +785,7 @@ let check_one_fix renv recpos def =
 	    check_rec_call renv [] a;
             let renv' = push_var_renv renv (x,a) in
 	      check_nested_fix_body renv' (decr-1) recArgsDecrArg b
-	| _ -> anomaly "Not enough abstractions in fix body"
+	| _ -> anomaly (Pp.str "Not enough abstractions in fix body")
 	    
   in
   check_rec_call renv [] def
@@ -793,7 +801,7 @@ let inductive_of_mutfix env ((nvect,bodynum),(names,types,bodies as recdef)) =
     || not (Int.equal (Array.length names) nbfix)
     || bodynum < 0
     || bodynum >= nbfix
-  then anomaly "Ill-formed fix term";
+  then anomaly (Pp.str "Ill-formed fix term");
   let fixenv = push_rec_types recdef env in
   let vdefj = judgment_of_fixpoint recdef in
   let raise_err env i err =
@@ -815,7 +823,7 @@ let inductive_of_mutfix env ((nvect,bodynum),(names,types,bodies as recdef)) =
 		    raise_err env i (RecursionNotOnInductiveType a) in
                 (mind, (env', b))
 	      else check_occur env' (n+1) b
-            else anomaly "check_one_fix: Bad occurrence of recursive call"
+            else anomaly ~label:"check_one_fix" (Pp.str "Bad occurrence of recursive call")
         | _ -> raise_err env i NotEnoughAbstractionInFixBody in
     check_occur fixenv 1 def in
   (* Do it on every fixpoint *)
@@ -845,7 +853,7 @@ let check_fix env fix = Profile.profile3 cfkey check_fix env fix;;
 exception CoFixGuardError of env * guard_error
 
 let anomaly_ill_typed () =
-  anomaly "check_one_cofix: too many arguments applied to constructor"
+  anomaly ~label:"check_one_cofix" (Pp.str "too many arguments applied to constructor")
 
 let rec codomain_is_coind env c =
   let b = whd_betadeltaiota env c in
@@ -877,7 +885,7 @@ let check_one_cofix env nbfix def deftype =
             let realargs = List.skipn mib.mind_nparams args in
             let rec process_args_of_constr = function
               | (t::lr), (rar::lrar) ->
-                  if Rtree.eq_rtree eq_recarg rar mk_norec then
+                  if eq_wf_paths rar mk_norec then
                     if noccur_with_meta n nbfix t
                     then process_args_of_constr (lr, lrar)
                     else raise (CoFixGuardError

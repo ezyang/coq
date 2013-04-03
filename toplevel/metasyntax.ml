@@ -266,7 +266,8 @@ let parse_format ((loc, str) : lstring) =
       | _ -> error "Box closed without being opened in format."
     else
       error "Empty format."
-  with e ->
+  with reraise ->
+    let e = Errors.push reraise in
     Loc.raise loc e
 
 (***********************)
@@ -306,6 +307,9 @@ let split_notation_string str =
 
 let out_nt = function NonTerminal x -> x | _ -> assert false
 
+let msg_expected_form_of_recursive_notation =
+  "In the notation, the special symbol \"..\" must occur in\na configuration of the form \"x symbs .. symbs y\"."
+
 let rec find_pattern nt xl = function
   | Break n as x :: l, Break n' :: l' when Int.equal n n' ->
       find_pattern nt (x::xl) (l,l')
@@ -318,13 +322,14 @@ let rec find_pattern nt xl = function
   | _, Terminal s :: _ | Terminal s :: _, _ ->
       error ("The token \""^s^"\" occurs on one side of \"..\" but not on the other side.")
   | _, [] ->
-      error ("The special symbol \"..\" must occur in a configuration of the form\n\"x symbs .. symbs y\".")
+      error msg_expected_form_of_recursive_notation
   | ((SProdList _ | NonTerminal _) :: _), _ | _, (SProdList _ :: _) ->
-      anomaly "Only Terminal or Break expected on left, non-SProdList on right"
+      anomaly (Pp.str "Only Terminal or Break expected on left, non-SProdList on right")
 
 let rec interp_list_parser hd = function
   | [] -> [], List.rev hd
   | NonTerminal id :: tl when Id.equal id ldots_var ->
+      if List.is_empty hd then error msg_expected_form_of_recursive_notation;
       let hd = List.rev hd in
       let ((x,y,sl),tl') = find_pattern (List.hd hd) [] (List.tl hd,tl) in
       let xyl,tl'' = interp_list_parser [] tl' in
@@ -340,7 +345,7 @@ let rec interp_list_parser hd = function
   | NonTerminal _ as x :: tl ->
       let xyl,tl' = interp_list_parser [x] tl in
       xyl, List.rev_append hd tl'
-  | SProdList _ :: _ -> anomaly "Unexpected SProdList in interp_list_parser"
+  | SProdList _ :: _ -> anomaly (Pp.str "Unexpected SProdList in interp_list_parser")
 
 
 (* Find non-terminal tokens of notation *)
@@ -366,7 +371,7 @@ let rec raw_analyze_notation_tokens = function
 let is_numeral symbs =
   match List.filter (function Break _ -> false | _ -> true) symbs with
   | ([Terminal "-"; Terminal x] | [Terminal x]) ->
-      (try let _ = Bigint.of_string x in true with _ -> false)
+      (try let _ = Bigint.of_string x in true with Failure _ -> false)
   | _ ->
       false
 
@@ -451,8 +456,9 @@ let is_non_terminal = function
   | NonTerminal _ | SProdList _ -> true
   | _ -> false
 
-let is_next_non_terminal prods =
-  prods <> [] && is_non_terminal (List.hd prods)
+let is_next_non_terminal = function
+| [] -> false
+| pr :: _ -> is_non_terminal pr
 
 let is_next_terminal = function Terminal _ :: _ -> true | _ -> false
 
@@ -688,7 +694,7 @@ let make_production etyps symbols =
             let tkl = List.flatten
               (List.map (function Terminal s -> [Lexer.terminal s]
                 | Break _ -> []
-                | _ -> anomaly "Found a non terminal token in recursive notation separator") sl) in
+                | _ -> anomaly (Pp.str "Found a non terminal token in recursive notation separator")) sl) in
 	    match List.assoc x etyps with
             | ETConstr typ -> expand_list_rule typ tkl x 1 0 [] ll
             | ETBinder o ->
@@ -1068,7 +1074,10 @@ let inNotation : notation_obj -> obj =
 let with_lib_stk_protection f x =
   let fs = Lib.freeze () in
   try let a = f x in Lib.unfreeze fs; a
-  with e -> Lib.unfreeze fs; raise e
+  with reraise ->
+    let reraise = Errors.push reraise in
+    let () = Lib.unfreeze fs in
+    raise reraise
 
 let with_syntax_protection f x =
   with_lib_stk_protection

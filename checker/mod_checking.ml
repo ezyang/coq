@@ -133,6 +133,11 @@ let lookup_modtype mp env =
   with Not_found ->
     failwith ("Unknown module type: "^string_of_mp mp)
 
+let lookup_module mp env =
+  try Environ.lookup_module mp env
+  with Not_found ->
+    failwith ("Unknown module: "^string_of_mp mp)
+
 let rec check_with env mtb with_decl mp=
   match with_decl with
     | With_definition_body (idl,c) ->
@@ -199,7 +204,7 @@ and check_with_mod env mtb (idl,mp1) mp =
 		  SFBmodule msb -> msb
 		| _ -> error_not_a_module l
 	      in
-	      let (_:module_body) = (lookup_module mp1 env) in ()
+	      let (_:module_body) = (Environ.lookup_module mp1 env) in ()
       else
 	    let old = match spec with
 		SFBmodule msb -> msb
@@ -239,13 +244,13 @@ and check_module env mp mb =
 	  {typ_mp=mp;
 	   typ_expr=sign;
 	   typ_expr_alg=None;
-	   typ_constraints=Univ.empty_constraint;
+	   typ_constraints=Univ.Constraint.empty;
 	   typ_delta = mb.mod_delta;}
 	and mtb2 =
 	  {typ_mp=mp;
 	   typ_expr=mb.mod_type;
 	   typ_expr_alg=None;
-	   typ_constraints=Univ.empty_constraint;
+	   typ_constraints=Univ.Constraint.empty;
 	   typ_delta = mb.mod_delta;}
 	in
 	let env = add_module (module_body_of_type mp mtb1) env in
@@ -253,10 +258,10 @@ and check_module env mp mb =
 
 and check_structure_field env mp lab res = function
   | SFBconst cb ->
-      let c = make_con mp Dir_path.empty lab in
+      let c = Constant.make2 mp lab in
 	check_constant_declaration env c cb
   | SFBmind mib ->
-      let kn = make_mind mp Dir_path.empty lab in
+      let kn = MutInd.make2 mp lab in
       let kn = mind_of_delta res kn in
 	Indtypes.check_inductive env kn mib
   | SFBmodule msb ->

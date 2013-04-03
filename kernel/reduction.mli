@@ -26,9 +26,15 @@ val nf_betaiota      : constr -> constr
 exception NotConvertible
 exception NotConvertibleVect of int
 type 'a conversion_function = env -> 'a -> 'a -> Univ.constraints
-type 'a trans_conversion_function = Names.transparent_state -> env -> 'a -> 'a -> Univ.constraints
+type 'a trans_conversion_function = Names.transparent_state -> 'a conversion_function
+type 'a universe_conversion_function = env -> 'a -> 'a -> Univ.universe_constraints
+type 'a trans_universe_conversion_function = 
+  Names.transparent_state -> 'a universe_conversion_function
 
 type conv_pb = CONV | CUMUL
+
+val sort_cmp_universes :
+    conv_pb -> sorts -> sorts -> Univ.universe_constraints -> Univ.universe_constraints
 
 val sort_cmp :
     conv_pb -> sorts -> sorts -> Univ.constraints -> Univ.constraints
@@ -42,6 +48,11 @@ val trans_conv           :
 val trans_conv_leq       :
   ?l2r:bool -> ?evars:(existential->constr option) -> types trans_conversion_function
 
+val trans_conv_universes     :
+  ?l2r:bool -> ?evars:(existential->constr option) -> constr trans_universe_conversion_function
+val trans_conv_leq_universes :
+  ?l2r:bool -> ?evars:(existential->constr option) -> types trans_universe_conversion_function
+
 val conv_cmp       : ?l2r:bool -> conv_pb -> constr conversion_function
 val conv           :
   ?l2r:bool -> ?evars:(existential->constr option) -> constr conversion_function
@@ -53,6 +64,9 @@ val conv_leq_vecti :
 (** option for conversion *)
 val set_vm_conv : (conv_pb -> types conversion_function) -> unit
 val vm_conv : conv_pb -> types conversion_function
+
+val set_nat_conv : (conv_pb -> types conversion_function) -> unit
+val native_conv : conv_pb -> types conversion_function
 
 val set_default_conv : (conv_pb -> ?l2r:bool -> types conversion_function) -> unit
 val default_conv     : conv_pb -> ?l2r:bool -> types conversion_function

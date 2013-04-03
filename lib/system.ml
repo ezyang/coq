@@ -105,26 +105,29 @@ let is_in_system_path filename =
   is_in_path lpath filename
 
 let open_trapping_failure name =
-  try open_out_bin name with _ -> error ("Can't open " ^ name)
+  try open_out_bin name
+  with e when Errors.noncritical e -> error ("Can't open " ^ name)
 
 let try_remove filename =
   try Sys.remove filename
-  with _ -> msg_warning
-    (str"Could not remove file " ++ str filename ++ str" which is corrupted!")
+  with e when Errors.noncritical e ->
+    msg_warning
+      (str"Could not remove file " ++ str filename ++ str" which is corrupted!")
 
 let marshal_out ch v = Marshal.to_channel ch v []
-let marshal_in ch =
+let marshal_in filename ch =
   try Marshal.from_channel ch
-  with End_of_file -> error "corrupted file: reached end of file"
+  with
+    | End_of_file | Failure _ (* e.g. "truncated object" *) ->
+      error (filename ^ " is corrupted, try to rebuild it.")
 
 exception Bad_magic_number of string
 
-let raw_extern_intern magic suffix =
-  let extern_state name =
-    let filename = CUnix.make_suffix name suffix in
+let raw_extern_intern magic =
+  let extern_state filename =
     let channel = open_trapping_failure filename in
     output_binary_int channel magic;
-    filename,channel
+    filename, channel
   and intern_state filename =
     let channel = open_in_bin filename in
     if not (Int.equal (input_binary_int channel) magic) then
@@ -133,22 +136,24 @@ let raw_extern_intern magic suffix =
   in
   (extern_state,intern_state)
 
-let extern_intern ?(warn=true) magic suffix =
-  let (raw_extern,raw_intern) = raw_extern_intern magic suffix in
+let extern_intern ?(warn=true) magic =
+  let (raw_extern,raw_intern) = raw_extern_intern magic in
   let extern_state name val_0 =
     try
       let (filename,channel) = raw_extern name in
       try
         marshal_out channel val_0;
         close_out channel
-      with e ->
-	begin try_remove filename; raise e end
+      with reraise ->
+	let reraise = Errors.push reraise in
+        let () = try_remove filename in
+        raise reraise
     with Sys_error s -> error ("System error: " ^ s)
   and intern_state paths name =
     try
-      let _,filename = find_file_in_path ~warn paths (CUnix.make_suffix name suffix) in
+      let _,filename = find_file_in_path ~warn paths name in
       let channel = raw_intern filename in
-      let v = marshal_in channel in
+      let v = marshal_in filename channel in
       close_in channel;
       v
     with Sys_error s ->

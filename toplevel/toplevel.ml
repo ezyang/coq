@@ -86,7 +86,7 @@ let reset_input_buffer ic ibuf =
 
 let get_bols_of_loc ibuf (bp,ep) =
   let add_line (b,e) lines =
-    if b < 0 or e < b then anomaly "Bad location";
+    if b < 0 or e < b then anomaly (Pp.str "Bad location");
     match lines with
       | ([],None) -> ([], Some (b,e))
       | (fl,oe) -> ((b,e)::fl, oe)
@@ -150,47 +150,37 @@ let print_highlight_location ib loc =
 
 (* Functions to report located errors in a file. *)
 
-let print_location_in_file s inlibrary fname loc =
+let print_location_in_file {outer=s;inner=fname} loc =
   let errstrm = str"Error while reading " ++ str s in
   if Loc.is_ghost loc then
     hov 1 (errstrm ++ spc() ++ str" (unknown location):") ++ fnl ()
   else
     let errstrm =
-      if String.equal s fname then mt() else errstrm ++ str":" ++ fnl() in
-    if inlibrary then
-      hov 0 (errstrm ++ str"Module " ++ str ("\""^fname^"\"") ++ spc() ++
-             str"characters " ++ Cerrors.print_loc loc) ++ fnl ()
-    else
-      let (bp,ep) = Loc.unloc loc in
-      let ic = open_in fname in
-      let rec line_of_pos lin bol cnt =
-        if cnt < bp then
-          if input_char ic == '\n'
-          then line_of_pos (lin + 1) (cnt +1) (cnt+1)
-          else line_of_pos lin bol (cnt+1)
-        else (lin, bol)
-      in
-      try
-        let (line, bol) = line_of_pos 1 0 0 in
-        close_in ic;
-        hov 0 (* No line break so as to follow emacs error message format *)
-          (errstrm ++ str"File " ++ str ("\""^fname^"\"") ++
+      if String.equal s fname then mt() else errstrm ++ str":" ++ fnl()
+    in
+    let (bp,ep) = Loc.unloc loc in
+    let ic = open_in fname in
+    let rec line_of_pos lin bol cnt =
+      if cnt < bp then
+        if input_char ic == '\n'
+        then line_of_pos (lin + 1) (cnt +1) (cnt+1)
+        else line_of_pos lin bol (cnt+1)
+      else (lin, bol)
+    in
+    try
+      let (line, bol) = line_of_pos 1 0 0 in
+      close_in ic;
+      hov 0 (* No line break so as to follow emacs error message format *)
+        (errstrm ++ str"File " ++ str ("\""^fname^"\"") ++
            str", line " ++ int line ++ str", characters " ++
            Cerrors.print_loc (Loc.make_loc (bp-bol,ep-bol))) ++ str":" ++
         fnl ()
-      with e ->
-        (close_in ic;
-         hov 1 (errstrm ++ spc() ++ str"(invalid location):") ++ fnl ())
+    with e when Errors.noncritical e ->
+      (close_in ic;
+       hov 1 (errstrm ++ spc() ++ str"(invalid location):") ++ fnl ())
 
-let valid_loc dloc loc =
-  not (Loc.is_ghost loc)
-  && match dloc with
-    | Some dloc ->
-	let (bd,ed) = Loc.unloc dloc in let (b,e) = Loc.unloc loc in bd<=b && e<=ed
-    | _ -> true
-
-let valid_buffer_loc ib dloc loc =
-  valid_loc dloc loc &
+let valid_buffer_loc ib loc =
+  not (Loc.is_ghost loc) &&
   let (b,e) = Loc.unloc loc in b-ib.start >= 0 & e-ib.start < ib.len && b<=e
 
 (*s The Coq prompt is the name of the focused proof, if any, and "Coq"
@@ -199,7 +189,7 @@ let valid_buffer_loc ib dloc loc =
 let make_prompt () =
   try
     (Names.Id.to_string (Pfedit.get_current_proof_name ())) ^ " < "
-  with _ ->
+  with Proof_global.NoCurrentProof ->
     "Coq < "
 
 (*let build_pending_list l =
@@ -258,48 +248,24 @@ let set_prompt prompt =
     ^ prompt ()
     ^ emacs_prompt_endstring())
 
-(* Removes and prints the location of the error. The following exceptions
-   need not be located. *)
-let rec is_pervasive_exn = function
-  | Out_of_memory | Stack_overflow | Sys.Break -> true
-  | Error_in_file (_,_,e) -> is_pervasive_exn e
-  | Loc.Exc_located (_,e) -> is_pervasive_exn e
-  | DuringCommandInterp (_,e) -> is_pervasive_exn e
-  | _ -> false
+(* The following exceptions need not be located. *)
 
-(* Toplevel error explanation, dealing with locations, Drop, Ctrl-D
-   May raise only the following exceptions: Drop and End_of_input,
-   meaning we get out of the Coq loop *)
-let print_toplevel_error exc =
-  let (dloc,exc) =
-    match exc with
-      | DuringCommandInterp (loc,ie) ->
-          if Loc.is_ghost loc then (None,ie) else (Some loc, ie)
-      | _ -> (None, exc)
+let rec locate_exn = function
+  | Out_of_memory | Stack_overflow | Sys.Break -> false
+  | _ -> true
+
+(* Toplevel error explanation. *)
+
+let print_toplevel_error e =
+  let loc = Option.default Loc.ghost (Loc.get_loc e) in
+  let locmsg = match Vernac.get_exn_files e with
+    | Some files -> print_location_in_file files loc
+    | None ->
+      if locate_exn e && valid_buffer_loc top_buffer loc then
+        print_highlight_location top_buffer loc
+      else mt ()
   in
-  let (locstrm,exc) =
-    match exc with
-      | Loc.Exc_located (loc, ie) ->
-          if valid_buffer_loc top_buffer dloc loc then
-            (print_highlight_location top_buffer loc, ie)
-          else
-	    ((mt ()) (* print_command_location top_buffer dloc *), ie)
-      | Error_in_file (s, (inlibrary, fname, loc), ie) ->
-          (print_location_in_file s inlibrary fname loc, ie)
-      | _ ->
-	  ((mt ()) (* print_command_location top_buffer dloc *), exc)
-  in
-  match exc with
-    | End_of_input ->
-	msgerrnl (mt ()); pp_flush(); exit 0
-    | Errors.Drop ->  (* Last chance *)
-        if Mltop.is_ocaml_top() then raise Errors.Drop;
-        (str"Error: There is no ML toplevel." ++ fnl ())
-    | Errors.Quit ->
-	raise Errors.Quit
-    | _ ->
-	(if is_pervasive_exn exc then (mt ()) else locstrm) ++
-        Errors.print exc
+  locmsg ++ Errors.print e
 
 (* Read the input stream until a dot is encountered *)
 let parse_to_dot =
@@ -310,61 +276,59 @@ let parse_to_dot =
   in
   Gram.Entry.of_parser "Coqtoplevel.dot" dot
 
-(* We assume that when a lexer error occurs, at least one char was eaten *)
+(* If an error occured while parsing, we try to read the input until a dot
+   token is encountered.
+   We assume that when a lexer error occurs, at least one char was eaten *)
+
 let rec discard_to_dot () =
   try
     Gram.entry_parse parse_to_dot top_buffer.tokens
-  with Loc.Exc_located(_,(Compat.Token.Error _|Lexer.Error.E _)) ->
-    discard_to_dot()
+  with
+    | Compat.Token.Error _ | Lexer.Error.E _ -> discard_to_dot ()
+    | End_of_input -> raise End_of_input
+    | e when Errors.noncritical e -> ()
 
+let read_sentence () =
+  try Vernac.parse_sentence (top_buffer.tokens, None)
+  with reraise -> discard_to_dot (); raise reraise
 
-(* If the error occured while parsing, we read the input until a dot token
- * in encountered. *)
-
-let process_error = function
-  | DuringCommandInterp _ as e -> e
-  | e ->
-      if is_pervasive_exn e then
-	e
-      else
-        try
-	  discard_to_dot (); e
-	with
-          | End_of_input -> End_of_input
-          | de -> if is_pervasive_exn de then de else e
-
-(* do_vernac reads and executes a toplevel phrase, and print error
-   messages when an exception is raised, except for the following:
-     Drop: kill the Coq toplevel, going down to the Caml toplevel if it exists.
+(** [do_vernac] reads and executes a toplevel phrase, and print error
+    messages when an exception is raised, except for the following:
+    - Drop: kill the Coq toplevel, going down to the Caml toplevel if it exists.
            Otherwise, exit.
-     End_of_input: Ctrl-D was typed in, we will quit *)
+    - End_of_input: Ctrl-D was typed in, we will quit.
+
+    In particular, this is normally the only place where a Sys.Break
+    is catched and handled (i.e. not re-raised).
+*)
+
 let do_vernac () =
   msgerrnl (mt ());
   if !print_emacs then msgerr (str (top_buffer.prompt()));
   resynch_buffer top_buffer;
-  begin
-    try
-      ignore (raw_do_vernac top_buffer.tokens)
-    with e ->
-      ppnl (print_toplevel_error (process_error e))
-  end;
-  flush_all()
+  try ignore (Vernac.eval_expr (read_sentence ()))
+  with
+    | End_of_input | Errors.Quit ->
+        msgerrnl (mt ()); pp_flush(); raise Errors.Quit
+    | Errors.Drop ->  (* Last chance *)
+        if Mltop.is_ocaml_top() then raise Errors.Drop
+        else ppnl (str"Error: There is no ML toplevel." ++ fnl ())
+    | any -> ppnl (print_toplevel_error any)
 
-(* coq and go read vernacular expressions until Drop is entered.
- * Ctrl-C will raise the exception Break instead of aborting Coq.
- * Here we catch the exceptions terminating the Coq loop, and decide
- * if we really must quit.
- *)
+(** Main coq loop : read vernacular expressions until Drop is entered.
+    Ctrl-C is handled internally as Sys.Break instead of aborting Coq.
+    Normally, the only exceptions that can come out of [do_vernac] and
+    exit the loop are Drop and Quit. Any other exception there indicates
+    an issue with [print_toplevel_error] above. *)
 
 let rec loop () =
   Sys.catch_break true;
   try
     reset_input_buffer stdin top_buffer;
-    while true do do_vernac() done
+    while true do do_vernac(); flush_all() done
   with
     | Errors.Drop -> ()
-    | End_of_input -> msgerrnl (mt ()); pp_flush(); exit 0
     | Errors.Quit -> exit 0
-    | e ->
-	msgerrnl (str"Anomaly. Please report.");
+    | any ->
+	msgerrnl (str"Anomaly: main loop exited. Please report.");
 	loop ()

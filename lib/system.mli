@@ -32,14 +32,14 @@ val find_file_in_path :
   when the check fails, with the full file name. *)
 
 val marshal_out : out_channel -> 'a -> unit
-val marshal_in : in_channel -> 'a
+val marshal_in : string -> in_channel -> 'a
 
 exception Bad_magic_number of string
 
-val raw_extern_intern : int -> string ->
+val raw_extern_intern : int ->
   (string -> string * out_channel) * (string -> in_channel)
 
-val extern_intern : ?warn:bool -> int -> string ->
+val extern_intern : ?warn:bool -> int ->
   (string -> 'a -> unit) * (CUnix.load_path -> string -> 'a)
 
 val with_magic_number_check : ('a -> 'b) -> 'a -> 'b

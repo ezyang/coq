@@ -122,7 +122,9 @@ let define id internal ctx c t =
         const_entry_type = t;
 	const_entry_polymorphic = true;
 	const_entry_universes = Evd.universe_context ctx; (* FIXME *)
-        const_entry_opaque = false },
+        const_entry_opaque = false;
+	const_entry_inline_code = false
+      },
       Decl_kinds.IsDefinition Scheme) in
   definition_message id;
   kn
@@ -169,7 +171,7 @@ let try_declare_scheme what f internal names kn =
 	  (strbrk "Required constant " ++ str s ++ str " undefined.")
     | AlreadyDeclared msg ->
         alarm what internal (msg ++ str ".")
-    | _ -> 
+    | e when Errors.noncritical e ->
 	alarm what internal
 	  (str "Unknown exception during scheme creation.")
 
@@ -178,7 +180,7 @@ let beq_scheme_msg mind =
   (* TODO: mutual inductive case *)
   str "Boolean equality on " ++
     pr_enum (fun ind -> quote (Printer.pr_inductive (Global.env()) ind))
-    (List.tabulate (fun i -> (mind,i)) (Array.length mib.mind_packets))
+    (List.init (Array.length mib.mind_packets) (fun i -> (mind,i)))
 
 let declare_beq_scheme_with l kn =
   try_declare_scheme (beq_scheme_msg kn) declare_beq_scheme_gen UserVerbose l kn
@@ -255,7 +257,8 @@ let try_declare_eq_decidability kn =
 
 let declare_eq_decidability = declare_eq_decidability_scheme_with []
 
-let ignore_error f x = try ignore (f x) with _ -> ()
+let ignore_error f x =
+  try ignore (f x) with e when Errors.noncritical e -> ()
 
 let declare_rewriting_schemes ind =
   if Hipattern.is_inductive_equality ind then begin
@@ -276,7 +279,7 @@ let declare_congr_scheme ind =
   if Hipattern.is_equality_type (mkInd ind) then begin
     if
       try Coqlib.check_required_library Coqlib.logic_module_name; true
-      with _ -> false
+      with e when Errors.noncritical e -> false
     then
       ignore (define_individual_scheme congr_scheme_kind KernelVerbose None ind)
     else
@@ -402,7 +405,7 @@ let list_split_rev_at index l =
   in aux 0 [] l
 
 let fold_left' f = function
-    [] -> raise (Invalid_argument "fold_left'")
+    [] -> invalid_arg "fold_left'"
   | hd :: tl -> List.fold_left f hd tl
 
 let build_combined_scheme env schemes =

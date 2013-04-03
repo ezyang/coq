@@ -318,7 +318,7 @@ let coq_iff = lazy (constant "iff")
 let evaluable_ref_of_constr s c = match kind_of_term (Lazy.force c) with
   | Const (kn,u) when Tacred.is_evaluable (Global.env()) (EvalConstRef kn) ->
       EvalConstRef kn
-  | _ -> anomaly ("Coq_omega: "^s^" is not an evaluable constant")
+  | _ -> anomaly ~label:"Coq_omega" (Pp.str (s^" is not an evaluable constant"))
 
 let sp_Zsucc =     lazy (evaluable_ref_of_constr "Z.succ" coq_Zsucc)
 let sp_Zpred =     lazy (evaluable_ref_of_constr "Z.pred" coq_Zpred)
@@ -578,7 +578,7 @@ let compile name kind =
 	let id = new_id () in
 	tag_hypothesis name id;
 	{kind = kind; body = List.rev accu; constant = n; id = id}
-    | _ -> anomaly "compile_equation"
+    | _ -> anomaly (Pp.str "compile_equation")
   in
   loop []
 
@@ -874,7 +874,7 @@ let rec transform p t =
     try
       let v,th,_ = find_constr t' in
       [clever_rewrite_base p (mkVar v) (mkVar th)], Oatom v
-    with _ ->
+    with e when Errors.noncritical e ->
       let v = new_identifier_var ()
       and th = new_identifier () in
       hide_constr t' v th isnat;
@@ -913,7 +913,8 @@ let rec transform p t =
          | _ -> default false t
        end
    | Kapp((Zpos|Zneg|Z0),_) ->
-       (try ([],Oz(recognize_number t)) with _ -> default false t)
+       (try ([],Oz(recognize_number t))
+        with e when Errors.noncritical e -> default false t)
    | Kvar s -> [],Oatom s
    | Kapp(Zopp,[t]) ->
        let tac,t' = transform (P_APP 1 :: p) t in

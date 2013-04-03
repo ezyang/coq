@@ -474,22 +474,25 @@ end
 
 (** Callbacks for the Navigation menu *)
 
-let update_status h k =
-  let display msg = pop_info (); push_info msg
+let update_status =
+  let display msg = pop_info (); push_info msg in
+  let next = function
+  | Interface.Fail (l, str) ->
+    display "Oops, problem while fetching coq status.";
+    Coq.return ()
+  | Interface.Good status | Interface.Unsafe status ->
+    let path = match status.Interface.status_path with
+      | [] | _ :: [] -> "" (* Drop the topmost level, usually "Top" *)
+      | _ :: l -> " in " ^ String.concat "." l
+    in
+    let name = match status.Interface.status_proofname with
+      | None -> ""
+      | Some n -> ", proving " ^ n
+    in
+    display ("Ready" ^ path ^ name);
+    Coq.return ()
   in
-  Coq.status h (function
-    |Interface.Fail (l, str) ->
-      display "Oops, problem while fetching coq status."; k ()
-    |Interface.Good status | Interface.Unsafe status ->
-      let path = match status.Interface.status_path with
-        | [] | _ :: [] -> "" (* Drop the topmost level, usually "Top" *)
-        | _ :: l -> " in " ^ String.concat "." l
-      in
-      let name = match status.Interface.status_proofname with
-        | None -> ""
-        | Some n -> ", proving " ^ n
-      in
-      display ("Ready" ^ path ^ name); k ())
+  Coq.bind Coq.status next
 
 let find_next_occurrence ~backward =
   (** go to the next occurrence of the current word, forward or backward *)
@@ -507,7 +510,7 @@ let find_next_occurrence ~backward =
 let send_to_coq f =
   let sn = notebook#current_term in
   let info () = Minilib.log ("Coq busy, discarding query") in
-  let f h k = f sn h (fun () -> update_status h k) in
+  let f = Coq.seq (f sn) update_status in
   Coq.try_grab sn.coqtop f info
 
 module Nav = struct
@@ -535,17 +538,20 @@ let printopts_callback opts v =
 
 (** Templates menu *)
 
-let get_current_word () = match Ideutils.cb#text with
-  |Some t -> Minilib.log ("get_current_word : selection = " ^ t); t
-  |None ->
-    Minilib.log "get_current_word : none selected";
-    let b = current_buffer () in
-    let it = b#get_iter_at_mark `INSERT in
-    let start = find_word_start it in
-    let stop = find_word_end start in
-    b#move_mark `SEL_BOUND ~where:start;
-    b#move_mark `INSERT ~where:stop;
-    b#get_text ~slice:true ~start ~stop ()
+let get_current_word () =
+  let term = notebook#current_term in
+  (** First look to find if autocompleting *)
+  match term.script#complete_popup#proposal with
+  | Some p -> p
+  | None ->
+  (** Then look at the current selected word *)
+  if term.script#buffer#has_selection then
+    let (start, stop) = term.script#buffer#selection_bounds in
+    term.script#buffer#get_text ~slice:true ~start ~stop ()
+  (** Otherwise try to recover the clipboard *)
+  else match Ideutils.cb#text with
+  | Some t -> t
+  | None -> ""
 
 let print_branch c l =
   Format.fprintf c " | @[<hov 1>%a@]=> _@\n"
@@ -555,9 +561,10 @@ let print_branches c cases =
   Format.fprintf c "@[match var with@\n%aend@]@."
     (print_list print_branch) cases
 
-let display_match k = function
-  |Interface.Fail _ -> flash_info "Not an inductive type"; k ()
-  |Interface.Good cases |Interface.Unsafe cases ->
+let display_match = function
+  |Interface.Fail _ ->
+    flash_info "Not an inductive type"; Coq.return ()
+  |Interface.Good cases | Interface.Unsafe cases ->
     let text =
       let buf = Buffer.create 1024 in
       let () = print_branches (Format.formatter_of_buffer buf) cases in
@@ -574,12 +581,13 @@ let display_match k = function
       b#move_mark ~where:(i#backward_chars 3) `SEL_BOUND
     end;
     b#delete_mark (`MARK m);
-    k ()
+    Coq.return ()
 
 let match_callback _ =
   let w = get_current_word () in
   let coqtop = notebook#current_term.coqtop in
-  Coq.try_grab coqtop (fun h k -> Coq.mkcases w h (display_match k)) ignore
+  let query = Coq.bind (Coq.mkcases w) display_match in
+  Coq.try_grab coqtop query ignore
 
 (** Queries *)
 
@@ -598,13 +606,14 @@ let searchabout () =
     buf#insert tpe;
     buf#insert "\n";
   in
-  let display_results k r =
+  let display_results r =
     sn.messages#clear;
     List.iter insert (match r with Interface.Good l -> l | _ -> []);
-    k ()
+    Coq.return ()
   in
-  let launch_query h k =
-    Coq.search [Interface.SubType_Pattern word, true] h (display_results k)
+  let launch_query =
+    let search = Coq.search [Interface.SubType_Pattern word, true] in
+    Coq.bind search display_results
   in
   Coq.try_grab sn.coqtop launch_query ignore
 
@@ -739,7 +748,7 @@ let refresh_editor_prefs () =
     (* Fonts *)
     sn.script#misc#modify_font fd;
     sn.proof#misc#modify_font fd;
-    sn.messages#misc#modify_font fd;
+    sn.messages#modify_font fd;
     sn.command#refresh_font ();
 
     (* Colors *)
@@ -931,8 +940,6 @@ let build_ui () =
       ~callback:(fun _ -> notebook#current_term.finder#find_backward ());
     item "Replace" ~stock:`FIND_AND_REPLACE
       ~callback:(fun _ -> notebook#current_term.finder#show `REPLACE);
-    item "Close Find" ~accel:"Escape"
-      ~callback:(fun _ -> notebook#current_term.finder#hide ());
     item "Complete Word" ~label:"Complete Word" ~accel:"<Ctrl>slash"
       ~callback:(fun _ ->
         ignore ( ()

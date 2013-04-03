@@ -338,14 +338,15 @@ let tclEXTEND tacs1 rtac tacs2 env =
     this should be maintained synchronized, probably. *)
 open Pretype_errors
 let rec catchable_exception = function
-  | Loc.Exc_located(_,e) -> catchable_exception e
+  | Proof_type.LtacLocated(_,_,e) -> catchable_exception e
   | Errors.UserError _
   | Type_errors.TypeError _ | PretypeError (_,_,TypingError _)
   | Indrec.RecursionSchemeError _
   | Nametab.GlobalizationError _ | PretypeError (_,_,VarNotFound _)
   (* unification errors *)
   | PretypeError(_,_,(CannotUnify _|CannotUnifyLocal _|CannotGeneralize _
-		   |NoOccurrenceFound _|CannotUnifyBindingType _|NotClean _
+		   |NoOccurrenceFound _|CannotUnifyBindingType _
+		   |ActualTypeNotCoercible _
 		   |CannotFindWellTypedAbstraction _
 		   |UnsolvableImplicit _)) -> true
   | Typeclasses_errors.TypeClassError 

@@ -123,20 +123,23 @@ let typeclass_univ_instance (cl,u') =
       match cl.cl_impl with
       | ConstRef c -> 
         let cb = Global.lookup_constant c in
-	  if cb.const_polymorphic then fst cb.const_universes else []
+	  if cb.const_polymorphic then Univ.Context.instance cb.const_universes 
+	  else Univ.Instance.empty
       | IndRef c ->
          let mib,oib = Global.lookup_inductive c in
-	  if mib.mind_polymorphic then fst mib.mind_universes else []
-      | _ -> []
-    in List.fold_left2 (fun subst u u' -> Univ.LMap.add u u' subst) Univ.LMap.empty u u'
+	  if mib.mind_polymorphic then Univ.Context.instance mib.mind_universes
+	  else Univ.Instance.empty
+      | _ -> Univ.Instance.empty
+    in Array.fold_left2 (fun subst u u' -> Univ.LMap.add u u' subst) 
+      Univ.LMap.empty (Univ.Instance.to_array u) (Univ.Instance.to_array u')
   in
-  let subst_ctx = Sign.map_rel_context (subst_univs_constr subst) in
+  let subst_ctx = Sign.map_rel_context (subst_univs_level_constr subst) in
     { cl with cl_context = fst cl.cl_context, subst_ctx (snd cl.cl_context);
       cl_props = subst_ctx cl.cl_props}, u'
 
 let class_info c =
   try Gmap.find c !classes
-  with _ -> not_a_class (Global.env()) (printable_constr_of_global c)
+  with Not_found -> not_a_class (Global.env()) (printable_constr_of_global c)
 
 let global_class_of_constr env c =
   try let gr, u = Universes.global_of_constr c in
@@ -151,7 +154,9 @@ let dest_class_arity env c =
   let rels, c = Term.decompose_prod_assum c in
     rels, dest_class_app env c
 
-let class_of_constr c = try Some (dest_class_arity (Global.env ()) c) with _ -> None
+let class_of_constr c =
+  try Some (dest_class_arity (Global.env ()) c)
+  with e when Errors.noncritical e -> None
 
 let rec is_class_type evd c =
   match kind_of_term c with
@@ -239,7 +244,7 @@ let rebuild_class cl =
   try 
     let cst = Tacred.evaluable_of_global_reference (Global.env ()) cl.cl_impl in
       set_typeclass_transparency cst false false; cl
-  with _ -> cl
+  with e when Errors.noncritical e -> cl
 
 let class_input : typeclass -> obj =
   declare_object
@@ -262,7 +267,7 @@ let check_instance env sigma c =
     let (evd, c) = resolve_one_typeclass env sigma
       (Retyping.get_type_of env sigma c) in
       Evd.is_empty (Evd.undefined_evars evd)
-  with _ -> false
+  with e when Errors.noncritical e -> false
 
 let build_subclasses ~check env sigma glob pri =
   let _id = Nametab.basename_of_global glob in
@@ -404,7 +409,9 @@ let add_class cl =
   List.iter (fun (n, inst, body) ->
 	     match inst with
 	     | Some (Backward, pri) ->
-	       declare_instance pri false (ConstRef (Option.get body))
+	       (match body with
+	       | None -> Errors.error "Non-definable projection can not be declared as a subinstance"
+	       | Some b -> declare_instance pri false (ConstRef b))
 	     | _ -> ())
   cl.cl_projs
 
@@ -412,7 +419,7 @@ let add_class cl =
 open Declarations
 (* FIXME: deal with universe instances *)
 let add_constant_class cst =
-  let ty = Typeops.type_of_constant_in (Global.env ()) (cst,[]) in
+  let ty = Typeops.type_of_constant_in (Global.env ()) (cst,Univ.Instance.empty) in
   let ctx, arity = decompose_prod_assum ty in
   let tc = 
     { cl_impl = ConstRef cst;
@@ -429,7 +436,7 @@ let add_inductive_class ind =
     let ctx = oneind.mind_arity_ctxt in
     let ty = Inductive.type_of_inductive_knowing_parameters
       (push_rel_context ctx (Global.env ()))
-        ((mind,oneind),[]) (Termops.extended_rel_vect 0 ctx)
+        ((mind,oneind),Univ.Instance.empty) (Termops.extended_rel_vect 0 ctx)
     in
       { cl_impl = IndRef ind;
 	cl_context = List.map (const None) ctx, ctx;
@@ -512,14 +519,13 @@ let is_implicit_arg = function
  *)
 
 let resolvable = Store.field ()
-open Store.Field
 
 let is_resolvable evi =
   assert (match evi.evar_body with Evar_empty -> true | _ -> false);
-  Option.default true (resolvable.get evi.evar_extra)
+  Option.default true (Store.get evi.evar_extra resolvable)
 
 let mark_resolvability_undef b evi =
-  let t = resolvable.set b evi.evar_extra in
+  let t = Store.set evi.evar_extra resolvable b in
   { evi with evar_extra = t }
 
 let mark_resolvability b evi =

@@ -24,12 +24,12 @@ open Univ
 
 (*s Cooking the constants. *)
 
-type work_list = (universe_list * Id.t array) Cmap.t * 
-  (universe_list * Id.t array) Mindmap.t
+type work_list = (Instance.t * Id.t array) Cmap.t * 
+  (Instance.t * Id.t array) Mindmap.t
 
-let pop_dirpath p = match Dir_path.repr p with
-  | [] -> anomaly "dirpath_prefix: empty dirpath"
-  | _::l -> Dir_path.make l
+let pop_dirpath p = match DirPath.repr p with
+  | [] -> anomaly ~label:"dirpath_prefix" (Pp.str "empty dirpath")
+  | _::l -> DirPath.make l
 
 let pop_mind kn =
   let (mp,dir,l) = Names.repr_mind kn in
@@ -51,7 +51,7 @@ let instantiate_my_gr gr u =
   | ConstructRef c -> mkConstructU (c, u)
 
 let cache = (Hashtbl.create 13 : 
-	     (my_global_reference, my_global_reference * (universe_list * constr array)) Hashtbl.t)
+	     (my_global_reference, my_global_reference * (Instance.t * constr array)) Hashtbl.t)
 
 let clear_cooking_sharing () = Hashtbl.clear cache
 
@@ -73,7 +73,7 @@ let share r (cstl,knl) =
 
 let share_univs r u cache =
   let r', (u', args) = share r cache in
-    mkApp (instantiate_my_gr r' (List.append u' u), args)
+    mkApp (instantiate_my_gr r' (Instance.append u' u), args)
 
 let update_case_info ci modlist =
   try
@@ -131,16 +131,22 @@ type recipe = {
   d_abstract : named_context Univ.in_universe_context;
   d_modlist : work_list }
 
+type inline = bool
+
+type result =
+  constant_def * constant_type * bool * Univ.universe_context * inline
+    * Sign.section_context option
+
 let on_body f = function
   | Undef inl -> Undef inl
-  | Def cs -> Def (Declarations.from_val (f (Declarations.force cs)))
+  | Def cs -> Def (Lazyconstr.from_val (f (Lazyconstr.force cs)))
   | OpaqueDef lc ->
-    OpaqueDef (Declarations.opaque_from_val (f (Declarations.force_opaque lc)))
+    OpaqueDef (Lazyconstr.opaque_from_val (f (Lazyconstr.force_opaque lc)))
 
 let constr_of_def = function
   | Undef _ -> assert false
-  | Def cs -> Declarations.force cs
-  | OpaqueDef lc -> Declarations.force_opaque lc
+  | Def cs -> Lazyconstr.force cs
+  | OpaqueDef lc -> Lazyconstr.force_opaque lc
 
 let univ_variables_of c = 
   let rec aux univs c = 
@@ -171,7 +177,8 @@ let cook_constant env r =
   in
   let univs = 
     if cb.const_polymorphic then
-      union_universe_context abs_ctx cb.const_universes
+      Context.union abs_ctx cb.const_universes
     else cb.const_universes
   in
-  (body, typ, cb.const_polymorphic, univs, const_hyps)
+  (body, typ, cb.const_polymorphic, univs, cb.const_inline_code, 
+   Some const_hyps)

@@ -475,7 +475,7 @@ let raw_inversion inv_kind id status names gl =
         (fun id ->
            (tclTHEN
               (apply_term (mkVar id)
-                 (List.tabulate (fun _ -> Evarutil.mk_new_meta()) neqns))
+                 (List.init neqns (fun _ -> Evarutil.mk_new_meta())))
               reflexivity))]))
   gl
 
@@ -493,7 +493,7 @@ let wrap_inv_error id = function
 (* The most general inversion tactic *)
 let inversion inv_kind status names id gls =
   try (raw_inversion inv_kind id status names) gls
-  with e -> wrap_inv_error id e
+  with e when Errors.noncritical e -> wrap_inv_error id e
 
 (* Specializing it... *)
 
@@ -536,7 +536,7 @@ let invIn k names ids id gls =
        inversion (false,k) NoDep names id;
        intros_replace_ids])
     gls
-  with e -> wrap_inv_error id e
+  with e when Errors.noncritical e -> wrap_inv_error id e
 
 let invIn_gen k names idl = try_intros_until (invIn k names idl)
 

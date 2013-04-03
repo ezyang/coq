@@ -35,7 +35,7 @@ let filter_params pvars hyps =
       let ids' = id::ids in
       let ids'' =
        "cic:/" ^
-        String.concat "/" (List.rev (List.map Names.Id.to_string ids')) in
+        String.concat "/" (List.rev_map Names.Id.to_string ids') in
       let he' =
        ids'', List.rev (List.filter (function x -> List.mem x hyps) he) in
       let tl' = aux ids' tl in
@@ -46,7 +46,7 @@ let filter_params pvars hyps =
   let cwd = Lib.cwd () in
   let cwdsp = Libnames.make_path cwd (Names.Id.of_string "dummy") in
   let modulepath = Cic2acic.get_module_path_of_full_path cwdsp in
-   aux (Names.Dir_path.repr modulepath) (List.rev pvars)
+   aux (Names.DirPath.repr modulepath) (List.rev pvars)
 ;;
 
 (* The computation is very inefficient, but we can't do anything *)
@@ -62,7 +62,7 @@ let search_variables () =
        [] -> []
      | he::tl as modules ->
         let one_section_variables =
-         let dirpath = N.Dir_path.make (modules @ N.Dir_path.repr modulepath) in
+         let dirpath = N.DirPath.make (modules @ N.DirPath.repr modulepath) in
           let t = List.map N.Id.to_string (Decls.last_section_hyps dirpath) in
            [he,t]
         in
@@ -81,7 +81,7 @@ let rec join_dirs cwd =
   | he::tail ->
       (try
         Unix.mkdir cwd 0o775
-       with _ -> () (* Let's ignore the errors on mkdir *)
+       with e when Errors.noncritical e -> () (* ignore the errors on mkdir *)
       ) ;
      let newcwd = cwd ^ "/" ^ he in
       join_dirs newcwd tail
@@ -113,7 +113,7 @@ let theory_filename xml_library_root =
   match xml_library_root with
     None -> None  (* stdout *)
   | Some xml_library_root' ->
-     let toks = List.map N.Id.to_string (N.Dir_path.repr (Lib.library_dp ())) in
+     let toks = List.map N.Id.to_string (N.DirPath.repr (Lib.library_dp ())) in
      (* theory from A/B/C/F.v goes into A/B/C/F.theory *)
      let alltoks = List.rev toks in
        Some (join_dirs xml_library_root' alltoks ^ ".theory")
@@ -229,12 +229,11 @@ let mk_constant_obj id bo ty variables hyps =
       Acic.Constant (Names.Id.to_string id,None,ty,params)
    | Some c ->
       Acic.Constant
-       (Names.Id.to_string id, Some (Unshare.unshare (Declarations.force c)),
+       (Names.Id.to_string id, Some (Unshare.unshare (Lazyconstr.force c)),
          ty,params)
 ;;
 
 let mk_inductive_obj sp mib packs variables nparams hyps finite =
- let module D = Declarations in
   let hyps = string_list_of_named_context_list hyps in
   let params = filter_params variables hyps in
 (*  let nparams = extract_nparams packs in *)
@@ -243,11 +242,11 @@ let mk_inductive_obj sp mib packs variables nparams hyps finite =
     Array.fold_right
      (fun p i ->
        decr tyno ;
-       let {D.mind_consnames=consnames ;
-            D.mind_typename=typename } = p
+       let {Declarations.mind_consnames=consnames ;
+            Declarations.mind_typename=typename } = p
        in
-        let arity = Inductive.type_of_inductive (Global.env()) ((mib,p),[])(*FIXME*) in
-        let lc = Inductiveops.arities_of_constructors (Global.env ()) ((sp,!tyno),[])(*FIXME*) in
+        let arity = Inductive.type_of_inductive (Global.env()) ((mib,p),Univ.Instance.empty)(*FIXME*) in
+        let lc = Inductiveops.arities_of_constructors (Global.env ()) ((sp,!tyno),Univ.Instance.empty)(*FIXME*) in
         let cons =
          (Array.fold_right (fun (name,lc) i -> (name,lc)::i)
           (Array.mapi
@@ -289,7 +288,7 @@ let kind_of_variable id =
     | IsAssumption Conjectural -> "VARIABLE","Conjecture"
     | IsDefinition Definition -> "VARIABLE","LocalDefinition"
     | IsProof _ -> "VARIABLE","LocalFact"
-    | _ -> Errors.anomaly "Unsupported variable kind"
+    | _ -> Errors.anomaly (Pp.str "Unsupported variable kind")
 ;;
 
 let kind_of_constant kn =
@@ -368,7 +367,7 @@ let print_object_kind uri (xmltag,variation) =
 (*       form of the definition (all the parameters are                   *)
 (*       lambda-abstracted, but the object can still refer to variables)  *)
 let print internal glob_ref kind xml_library_root =
- let module D = Declarations in
+ let module D = Declareops in
  let module De = Declare in
  let module G = Global in
  let module N = Names in
@@ -392,16 +391,16 @@ let print internal glob_ref kind xml_library_root =
        let id = N.Label.to_id (N.con_label kn) in
        let cb = G.lookup_constant kn in
        let val0 = D.body_of_constant cb in
-       let typ = cb.D.const_type in
-       let hyps = cb.D.const_hyps in
-       let typ = (* Typeops.type_of_constant_type (Global.env()) FIXME *)typ in
+       let typ = cb.Declarations.const_type in
+       let hyps = cb.Declarations.const_hyps in
+       let typ = (* Typeops.type_of_constant_type (Global.env()) *) typ in
         Cic2acic.Constant kn,mk_constant_obj id val0 typ variables hyps
     | Gn.IndRef (kn,_) ->
        let mib = G.lookup_mind kn in
-       let {D.mind_nparams=nparams;
-	    D.mind_packets=packs ;
-            D.mind_hyps=hyps;
-            D.mind_finite=finite} = mib in
+       let {Declarations.mind_nparams=nparams;
+	    Declarations.mind_packets=packs ;
+            Declarations.mind_hyps=hyps;
+            Declarations.mind_finite=finite} = mib in
           Cic2acic.Inductive kn,mk_inductive_obj kn mib packs variables nparams hyps finite
     | Gn.ConstructRef _ ->
        Errors.error ("a single constructor cannot be printed in XML")
@@ -423,7 +422,7 @@ let print_ref qid fn =
 (* pretty prints via Xml.pp the proof in progress on dest     *)
 let show_pftreestate internal fn (kind,pftst) id =
  if true then
-   Errors.anomaly "Xmlcommand.show_pftreestate is not supported in this version."
+   Errors.anomaly (Pp.str "Xmlcommand.show_pftreestate is not supported in this version.")
 
 let show fn =
  let pftst = Pfedit.get_pftreestate () in
@@ -519,7 +518,7 @@ let _ =
 	  let options = " --html -s --body-only --no-index --latin1 --raw-comments" in
           let command cmd =
            if Sys.command cmd <> 0 then
-            Errors.anomaly ("Error executing \"" ^ cmd ^ "\"")
+            Errors.anomaly (Pp.str ("Error executing \"" ^ cmd ^ "\""))
           in
            command (coqdoc^options^" -o "^fn^".xml "^fn^".v");
            command ("rm "^fn^".v "^fn^".glob");
@@ -531,7 +530,7 @@ let _ = Lexer.set_xml_output_comment (theory_output_string ~do_not_quote:true) ;
 
 let uri_of_dirpath dir =
   "/" ^ String.concat "/"
-    (List.map Names.Id.to_string (List.rev (Names.Dir_path.repr dir)))
+    (List.rev_map Names.Id.to_string (Names.DirPath.repr dir))
 ;;
 
 let _ =
@@ -550,5 +549,5 @@ let _ =
   Library.set_xml_require
     (fun d -> theory_output_string
       (Printf.sprintf "<b>Require</b> <a helm:helm_link=\"href\" href=\"theory:%s.theory\">%s</a>.<br/>"
-       (uri_of_dirpath d) (Names.Dir_path.to_string d)))
+       (uri_of_dirpath d) (Names.DirPath.to_string d)))
 ;;

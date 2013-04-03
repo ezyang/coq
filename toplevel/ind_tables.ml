@@ -89,7 +89,7 @@ let scheme_object_table =
   (Hashtbl.create 17 : (string, string * scheme_object_function) Hashtbl.t)
 
 let declare_scheme_object s aux f =
-  (try Id.check ("ind"^s) with _ ->
+  (try Id.check ("ind"^s) with UserError _ ->
     error ("Illegal induction scheme suffix: "^s));
   let key = if String.is_empty aux then s else aux in
   try
@@ -125,20 +125,24 @@ let compute_name internal id =
 let define internal id c p univs =
   let fd = declare_constant ~internal in
   let id = compute_name internal id in
-  let subst, ctx = Evd.normalize_evar_universe_context univs Univ.LMap.empty in
-  let c = Universes.subst_univs_full_constr subst c in
-  let kn = fd id
-    (DefinitionEntry
-      { const_entry_body = c;
-        const_entry_secctx = None;
-        const_entry_type = None;
-	const_entry_polymorphic = p;
-	const_entry_universes = Evd.evar_context_universe_context ctx;
-        const_entry_opaque = false },
-      Decl_kinds.IsDefinition Scheme) in
-  (match internal with
-  | KernelSilent -> ()
-  | _-> definition_message id);
+  let ctx = Evd.normalize_evar_universe_context univs in
+  let c = subst_univs_fn_constr 
+    (Universes.make_opt_subst (Evd.evar_universe_context_subst ctx)) c in
+  let entry = {
+    const_entry_body = c;
+    const_entry_secctx = None;
+    const_entry_type = None;
+    const_entry_polymorphic = p;
+    const_entry_universes = Evd.evar_context_universe_context ctx;
+    const_entry_opaque = false;
+    const_entry_inline_code = false
+  }
+  in
+  let kn = fd id (DefinitionEntry entry, Decl_kinds.IsDefinition Scheme) in
+  let () = match internal with
+    | KernelSilent -> ()
+    | _-> definition_message id
+  in
   kn
 
 let define_individual_scheme_base kind suff f internal idopt (mind,i as ind) =

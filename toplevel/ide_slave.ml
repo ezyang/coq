@@ -231,16 +231,16 @@ let inloadpath dir =
   Library.is_in_load_paths (CUnix.physical_path_of_string dir)
 
 let status () =
-  (** We remove the initial part of the current [Dir_path.t]
+  (** We remove the initial part of the current [DirPath.t]
       (usually Top in an interactive session, cf "coqtop -top"),
       and display the other parts (opened sections and modules) *)
   let path =
-    let l = Names.Dir_path.repr (Lib.cwd ()) in
+    let l = Names.DirPath.repr (Lib.cwd ()) in
     List.rev_map Names.Id.to_string l
   in
   let proof =
     try Some (Names.Id.to_string (Proof_global.get_current_proof_name ()))
-    with _ -> None
+    with Proof_global.NoCurrentProof -> None
   in
   let allproofs =
     let l = Proof_global.get_all_proof_names () in
@@ -285,18 +285,17 @@ let quit = ref false
 (** Grouping all call handlers together + error handling *)
 
 let eval_call c =
-  let rec handle_exn e =
+  let handle_exn e =
     catch_break := false;
-    let pr_exn e = (read_stdout ())^("\n"^(string_of_ppcmds (Errors.print e))) in
     match e with
       | Errors.Drop -> None, "Drop is not allowed by coqide!"
       | Errors.Quit -> None, "Quit is not allowed by coqide!"
-      | Vernac.DuringCommandInterp (_,inner) -> handle_exn inner
-      | Error_in_file (_,_,inner) -> None, pr_exn inner
-      | Loc.Exc_located (loc, inner) ->
-        let loc = if Loc.is_ghost loc then None else Some (Loc.unloc loc) in
-        loc, pr_exn inner
-      | e -> None, pr_exn e
+      | e ->
+        let loc = match Loc.get_loc e with
+          | Some loc when not (Loc.is_ghost loc) -> Some (Loc.unloc loc)
+          | _ -> None
+        in
+        loc, (read_stdout ())^"\n"^(string_of_ppcmds (Errors.print e))
   in
   let interruptible f x =
     catch_break := true;
@@ -373,8 +372,8 @@ let loop () =
       | Serialize.Marshal_error ->
         pr_debug "Incorrect query.";
 	exit 1
-      | e ->
-	pr_debug ("Fatal exception in coqtop:\n" ^ Printexc.to_string e);
+      | any ->
+	pr_debug ("Fatal exception in coqtop:\n" ^ Printexc.to_string any);
 	exit 1
   done;
   pr_debug "Exiting gracefully.";

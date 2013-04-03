@@ -9,11 +9,9 @@
 open Names
 open Term
 open Univ
-open Declarations
-open Inductive
 open Environ
+open Declarations
 open Entries
-open Typeops
 
 val translate_local_def : env -> constr * types option ->
   constr * types * universe_context_set
@@ -22,16 +20,17 @@ val translate_local_assum : env -> types ->
   types * universe_context_set
 
 val infer_declaration : env -> constant_entry ->
-  constant_def * constant_type * bool * universe_context * Sign.section_context option
-
-val build_constant_declaration : env -> 'a ->
-  constant_def * constant_type * bool * universe_context * Sign.section_context option -> 
-    constant_body
+  constant_def * constant_type * bool * universe_context * bool * Sign.section_context option
 
 val translate_constant : env -> constant -> constant_entry -> constant_body
 
 val translate_mind :
   env -> mutual_inductive -> mutual_inductive_entry -> mutual_inductive_body
 
-val translate_recipe :
-  env -> constant -> Cooking.recipe -> constant_body
+val translate_recipe : env -> constant -> Cooking.recipe -> constant_body
+
+
+(** Internal functions, mentioned here for debug purpose only *)
+
+val infer_declaration : env -> constant_entry -> Cooking.result
+val build_constant_declaration : env -> constant -> Cooking.result -> constant_body

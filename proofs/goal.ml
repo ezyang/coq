@@ -56,14 +56,13 @@ let descendent gl e =
 (* [advance sigma g] returns [Some g'] if [g'] is undefined and
     is the current avatar of [g] (for instance [g] was changed by [clear]
     into [g']). It returns [None] if [g] has been (partially) solved. *)
-open Store.Field
 let rec advance sigma g =
   let evi = Evd.find sigma g.content in
-  if Option.default false (Evarutil.cleared.get evi.Evd.evar_extra) then
+  if Option.default false (Evd.Store.get evi.Evd.evar_extra Evarutil.cleared) then
     let v =
       match evi.Evd.evar_body with
       | Evd.Evar_defined c -> c
-      | _ -> Errors.anomaly "Some goal is marked as 'cleared' but is uninstantiated"
+      | _ -> Errors.anomaly (Pp.str "Some goal is marked as 'cleared' but is uninstantiated")
     in
     let (e,_) = Term.destEvar v in
     let g' = { g with content = e } in
@@ -276,7 +275,7 @@ let check_typability env sigma c =
 
 let recheck_typability (what,id) env sigma t =
   try check_typability env sigma t
-  with _ ->
+  with e when Errors.noncritical e ->
     let s = match what with
       | None -> "the conclusion"
       | Some id -> "hypothesis "^(Names.Id.to_string id) in
@@ -464,17 +463,12 @@ module V82 = struct
   (* Old style env primitive *)
   let env evars gl =
     let evi = content evars gl in
-    Evd.evar_env evi
-
-  (* For printing *)
-  let unfiltered_env evars gl =
-    let evi = content evars gl in
-    Evd.evar_unfiltered_env evi
+    Evd.evar_filtered_env evi
 
   (* Old style hyps primitive *)
   let hyps evars gl =
     let evi = content evars gl in
-    evi.Evd.evar_hyps
+    Evd.evar_filtered_hyps evi
 
   (* Access to ".evar_concl" *)
   let concl evars gl =
@@ -554,10 +548,16 @@ module V82 = struct
        with a good implementation of them.
     *)
 
-  (* Used for congruence closure *)
-  let new_goal_with sigma gl new_hyps =
+  (* Used for congruence closure and change *)
+  let new_goal_with sigma gl extra_hyps =
     let evi = content sigma gl in
-    let new_evi = { evi with Evd.evar_hyps = new_hyps } in
+    let hyps = evi.Evd.evar_hyps in
+    let new_hyps =
+      List.fold_right Environ.push_named_context_val extra_hyps hyps in
+    let extra_filter = List.map (fun _ -> true) extra_hyps in
+    let new_filter = extra_filter @ evi.Evd.evar_filter in
+    let new_evi =
+      { evi with Evd.evar_hyps = new_hyps; Evd.evar_filter = new_filter } in
     let new_evi = Typeclasses.mark_unresolvable new_evi in
     let evk = Evarutil.new_untyped_evar () in
     let new_sigma = Evd.add Evd.empty evk new_evi in

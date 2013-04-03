@@ -17,7 +17,6 @@ open Pputils
 open Ppextend
 open Constrexpr
 open Constrexpr_ops
-open Topconstr
 open Decl_kinds
 open Misctypes
 open Locus
@@ -46,7 +45,7 @@ let lsimpleconstr = (8,E)
 let lsimplepatt = (1,E)
 
 let prec_less child (parent,assoc) =
-  if parent < 0 && child = lprod then true
+  if parent < 0 && Int.equal child lprod then true
   else
     let parent = abs parent in
     match assoc with
@@ -100,7 +99,7 @@ let pr_generalization bk ak c =
     str "`" ++ str hd ++ c ++ str tl
 
 let pr_com_at n =
-  if Flags.do_beautify() && n <> 0 then comment n
+  if Flags.do_beautify() && not (Int.equal n 0) then comment n
   else mt()
 
 let pr_with_comments loc pp = pr_located (fun x -> x) (loc,pp)
@@ -119,17 +118,17 @@ let pr_name = pr_name
 let pr_qualid = pr_qualid
 let pr_patvar = pr_id
 
-let pr_universe_list l =
-  pr_opt (pr_in_comment Univ.pr_universe_list) l
+let pr_universe_instance l =
+  pr_opt (pr_in_comment Univ.Instance.pr) l
 
 let pr_cref ref us =
-  pr_reference ref ++ pr_universe_list us
+  pr_reference ref ++ pr_universe_instance us
 
 let pr_expl_args pr (a,expl) =
   match expl with
   | None -> pr (lapp,L) a
   | Some (_,ExplByPos (n,_id)) ->
-      anomaly("Explicitation by position not implemented")
+      anomaly (Pp.str "Explicitation by position not implemented")
   | Some (_,ExplByName id) ->
       str "(" ++ pr_id id ++ str ":=" ++ pr ltop a ++ str ")"
 
@@ -142,7 +141,7 @@ let pr_opt_type_spc pr = function
   | t ->  str " :" ++ pr_sep_com (fun()->brk(1,2)) (pr ltop) t
 
 let pr_lident (loc,id) =
-  if loc <> Loc.ghost then
+  if not (Loc.is_ghost loc) then
     let (b,_) = Loc.unloc loc in
     pr_located pr_id (Loc.make_loc (b,b+String.length(Id.to_string id)),id)
   else pr_id id
@@ -197,8 +196,8 @@ let rec pr_patt sep inh p =
       pr_patt (fun()->str"(") (max_int,E) p ++ str")", latom
   | CPatNotation (_,s,(l,ll),args) ->
     let strm_not, l_not = pr_notation (pr_patt mt) (fun _ _ _ -> mt()) s (l,ll,[]) in
-    (if args=[]||prec_less l_not (lapp,L) then strm_not else surround strm_not)
-    ++ prlist (pr_patt spc (lapp,L)) args, if args<>[] then lapp else l_not
+    (if List.is_empty args||prec_less l_not (lapp,L) then strm_not else surround strm_not)
+    ++ prlist (pr_patt spc (lapp,L)) args, if not (List.is_empty args) then lapp else l_not
   | CPatPrim (_,p) -> pr_prim_token p, latom
   | CPatDelimiters (_,k,p) -> pr_delimiters k (pr_patt mt lsimplepatt p), 1
   in
@@ -239,7 +238,7 @@ let surround_implicit k p =
 let pr_binder many pr (nal,k,t) =
   match k with
     | Generalized (b, b', t') ->
-      assert (b=Implicit);
+      assert (match b with Implicit -> true | _ -> false);
       begin match nal with
 	|[loc,Anonymous] ->
 	  hov 1 (str"`" ++ (surround_impl b'
@@ -248,7 +247,7 @@ let pr_binder many pr (nal,k,t) =
 	  hov 1 (str "`" ++ (surround_impl b'
 			       (pr_lident (loc,id) ++ str " : " ++
 				  (if t' then str "!" else mt()) ++ pr t)))
-	|_ -> anomaly "List of generalized binders have alwais one element."
+	|_ -> anomaly (Pp.str "List of generalized binders have alwais one element.")
       end
     | Default b ->
       match t with
@@ -264,7 +263,7 @@ let pr_binder_among_many pr_c = function
       pr_binder true pr_c (nal,k,t)
   | LocalRawDef (na,c) ->
       let c,topt = match c with
-        | CCast(_,c, (CastConv t|CastVM t)) -> c, t
+        | CCast(_,c, (CastConv t|CastVM t|CastNative t)) -> c, t
         | _ -> c, CHole (Loc.ghost, None) in
       surround (pr_lname na ++ pr_opt_type pr_c topt ++
          str":=" ++ cut() ++ pr_c c)
@@ -311,11 +310,12 @@ let split_lambda = function
   | CLambdaN (loc,[[na],bk,t],c) -> (na,t,c)
   | CLambdaN (loc,([na],bk,t)::bl,c) -> (na,t,CLambdaN(loc,bl,c))
   | CLambdaN (loc,(na::nal,bk,t)::bl,c) -> (na,t,CLambdaN(loc,(nal,bk,t)::bl,c))
-  | _ -> anomaly "ill-formed fixpoint body"
+  | _ -> anomaly (Pp.str "ill-formed fixpoint body")
 
 let rename na na' t c =
   match (na,na') with
-    | (_,Name id), (_,Name id') -> (na',t,replace_vars_constr_expr [id,id'] c)
+    | (_,Name id), (_,Name id') ->
+      (na',t,Topconstr.replace_vars_constr_expr [id,id'] c)
     | (_,Name id), (_,Anonymous) -> (na,t,c)
     | _ -> (na',t,c)
 
@@ -324,7 +324,7 @@ let split_product na' = function
   | CProdN (loc,([na],bk,t)::bl,c) -> rename na na' t (CProdN(loc,bl,c))
   | CProdN (loc,(na::nal,bk,t)::bl,c) ->
       rename na na' t (CProdN(loc,(nal,bk,t)::bl,c))
-  | _ -> anomaly "ill-formed fixpoint body"
+  | _ -> anomaly (Pp.str "ill-formed fixpoint body")
 
 let rec split_fix n typ def =
   if Int.equal n 0 then ([],typ,def)
@@ -369,7 +369,7 @@ let pr_cofixdecl pr prd dangling_with_for ((_,id),bl,t,c) =
   pr_recursive_decl pr prd dangling_with_for id bl (mt()) t c
 
 let pr_recursive pr_decl id = function
-  | [] -> anomaly "(co)fixpoint with no definition"
+  | [] -> anomaly (Pp.str "(co)fixpoint with no definition")
   | [d1] -> pr_decl false d1
   | dl ->
       prlist_with_sep (fun () -> fnl() ++ str "with ")
@@ -406,7 +406,7 @@ let pr_proj pr pr_app a f l =
 let pr_appexpl pr (f,us) l =
       hov 2 (
 	str "@" ++ pr_reference f ++
-	pr_universe_list us ++
+	pr_universe_instance us ++
 	prlist (pr_sep_com spc (pr (lapp,L))) l)
 
 let pr_app pr a l =
@@ -454,7 +454,7 @@ let pr pr sep inherited a =
 	       pr_fun_sep ++ pr spc ltop a),
       llambda
   | CLetIn (_,(_,Name x),(CFix(_,(_,x'),[_])|CCoFix(_,(_,x'),[_]) as fx), b)
-      when x=x' ->
+      when Id.equal x x' ->
       hv 0 (
         hov 2 (str "let " ++ pr mt ltop fx ++ str " in") ++
         pr spc ltop b),
@@ -469,21 +469,21 @@ let pr pr sep inherited a =
       let l1,l2 = List.chop i l in
       let c,l1 = List.sep_last l1 in
       let p = pr_proj (pr mt) pr_appexpl c (f,us) l1 in
-      if l2<>[] then
+      if not (List.is_empty l2) then
 	p ++ prlist (pr spc (lapp,L)) l2, lapp
       else
 	p, lproj
   | CAppExpl (_,(None,Ident (_,var),us),[t])
   | CApp (_,(_,CRef(Ident(_,var),us)),[t,None])
-        when var = Notation_ops.ldots_var ->
+        when Id.equal var Notation_ops.ldots_var ->
       hov 0 (str ".." ++ pr spc (latom,E) t ++ spc () ++ str ".."), larg
   | CAppExpl (_,(None,f,us),l) -> pr_appexpl (pr mt) (f,us) l, lapp
   | CApp (_,(Some i,f),l) ->
       let l1,l2 = List.chop i l in
       let c,l1 = List.sep_last l1 in
-      assert (snd c = None);
+      assert (Option.is_empty (snd c));
       let p = pr_proj (pr mt) pr_app (fst c) f l1 in
-      if l2<>[] then
+      if not (List.is_empty l2) then
 	p ++ prlist (fun a -> spc () ++ pr_expl_args (pr mt) a) l2, lapp
       else
 	p, lproj
@@ -547,6 +547,7 @@ let pr pr sep inherited a =
 	    match b with
 	      | CastConv b -> str ":" ++ pr mt (-lcast,E) b
 	      | CastVM b -> str "<:" ++ pr mt (-lcast,E) b
+	      | CastNative b -> str "<<:" ++ pr mt (-lcast,E) b
 	      | CastCoerce -> str ":>"), lcast
   | CNotation (_,"( _ )",([t],[],[])) ->
       pr (fun()->str"(") (max_int,L) t ++ str")", latom
@@ -611,7 +612,7 @@ let pr_red_flag pr r =
   (if r.rBeta then pr_arg str "beta" else mt ()) ++
   (if r.rIota then pr_arg str "iota" else mt ()) ++
   (if r.rZeta then pr_arg str "zeta" else mt ()) ++
-  (if r.rConst = [] then
+  (if List.is_empty r.rConst then
      if r.rDelta then pr_arg str "delta"
      else mt ()
    else
@@ -625,7 +626,7 @@ let pr_red_expr (pr_constr,pr_lconstr,pr_ref,pr_pattern) = function
   | Hnf -> str "hnf"
   | Simpl o -> str "simpl" ++ pr_opt (pr_with_occurrences pr_pattern) o
   | Cbv f ->
-      if f = {rBeta=true;rIota=true;rZeta=true;rDelta=true;rConst=[]} then
+      if f.rBeta && f.rIota && f.rZeta && f.rDelta && List.is_empty f.rConst then
 	str "compute"
       else
 	hov 1 (str "cbv" ++ pr_red_flag pr_ref f)
@@ -644,6 +645,7 @@ let pr_red_expr (pr_constr,pr_lconstr,pr_ref,pr_pattern) = function
   | Red true -> error "Shouldn't be accessible from user."
   | ExtraRedExpr s -> str s
   | CbvVm o -> str "vm_compute" ++ pr_opt (pr_with_occurrences pr_pattern) o
+  | CbvNative o -> str "native_compute" ++ pr_opt (pr_with_occurrences pr_pattern) o
 
 let pr_may_eval test prc prlc pr2 pr3 = function
   | ConstrEval (r,c) ->

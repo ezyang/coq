@@ -46,14 +46,22 @@ let optimize_non_type_induction_scheme kind dep sort ind =
     let sigma, nf = Evarutil.nf_evars_and_universes sigma in
       nf c, Evd.evar_universe_context sigma
   else
-    let sigma, indu = Evd.fresh_inductive_instance env sigma ind in
-    let sigma, c = build_induction_scheme env sigma indu dep sort in
+    let u = 
+      let mib,mip = Inductive.lookup_mind_specif env ind in
+	Inductive.inductive_instance mib
+    in
+    let ctx = Univ.ContextSet.of_instance u in
+    let sigma, c = build_induction_scheme env (Evd.from_env ~ctx env) (ind,u) dep sort in
       c, Evd.evar_universe_context sigma
 
 let build_induction_scheme_in_type dep sort ind =
   let env = Global.env () in
-  let sigma, indu = Evd.fresh_inductive_instance env (Evd.from_env env) ind in
-  let sigma, c = build_induction_scheme env sigma indu dep sort in
+  let u = 
+    let mib,mip = Inductive.lookup_mind_specif env ind in
+      Inductive.inductive_instance mib
+  in
+  let ctx = Univ.ContextSet.of_instance u in
+  let sigma, c = build_induction_scheme env (Evd.from_env ~ctx env) (ind,u) dep sort in
     c, Evd.evar_universe_context sigma
  
 let rect_scheme_kind_from_type =

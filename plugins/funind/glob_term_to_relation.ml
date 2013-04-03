@@ -912,7 +912,8 @@ let rec rebuild_cons env nb_args relname args crossed_types depth rt =
 		  try
 		    observe (str "computing new type for eq : " ++ pr_glob_constr rt);
 		    let t' =
-		      try fst (Pretyping.understand Evd.empty env t) with _ -> raise Continue
+		      try fst (Pretyping.understand Evd.empty env t)(*FIXME*)
+                      with e when Errors.noncritical e -> raise Continue
 		    in
 		    let is_in_b = is_free_in id b in
 		    let _keep_eq =
@@ -1092,7 +1093,7 @@ let rec rebuild_cons env nb_args relname args crossed_types depth rt =
 		  new_b, Id.Set.remove id (Id.Set.filter not_free_in_t id_to_exclude)
 		else
 		  GProd(Loc.ghost,n,k,t,new_b),Id.Set.filter not_free_in_t id_to_exclude
-	    | _ -> anomaly "Should not have an anonymous function here"
+	    | _ -> anomaly (Pp.str "Should not have an anonymous function here")
 		(* We have renamed all the anonymous functions during alpha_renaming phase *)
 
 	end
@@ -1211,7 +1212,7 @@ let compute_params_name relnames (args : (Name.t * Glob_term.glob_constr * bool)
 	     l := param::!l
 	)
 	rels_params.(0)
-    with _ ->
+    with e when Errors.noncritical e ->
       ()
   in
   List.rev !l
@@ -1417,7 +1418,7 @@ let do_build_inductive
 	in
 	observe (msg);
 	raise e
-    | e ->
+    | reraise ->
 	let _time3 = System.get_time () in
 (* 	Pp.msgnl (str "error : "++ str (string_of_float (System.time_difference time2 time3))); *)
 	let repacked_rel_inds =
@@ -1428,16 +1429,16 @@ let do_build_inductive
 	  str "while trying to define"++ spc () ++
 	    Ppvernac.pr_vernac (Vernacexpr.VernacInductive(false,Decl_kinds.Finite,false,repacked_rel_inds))
 	    ++ fnl () ++
-	    Errors.print e
+	    Errors.print reraise
 	in
  	observe msg;
-	raise e
+	raise reraise
 
 
 
 let build_inductive funnames funsargs returned_types rtl =
   try
     do_build_inductive funnames funsargs returned_types rtl
-  with e -> raise (Building_graph e)
+  with e when Errors.noncritical e -> raise (Building_graph e)
 
 

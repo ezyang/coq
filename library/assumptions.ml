@@ -14,14 +14,13 @@
 (* Initial author: Arnaud Spiwack
    Module-traversing code: Pierre Letouzey *)
 
+open Pp
 open Errors
 open Util
 open Names
 open Term
 open Declarations
 open Mod_subst
-
-let cst_ord k1 k2 = kn_ord (canonical_con k1) (canonical_con k2)
 
 type context_object =
   | Variable of Id.t (* A section variable or a Let definition *)
@@ -36,9 +35,9 @@ struct
   let compare x y =
       match x , y with
       | Variable i1 , Variable i2 -> Id.compare i1 i2
-      | Axiom k1 , Axiom k2 -> cst_ord k1 k2
-      | Opaque k1 , Opaque k2 -> cst_ord k1 k2
-      | Transparent k1 , Transparent k2 -> cst_ord k1 k2
+      | Axiom k1 , Axiom k2 -> con_ord k1 k2
+      | Opaque k1 , Opaque k2 -> con_ord k1 k2
+      | Transparent k1 , Transparent k2 -> con_ord k1 k2
       | Axiom _ , Variable _ -> 1
       | Opaque _ , Variable _
       | Opaque _ , Axiom _ -> 1
@@ -147,12 +146,12 @@ let lookup_constant_in_impl cst fallback =
        - The label has not been found in the structure. This is an error *)
     match fallback with
       | Some cb -> cb
-      | None -> anomaly ("Print Assumption: unknown constant "^string_of_con cst)
+      | None -> anomaly (str "Print Assumption: unknown constant " ++ pr_con cst)
 
 let lookup_constant cst =
   try
     let cb = Global.lookup_constant cst in
-    if constant_has_body cb then cb
+    if Declareops.constant_has_body cb then cb
     else lookup_constant_in_impl cst (Some cb)
   with Not_found -> lookup_constant_in_impl cst None
 
@@ -224,8 +223,8 @@ let assumptions ?(add_opaque=false) ?(add_transparent=false) st (* t *) =
 	(s,ContextObjectMap.add cst ctype acc)
     in
     let (s,acc) =
-      if Declarations.constant_has_body cb then
-        if Declarations.is_opaque cb || not (Cpred.mem kn knst) then
+      if Declareops.constant_has_body cb then
+        if Declareops.is_opaque cb || not (Cpred.mem kn knst) then
           (** it is opaque *)
           if add_opaque then do_type (Opaque kn)
           else (s, acc)
@@ -234,9 +233,9 @@ let assumptions ?(add_opaque=false) ?(add_transparent=false) st (* t *) =
           else (s, acc)
       else (s, acc)
     in
-      match Declarations.body_of_constant cb with
+      match Declareops.body_of_constant cb with
       | None -> do_type (Axiom kn)
-      | Some body -> do_constr (Declarations.force body) s acc
+      | Some body -> do_constr (Lazyconstr.force body) s acc
 
   and do_memoize_kn kn =
     try_and_go (Axiom kn) (add_kn kn)

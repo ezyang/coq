@@ -91,14 +91,14 @@ let run_com inst =
       let s = String.sub inst i (String.length inst - i) in
       if inst.[0] >= '0' && inst.[0] <= '9' then
         let num = int_of_string s in
-        if num<0 then raise (Invalid_argument "run_com");
+        if num<0 then invalid_arg "run_com";
         skip:=num;skipped:=0
       else
         breakpoint:=Some (possibly_unquote s)
     else
-      raise (Invalid_argument "run_com")
+      invalid_arg "run_com"
   else
-    raise (Invalid_argument "run_com")
+    invalid_arg "run_com"
 
 (* Prints the run counter *)
 let run ini =
@@ -142,11 +142,12 @@ let debug_prompt lev g tac f =
     else (decr skip; run false; if Int.equal !skip 0 then skipped:=0; DebugOn (lev+1)) in
   (* What to execute *)
   try f newlevel
-  with e ->
+  with reraise ->
     skip:=0; skipped:=0;
-    if Logic.catchable_exception e then
-      msg_tac_debug (str "Level " ++ int lev ++ str ": " ++ !explain_logic_error e);
-    raise e
+    if Logic.catchable_exception reraise then
+      msg_tac_debug
+        (str "Level " ++ int lev ++ str ": " ++ !explain_logic_error reraise);
+    raise reraise
 
 let is_debug db = match db, !breakpoint with
 | DebugOff, _ -> false

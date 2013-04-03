@@ -24,8 +24,8 @@ open Miniml
 (** Sets and maps for [global_reference] that use the "user" [kernel_name]
     instead of the canonical one *)
 
-module Refmap' = Map.Make(RefOrdered_env)
-module Refset' = Set.Make(RefOrdered_env)
+module Refmap' = Refmap_env
+module Refset' = Refset_env
 
 (*S Utilities about [module_path] and [kernel_names] and [global_reference] *)
 
@@ -56,7 +56,7 @@ let is_modfile = function
   | _ -> false
 
 let raw_string_of_modfile = function
-  | MPfile f -> String.capitalize (Id.to_string (List.hd (Dir_path.repr f)))
+  | MPfile f -> String.capitalize (Id.to_string (List.hd (DirPath.repr f)))
   | _ -> assert false
 
 let current_toplevel () = fst (Lib.current_prefix ())
@@ -165,29 +165,27 @@ let record_fields_of_type = function
 (*s Recursors table. *)
 
 (* NB: here we can use the equivalence between canonical
-   and user constant names : Cset is fine, no need for [Cset_env] *)
+   and user constant names. *)
 
-let recursors = ref Cset.empty
-let init_recursors () = recursors := Cset.empty
+let recursors = ref KNset.empty
+let init_recursors () = recursors := KNset.empty
 
-let add_recursors env kn =
-  let mk_con id =
-    make_con_equiv
-      (modpath (user_mind kn))
-      (modpath (canonical_mind kn))
-      Dir_path.empty (Label.of_id id)
+let add_recursors env ind =
+  let kn = MutInd.canonical ind in
+  let mk_kn id =
+    KerName.make (KerName.modpath kn) DirPath.empty (Label.of_id id)
   in
-  let mib = Environ.lookup_mind kn env in
+  let mib = Environ.lookup_mind ind env in
   Array.iter
     (fun mip ->
        let id = mip.mind_typename in
-       let c_rec = mk_con (Nameops.add_suffix id "_rec")
-       and c_rect = mk_con (Nameops.add_suffix id "_rect") in
-       recursors := Cset.add c_rec (Cset.add c_rect !recursors))
+       let kn_rec = mk_kn (Nameops.add_suffix id "_rec")
+       and kn_rect = mk_kn (Nameops.add_suffix id "_rect") in
+       recursors := KNset.add kn_rec (KNset.add kn_rect !recursors))
     mib.mind_packets
 
 let is_recursor = function
-  | ConstRef kn -> Cset.mem kn !recursors
+  | ConstRef c -> KNset.mem (Constant.canonical c) !recursors
   | _ -> false
 
 (*s Record tables. *)
@@ -242,7 +240,7 @@ let safe_basename_of_global r =
   let last_chance r =
     try Nametab.basename_of_global r
     with Not_found ->
-      anomaly "Inductive object unknown to extraction and not globally visible"
+      anomaly (Pp.str "Inductive object unknown to extraction and not globally visible")
   in
   match r with
     | ConstRef kn -> Label.to_id (con_label kn)
@@ -257,7 +255,7 @@ let safe_basename_of_global r =
 
 let string_of_global r =
  try string_of_qualid (Nametab.shortest_qualid_of_global Id.Set.empty r)
- with _ -> Id.to_string (safe_basename_of_global r)
+ with Not_found -> Id.to_string (safe_basename_of_global r)
 
 let safe_pr_global r = str (string_of_global r)
 
@@ -265,15 +263,15 @@ let safe_pr_global r = str (string_of_global r)
 
 let safe_pr_long_global r =
   try Printer.pr_global r
-  with _ -> match r with
+  with Not_found -> match r with
     | ConstRef kn ->
 	let mp,_,l = repr_con kn in
 	str ((string_of_mp mp)^"."^(Label.to_string l))
     | _ -> assert false
 
 let pr_long_mp mp =
-  let lid = Dir_path.repr (Nametab.dirpath_of_module mp) in
-  str (String.concat "." (List.map Id.to_string (List.rev lid)))
+  let lid = DirPath.repr (Nametab.dirpath_of_module mp) in
+  str (String.concat "." (List.rev_map Id.to_string lid))
 
 let pr_long_global ref = pr_path (Nametab.path_of_global ref)
 
@@ -424,7 +422,7 @@ let check_loaded_modfile mp = match base_mp mp with
       if not (Library.library_is_loaded dp) then begin
 	match base_mp (current_toplevel ()) with
 	  | MPfile dp' when dp<>dp' ->
-	      err (str ("Please load library "^(Dir_path.to_string dp^" first.")))
+	      err (str ("Please load library "^(DirPath.to_string dp^" first.")))
 	  | _ -> ()
       end
   | _ -> ()
@@ -454,7 +452,7 @@ let my_bool_option name initval =
 
 (*s Extraction AccessOpaque *)
 
-let access_opaque = my_bool_option "AccessOpaque" false
+let access_opaque = my_bool_option "AccessOpaque" true
 
 (*s Extraction AutoInline *)
 
@@ -727,7 +725,7 @@ let string_of_modfile mp =
 
 let file_of_modfile mp =
   let s0 = match mp with
-    | MPfile f -> Id.to_string (List.hd (Dir_path.repr f))
+    | MPfile f -> Id.to_string (List.hd (DirPath.repr f))
     | _ -> assert false
   in
   let s = String.copy (string_of_modfile mp) in

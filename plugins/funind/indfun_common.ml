@@ -13,9 +13,6 @@ let mk_equation_id id = Nameops.add_suffix id "_equation"
 let msgnl m =
   ()
 
-let invalid_argument s = raise (Invalid_argument s)
-
-
 let fresh_id avoid s = Namegen.next_ident_away_in_goal (Id.of_string s) avoid
 
 let fresh_name avoid s = Name (fresh_id avoid s)
@@ -30,7 +27,7 @@ let array_get_start a =
       (Array.length a - 1)
       (fun i -> a.(i))
   with Invalid_argument "index out of bounds" ->
-    invalid_argument "array_get_start"
+    invalid_arg "array_get_start"
 
 let id_of_name = function
     Name id -> id
@@ -52,11 +49,8 @@ let locate_constant ref =
 
 
 let locate_with_msg msg f x =
-  try
-    f x
-  with
-    | Not_found -> raise (Errors.UserError("", msg))
-    | e -> raise e
+  try f x
+  with Not_found -> raise (Errors.UserError("", msg))
 
 
 let filter_map filter f =
@@ -124,7 +118,7 @@ let def_of_const t =
       (try (match Environ.constant_opt_value_in (Global.env()) sp with
              | Some c -> c
 	     | _ -> assert false)
-       with _ -> assert false)
+       with Not_found -> assert false)
     |_ -> assert false
 
 let coq_constant s =
@@ -132,9 +126,8 @@ let coq_constant s =
     Coqlib.init_modules s;;
 
 let find_reference sl s =
-    (Nametab.locate (make_qualid(Names.Dir_path.make
-			   (List.map Id.of_string (List.rev sl)))
-	       (Id.of_string s)));;
+  let dp = Names.DirPath.make (List.rev_map Id.of_string sl) in
+  Nametab.locate (make_qualid dp (Id.of_string s))
 
 let eq = lazy(coq_constant "eq")
 let refl_equal = lazy(coq_constant "eq_refl")
@@ -149,6 +142,11 @@ open Declare
 
 let definition_message = Declare.definition_message
 
+let get_locality = function
+| Discharge -> true
+| Local -> true
+| Global -> false
+
 let save with_clean id const (locality,p,kind) hook =
   let {const_entry_body = pft;
        const_entry_secctx = _;
@@ -156,20 +154,18 @@ let save with_clean id const (locality,p,kind) hook =
        const_entry_opaque = opacity;
        const_entry_universes = univs} = const in
   let l,r = match locality with
-    | Local when Lib.sections_are_opened () ->
+    | Discharge when Lib.sections_are_opened () ->
         let k = Kindops.logical_kind_of_goal_kind kind in
-	let ctx = Univ.universe_context_set_of_universe_context univs in
+	let ctx = Univ.ContextSet.of_context univs in
 	let c = SectionLocalDef (((pft, tpo), ctx), opacity) in
 	let _ = declare_variable id (Lib.cwd(), c, k) in
 	(Local, VarRef id)
-    | Local ->
+    | Discharge | Local | Global ->
+        let local = get_locality locality in
         let k = Kindops.logical_kind_of_goal_kind kind in
-        let kn = declare_constant id (DefinitionEntry const, k) in
-	(Global, ConstRef kn)
-    | Global ->
-        let k = Kindops.logical_kind_of_goal_kind kind in
-        let kn = declare_constant id (DefinitionEntry const, k) in
-	(Global, ConstRef kn) in
+        let kn = declare_constant id ~local (DefinitionEntry const, k) in
+	(locality, ConstRef kn)
+  in
   if with_clean then  Pfedit.delete_current_proof ();
   hook l r;
   definition_message id
@@ -211,13 +207,13 @@ let with_full_print f a =
     Dumpglob.continue ();
     res
   with
-    | e ->
+    | reraise ->
 	Impargs.make_implicit_args old_implicit_args;
 	Impargs.make_strict_implicit_args old_strict_implicit_args;
 	Impargs.make_contextual_implicit_args old_contextual_implicit_args;
 	Flags.raw_print := old_rawprint;
 	Dumpglob.continue ();
-	raise e
+	raise reraise
 
 
 
@@ -342,17 +338,25 @@ let discharge_Function (_,finfos) =
 	 }
 
 open Term
+
+let pr_ocst c =
+  Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) c (mt ())
+
 let pr_info f_info =
-  str "function_constant := " ++ Printer.pr_lconstr (mkConst f_info.function_constant)++ fnl () ++
-    str "function_constant_type := " ++
-    (try Printer.pr_lconstr (Global.type_of_global_unsafe (ConstRef f_info.function_constant)) with _ -> mt ()) ++ fnl () ++
-    str "equation_lemma := " ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.equation_lemma (mt ()) ) ++ fnl () ++
-    str "completeness_lemma :=" ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.completeness_lemma (mt ()) ) ++ fnl () ++
-    str "correctness_lemma := " ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.correctness_lemma (mt ()) ) ++ fnl () ++
-    str "rect_lemma := " ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.rect_lemma (mt ()) ) ++ fnl () ++
-    str "rec_lemma := " ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.rec_lemma (mt ()) ) ++ fnl () ++
-    str "prop_lemma := " ++ (Option.fold_right (fun v acc -> Printer.pr_lconstr (mkConst v)) f_info.prop_lemma (mt ()) ) ++ fnl () ++
-    str "graph_ind := " ++ Printer.pr_lconstr (mkInd f_info.graph_ind) ++ fnl ()
+  str "function_constant := " ++
+  Printer.pr_lconstr (mkConst f_info.function_constant)++ fnl () ++
+  str "function_constant_type := " ++
+  (try
+     Printer.pr_lconstr
+       (Global.type_of_global_unsafe (ConstRef f_info.function_constant))
+   with e when Errors.noncritical e -> mt ()) ++ fnl () ++
+  str "equation_lemma := " ++ pr_ocst f_info.equation_lemma ++ fnl () ++
+  str "completeness_lemma :=" ++ pr_ocst f_info.completeness_lemma ++ fnl () ++
+  str "correctness_lemma := " ++ pr_ocst f_info.correctness_lemma ++ fnl () ++
+  str "rect_lemma := " ++ pr_ocst f_info.rect_lemma ++ fnl () ++
+  str "rec_lemma := " ++ pr_ocst f_info.rec_lemma ++ fnl () ++
+  str "prop_lemma := " ++ pr_ocst f_info.prop_lemma ++ fnl () ++
+  str "graph_ind := " ++ Printer.pr_lconstr (mkInd f_info.graph_ind) ++ fnl ()
 
 let pr_table tb =
   let l = Cmap.fold (fun k v acc -> v::acc) tb [] in
@@ -392,7 +396,7 @@ let _ =
 
 let find_or_none id =
   try Some
-    (match Nametab.locate (qualid_of_ident id) with ConstRef c -> c | _ -> Errors.anomaly "Not a constant"
+    (match Nametab.locate (qualid_of_ident id) with ConstRef c -> c | _ -> Errors.anomaly (Pp.str "Not a constant")
     )
   with Not_found -> None
 
@@ -420,7 +424,7 @@ let add_Function is_general f =
   and prop_lemma = find_or_none (Nameops.add_suffix f_id "_ind")
   and graph_ind =
     match Nametab.locate (qualid_of_ident (mk_rel_id f_id))
-    with | IndRef ind -> ind | _ -> Errors.anomaly "Not an inductive"
+    with | IndRef ind -> ind | _ -> Errors.anomaly (Pp.str "Not an inductive")
   in
   let finfos =
     { function_constant = f;
@@ -493,22 +497,17 @@ exception Building_graph of exn
 exception Defining_principle of exn
 exception ToShow of exn
 
-let init_constant dir s =
-  try
-    Coqlib.gen_constant "Function" dir s
-  with e -> raise (ToShow e)
-
 let jmeq () =
   try
-    (Coqlib.check_required_library ["Coq";"Logic";"JMeq"];
-     init_constant ["Logic";"JMeq"] "JMeq")
-  with e -> raise (ToShow e)
+    Coqlib.check_required_library ["Coq";"Logic";"JMeq"];
+    Coqlib.gen_constant "Function" ["Logic";"JMeq"] "JMeq"
+  with e when Errors.noncritical e -> raise (ToShow e)
 
 let jmeq_refl () =
   try
     Coqlib.check_required_library ["Coq";"Logic";"JMeq"];
-    init_constant ["Logic";"JMeq"] "JMeq_refl"
-  with e -> raise (ToShow e)
+    Coqlib.gen_constant "Function" ["Logic";"JMeq"] "JMeq_refl"
+  with e when Errors.noncritical e -> raise (ToShow e)
 
 let h_intros l =
   tclMAP h_intro l

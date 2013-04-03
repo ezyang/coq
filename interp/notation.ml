@@ -44,14 +44,14 @@ open Ppextend
 
 type level = precedence * tolerability list
 type delimiters = string
-type notation_location = (Dir_path.t * Dir_path.t) * string
+type notation_location = (DirPath.t * DirPath.t) * string
 
 type scope = {
   notations: (string, interpretation * notation_location) Gmap.t;
   delimiters: delimiters option
 }
 
-(* Uninterpreted notation map: notation -> level * Dir_path.t *)
+(* Uninterpreted notation map: notation -> level * DirPath.t *)
 let notation_level_map = ref Gmap.empty
 
 (* Scopes table: scope_name -> symbol_interpretation *)
@@ -337,7 +337,7 @@ let rec find_without_delimiters find (ntn_scope,ntn) = function
 
 let declare_notation_level ntn level =
   if Gmap.mem ntn !notation_level_map then
-    anomaly ("Notation "^ntn^" is already assigned a level");
+    anomaly (str "Notation " ++ str ntn ++ str " is already assigned a level");
   notation_level_map := Gmap.add ntn level !notation_level_map
 
 let level_of_notation ntn =
@@ -397,7 +397,7 @@ let find_prim_token g loc p sc =
   (* Try for a primitive numerical notation *)
   let (spdir,interp) = Hashtbl.find prim_token_interpreter_tab sc loc p in
   check_required_module loc sc spdir;
-  g (interp ()), ((dirpath (fst spdir),Dir_path.empty),"")
+  g (interp ()), ((dirpath (fst spdir),DirPath.empty),"")
 
 let interp_prim_token_gen g loc p local_scopes =
   let scopes = make_current_scopes local_scopes in
@@ -887,7 +887,7 @@ let declare_notation_printing_rule ntn unpl =
 
 let find_notation_printing_rule ntn =
   try Gmap.find ntn !printing_rules
-  with Not_found -> anomaly ("No printing rule found for "^ntn)
+  with Not_found -> anomaly (str "No printing rule found for " ++ str ntn)
 
 (**********************************************************************)
 (* Synchronisation with reset *)
@@ -928,4 +928,7 @@ let _ =
 let with_notation_protection f x =
   let fs = freeze () in
   try let a = f x in unfreeze fs; a
-  with e -> unfreeze fs; raise e
+  with reraise ->
+    let reraise = Errors.push reraise in
+    let () = unfreeze fs in
+    raise reraise

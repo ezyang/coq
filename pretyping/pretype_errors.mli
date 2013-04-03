@@ -13,23 +13,36 @@ open Sign
 open Environ
 open Glob_term
 open Inductiveops
+open Type_errors
 
 (** {6 The type of errors raised by the pretyper } *)
+
+type unification_error =
+  | OccurCheck of existential_key * constr
+  | NotClean of existential * constr
+  | NotSameArgSize
+  | NotSameHead
+  | NoCanonicalStructure
+  | ConversionFailed of env * constr * constr
+  | MetaOccurInBody of existential_key
+  | InstanceNotSameType of existential_key * env * types * types
+  | UnifUnivInconsistency
 
 type pretype_error =
   (** Old Case *)
   | CantFindCaseType of constr
-  (** Unification *)
-  | OccurCheck of existential_key * constr
-  | NotClean of existential_key * constr * Evar_kinds.t
+  (** Type inference unification *)
+  | ActualTypeNotCoercible of unsafe_judgment * types * unification_error
+  (** Tactic Unification *)
+  | UnifOccurCheck of existential_key * constr
   | UnsolvableImplicit of Evd.evar_info * Evar_kinds.t *
       Evd.unsolvability_explanation option
-  | CannotUnify of constr * constr
+  | CannotUnify of constr * constr * unification_error option
   | CannotUnifyLocal of constr * constr * constr
   | CannotUnifyBindingType of constr * constr
   | CannotGeneralize of constr
   | NoOccurrenceFound of constr * Id.t option
-  | CannotFindWellTypedAbstraction of constr * constr list
+  | CannotFindWellTypedAbstraction of constr * constr list * (env * type_error) option
   | WrongAbstractionType of Name.t * constr * types * types
   | AbstractionOverMeta of Name.t * Name.t
   | NonLinearUnification of Name.t * constr
@@ -37,29 +50,16 @@ type pretype_error =
   | VarNotFound of Id.t
   | UnexpectedType of constr * constr
   | NotProduct of constr
-  | TypingError of Type_errors.type_error
+  | TypingError of type_error
 
 exception PretypeError of env * Evd.evar_map * pretype_error
 
 val precatchable_exception : exn -> bool
 
-(** Presenting terms without solved evars *)
-val nf_evar : Evd.evar_map -> constr -> constr
-val j_nf_evar : Evd.evar_map -> unsafe_judgment -> unsafe_judgment
-val jl_nf_evar : Evd.evar_map -> unsafe_judgment list -> unsafe_judgment list
-val jv_nf_evar : Evd.evar_map -> unsafe_judgment array -> unsafe_judgment array
-val tj_nf_evar : Evd.evar_map -> unsafe_type_judgment -> unsafe_type_judgment
-
-val env_nf_evar : Evd.evar_map -> env -> env
-val env_nf_betaiotaevar : Evd.evar_map -> env -> env
-
-val j_nf_betaiotaevar : Evd.evar_map -> unsafe_judgment -> unsafe_judgment
-val jv_nf_betaiotaevar :
-  Evd.evar_map -> unsafe_judgment array -> unsafe_judgment array
-
 (** Raising errors *)
 val error_actual_type_loc :
-  Loc.t -> env -> Evd.evar_map -> unsafe_judgment -> constr -> 'b
+  Loc.t -> env -> Evd.evar_map -> unsafe_judgment -> constr ->
+      unification_error -> 'b
 
 val error_cant_apply_not_functional_loc :
   Loc.t -> env -> Evd.evar_map ->
@@ -93,19 +93,20 @@ val error_cannot_coerce : env -> Evd.evar_map -> constr * constr -> 'b
 
 val error_occur_check : env -> Evd.evar_map -> existential_key -> constr -> 'b
 
-val error_not_clean :
-  env -> Evd.evar_map -> existential_key -> constr -> Loc.t * Evar_kinds.t -> 'b
-
 val error_unsolvable_implicit :
   Loc.t -> env -> Evd.evar_map -> Evd.evar_info -> Evar_kinds.t ->
       Evd.unsolvability_explanation option -> 'b
 
-val error_cannot_unify : env -> Evd.evar_map -> constr * constr -> 'b
+val error_cannot_unify_loc : Loc.t -> env -> Evd.evar_map ->
+  ?reason:unification_error -> constr * constr -> 'b
+
+val error_cannot_unify : env -> Evd.evar_map -> ?reason:unification_error ->
+  constr * constr -> 'b
 
 val error_cannot_unify_local : env -> Evd.evar_map -> constr * constr * constr -> 'b
 
 val error_cannot_find_well_typed_abstraction : env -> Evd.evar_map ->
-      constr -> constr list -> 'b
+      constr -> constr list -> (env * type_error) option -> 'b
 
 val error_wrong_abstraction_type :  env -> Evd.evar_map ->
       Name.t -> constr -> types -> types -> 'b

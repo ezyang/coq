@@ -118,7 +118,7 @@ let non_trivial = function
 
 let patterns_of_constr env sigma nrels term=
   let f,args=
-    try destApp (whd_delta env term) with _ -> raise Not_found in
+    try destApp (whd_delta env term) with DestKO -> raise Not_found in
 	if is_global _eq f && (Array.length args)=3
 	then
 	  let patt1,rels1 = pattern_of_constr env sigma args.(1)
@@ -215,9 +215,7 @@ let make_prb gls depth additionnal_terms =
 
 let build_projection intype outtype (cstr:pconstructor) special default gls=
   let env=pf_env gls in
-  let (h,argv) =
-    try destApp intype with
-	Invalid_argument _ -> (intype,[||])  in
+  let (h,argv) = try destApp intype with DestKO -> (intype,[||]) in
   let ind,u=destInd h in
   let types=Inductiveops.arities_of_constructors env (ind,u) in
   let lp=Array.length types in
@@ -362,7 +360,7 @@ let discriminate_tac (cstr,u as cstru) p gls =
 let build_term_to_complete uf meta pac =
   let cinfo = get_constructor_info uf pac.cnode in
   let real_args = List.map (fun i -> constr_of_term (term uf i)) pac.args in
-  let dummy_args = List.rev (List.tabulate meta pac.arity) in
+  let dummy_args = List.rev (List.init pac.arity meta) in
   let all_args = List.rev_append real_args dummy_args in
     applistc (mkConstructU cinfo.ci_constr) all_args
 

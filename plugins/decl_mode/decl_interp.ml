@@ -237,7 +237,7 @@ let rec deanonymize ids =
 
 let rec glob_of_pat =
   function
-      PatVar (loc,Anonymous) -> anomaly "Anonymous pattern variable"
+      PatVar (loc,Anonymous) -> anomaly (Pp.str "Anonymous pattern variable")
     | PatVar (loc,Name id) ->
 	  GVar (loc,id)
     | PatCstr(loc,((ind,_) as cstr),lpat,_) ->
@@ -288,10 +288,10 @@ let bind_aliases patvars subst patt =
 let interp_pattern env pat_expr =
   let patvars,pats = Constrintern.intern_pattern env pat_expr in
     match pats with
-	[] -> anomaly "empty pattern list"
+	[] -> anomaly (Pp.str "empty pattern list")
       | [subst,patt] ->
 	  (patvars,bind_aliases patvars subst patt,patt)
-      | _  -> anomaly "undetected disjunctive pattern"
+      | _  -> anomaly (Pp.str "undetected disjunctive pattern")
 
 let rec match_args dest names constr = function
     [] -> [],names,substl names constr
@@ -341,9 +341,8 @@ let interp_cases info sigma env params (pat:cases_pattern_expr) hyps =
 	(fun (loc,(id,_)) ->
 	   GVar (loc,id)) params in
     let dum_args=
-      List.tabulate
-	(fun _ -> GHole (Loc.ghost,Evar_kinds.QuestionMark (Evar_kinds.Define false)))
-	oib.Declarations.mind_nrealargs in
+      List.init oib.Declarations.mind_nrealargs
+	(fun _ -> GHole (Loc.ghost,Evar_kinds.QuestionMark (Evar_kinds.Define false))) in
       glob_app(Loc.ghost,rind,rparams@rparams_rec@dum_args) in
   let pat_vars,aliases,patt = interp_pattern env pat in
   let inject = function

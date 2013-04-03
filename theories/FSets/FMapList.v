@@ -543,14 +543,13 @@ Proof.
  intros m x e f.
  (* functional induction map elt elt' f m.  *) (* Marche pas ??? *)
  induction m.
- inversion 1.
+ inversion 1. 
 
  destruct a as (x',e').
  simpl.
- inversion_clear 1.
+ inversion_clear 1.  
  constructor 1.
  unfold eqke in *; simpl in *; intuition congruence.
- constructor 2.
  unfold MapsTo in *; auto.
 Qed.
 

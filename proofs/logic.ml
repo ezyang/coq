@@ -41,8 +41,7 @@ exception RefinerError of refiner_error
 open Pretype_errors
 
 let rec catchable_exception = function
-  | Loc.Exc_located(_,e) -> catchable_exception e
-  | LtacLocated(_,e) -> catchable_exception e
+  | LtacLocated(_,_,e) -> catchable_exception e
   | Errors.UserError _ | TypeError _ | PretypeError (_,_,TypingError _)
   | RefinerError _ | Indrec.RecursionSchemeError _
   | Nametab.GlobalizationError _ | PretypeError (_,_,VarNotFound _)
@@ -50,8 +49,9 @@ let rec catchable_exception = function
   | Tacred.ReductionTacticError _ 
   (* unification errors *)
   | PretypeError(_,_,(CannotUnify _|CannotUnifyLocal _|CannotGeneralize _
-		   |NoOccurrenceFound _|CannotUnifyBindingType _|NotClean _
-		   |CannotFindWellTypedAbstraction _|OccurCheck _
+		   |NoOccurrenceFound _|CannotUnifyBindingType _
+		   |ActualTypeNotCoercible _|UnifOccurCheck _
+                   |CannotFindWellTypedAbstraction _
 		   |UnsolvableImplicit _|AbstractionOverMeta _)) -> true
   | Typeclasses_errors.TypeClassError
       (_, Typeclasses_errors.UnsatisfiableConstraints _) -> true
@@ -100,7 +100,7 @@ let clear_hyps sigma ids sign cl =
 
 let recheck_typability (what,id) env sigma t =
   try check_typability env sigma t
-  with _ ->
+  with e when Errors.noncritical e ->
     let s = match what with
       | None -> "the conclusion"
       | Some id -> "hypothesis "^(Id.to_string id) in
@@ -350,12 +350,12 @@ let rec mk_refgoals sigma goal goalacc conclty trm =
 
     | Cast (t,k, ty) ->
 	check_typability env sigma ty;
-	check_conv_leq_goal env sigma trm ty conclty;
+        let sigma = do_conv_leq_goal env sigma trm ty conclty in
 	let res = mk_refgoals sigma goal goalacc ty t in
-	(** we keep the casts (in particular VMcast) except
+	(** we keep the casts (in particular VMcast and NATIVEcast) except
 	    when they are annotating metas *)
 	if isMeta t then begin
-	  assert (k != VMcast);
+	  assert (k != VMcast && k != NATIVEcast);
 	  res
 	end else
 	  let (gls,cty,sigma,trm) = res in
@@ -380,7 +380,7 @@ let rec mk_refgoals sigma goal goalacc conclty trm =
 
     | Case (ci,p,c,lf) ->
 	let (acc',lbrty,conclty',sigma,p',c') = mk_casegoals sigma goal goalacc p c in
-	check_conv_leq_goal env sigma trm conclty' conclty;
+	let sigma = do_conv_leq_goal env sigma trm conclty' conclty in
 	let (acc'',sigma, rbranches) =
 	  Array.fold_left2
             (fun (lacc,sigma,bacc) ty fi ->
@@ -391,10 +391,10 @@ let rec mk_refgoals sigma goal goalacc conclty trm =
 
     | _ ->
 	if occur_meta trm then
-	  anomaly "refiner called with a meta in non app/case subterm";
+	  anomaly (Pp.str "refiner called with a meta in non app/case subterm");
 
       	let t'ty = goal_type_of env sigma trm in
-	check_conv_leq_goal env sigma trm t'ty conclty;
+	let sigma = do_conv_leq_goal env sigma trm t'ty conclty in
         (goalacc,t'ty,sigma, trm)
 
 (* Same as mkREFGOALS but without knowing the type of the term. Therefore,
@@ -439,7 +439,7 @@ and mk_hdgoals sigma goal goalacc trm =
 
     | _ ->
 	if !check && occur_meta trm then
-	  anomaly "refine called with a dependent meta";
+	  anomaly (Pp.str "refine called with a dependent meta");
 	goalacc, goal_type_of env sigma trm, sigma, trm
 
 and mk_arggoals sigma goal goalacc funty = function
@@ -462,7 +462,7 @@ and mk_casegoals sigma goal goalacc p c =
   let (acc'',pt,sigma,p') = mk_hdgoals sigma goal acc' p in
   let indspec =
     try Tacred.find_hnf_rectype env sigma ct
-    with Not_found -> anomaly "mk_casegoals" in
+    with Not_found -> anomaly (Pp.str "mk_casegoals") in
   let (lbrty,conclty) =
     type_case_branches_with_names env indspec p c in
   (acc'',lbrty,conclty,sigma,p',c')
@@ -635,13 +635,16 @@ let prim_refiner r sigma goal =
     (* Conversion rules *)
     | Convert_concl (cl',k) ->
 	check_typability env sigma cl';
-	if (not !check) || is_conv_leq env sigma cl' cl then
-          let (sg,ev,sigma) = mk_goal sign cl' in
+        let (sg,ev,sigma) = mk_goal sign cl' in
+	let sigma, b = 
+	  if !check then 
+	    trans_fconv Reduction.CUMUL full_transparent_state env sigma cl' cl
+	  else sigma, true
+	in
+	  if not b then error "convert-concl rule passed non-converting term";
 	  let ev = if k != DEFAULTcast then mkCast(ev,k,cl) else ev in
 	  let sigma = Goal.V82.partial_solution sigma goal ev in
           ([sg], sigma)
-	else
-	  error "convert-concl rule passed non-converting term"
 
     | Convert_hyp (id,copt,ty) ->
 	let (gl,ev,sigma) = mk_goal (convert_hyp sign sigma (id,copt,ty)) cl in

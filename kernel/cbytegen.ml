@@ -497,8 +497,8 @@ let rec get_allias env kn =
 
 let rec compile_constr reloc c sz cont =
   match kind_of_term c with
-  | Meta _ -> raise (Invalid_argument "Cbytegen.compile_constr : Meta")
-  | Evar _ -> raise (Invalid_argument "Cbytegen.compile_constr : Evar")
+  | Meta _ -> invalid_arg "Cbytegen.compile_constr : Meta"
+  | Evar _ -> invalid_arg "Cbytegen.compile_constr : Evar"
 
   | Cast(c,_,_) -> compile_constr reloc c sz cont
 
@@ -657,7 +657,7 @@ let rec compile_constr reloc c sz cont =
       in
       compile_constr reloc a sz
       (try
-	let entry = Term.Ind (ind,[]) in
+	let entry = Term.Ind (ind,Univ.Instance.empty) in
 	Retroknowledge.get_vm_before_match_info (!global_env).retroknowledge
 	                                       entry code_sw
       with Not_found ->
@@ -719,7 +719,7 @@ let compile env c =
 let compile_constant_body env = function
   | Undef _ | OpaqueDef _ -> BCconstant
   | Def sb ->
-      let body = Declarations.force sb in
+      let body = Lazyconstr.force sb in
       match kind_of_term body with
 	| Const kn' ->
 	    (* we use the canonical name of the constant*)

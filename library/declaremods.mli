@@ -14,37 +14,12 @@ open Environ
 open Libnames
 open Libobject
 open Lib
+open Vernacexpr
 
 (** This modules provides official functions to declare modules and
   module types *)
 
-(** Rigid / flexible signature *)
-
-type 'a module_signature =
-  | Enforce of 'a (** ... : T *)
-  | Check of 'a list (** ... <: T1 <: T2, possibly empty *)
-
-(** Should we adapt a few scopes during functor application ? *)
-
-type scope_subst = (string * string) list
-
 val subst_scope : string -> string
-
-(** Which inline annotations should we honor, either None or the ones
-   whose level is less or equal to the given integer *)
-
-type inline =
-  | NoInline
-  | DefaultInline
-  | InlineAt of int
-
-(** The type of annotations for functor applications *)
-
-type funct_app_annot =
-  { ann_inline : inline;
-    ann_scope_subst : scope_subst }
-
-type 'a annotated = ('a * funct_app_annot)
 
 (** {6 Modules } *)
 
@@ -104,7 +79,7 @@ val module_objects : module_path -> library_segment
 
 (** {6 Libraries i.e. modules on disk } *)
 
-type library_name = Dir_path.t
+type library_name = DirPath.t
 
 type library_objects
 
@@ -112,17 +87,20 @@ val register_library :
   library_name ->
     Safe_typing.compiled_library -> library_objects -> Digest.t -> unit
 
+val get_library_symbols_tbl : library_name -> Nativecode.symbol array
+
 val start_library : library_name -> unit
 
 val end_library :
-  library_name -> Safe_typing.compiled_library * library_objects
+  library_name ->
+    Safe_typing.compiled_library * library_objects * Safe_typing.native_library
 
 (** set a function to be executed at end_library *)
 val set_end_library_hook : (unit -> unit) -> unit
 
 (** [really_import_module mp] opens the module [mp] (in a Caml sense).
    It modifies Nametab and performs the [open_object] function for
-   every object of the module. *)
+   every object of the module. Raises [Not_found] when [mp] is unknown. *)
 
 val really_import_module : module_path -> unit
 

@@ -28,7 +28,8 @@ let get_version_date () =
     let ver = input_line ch in
     let rev = input_line ch in
       (ver,rev)
-  with _ -> (Coq_config.version,Coq_config.date)
+  with e when Errors.noncritical e ->
+    (Coq_config.version,Coq_config.date)
 
 let print_header () =
   let (ver,rev) = (get_version_date ()) in
@@ -52,10 +53,10 @@ let engage () =
 
 let set_batch_mode () = batch_mode := true
 
-let toplevel_default_name = Dir_path.make [Id.of_string "Top"]
+let toplevel_default_name = DirPath.make [Id.of_string "Top"]
 let toplevel_name = ref (Some toplevel_default_name)
 let set_toplevel_name dir =
-  if Dir_path.equal dir Dir_path.empty then error "Need a non empty toplevel module name";
+  if DirPath.is_empty dir then error "Need a non empty toplevel module name";
   toplevel_name := Some dir
 let unset_toplevel_name () = toplevel_name := None
 
@@ -255,6 +256,9 @@ let parse_args arglist =
     | "-require" :: f :: rem -> add_require f; parse rem
     | "-require" :: []       -> usage ()
 
+    | "-print-mod-uid" :: f :: rem -> Flags.print_mod_uid := true;
+                                      add_require f; parse rem
+
     | "-compile" :: f :: rem -> add_compile false f; if not !glob_opt then Dumpglob.dump_to_dotglob (); parse rem
     | "-compile" :: []       -> usage ()
 
@@ -336,6 +340,8 @@ let parse_args arglist =
 
     | "-color" :: rem -> Flags.make_term_color true; parse rem
 
+    | "-no-native-compiler" :: rem -> no_native_compiler := true; parse rem
+
     | s :: rem ->
       if !filter_opts then
        s :: (parse rem)
@@ -348,7 +354,7 @@ let parse_args arglist =
     | UserError(_, s) as e ->
       if is_empty s then exit 1
       else fatal_error (Errors.print e)
-    | e -> fatal_error (Errors.print e)
+    | any -> fatal_error (Errors.print any)
 
 let init arglist =
   init_gc ();
@@ -383,12 +389,13 @@ let init arglist =
       load_vernacular ();
       compile_files ();
       outputstate ()
-    with e ->
+    with any ->
       flush_all();
-      if not !batch_mode then
-        fatal_error (str "Error during initialization:" ++ fnl () ++ Toplevel.print_toplevel_error e)
-      else
-        fatal_error (Toplevel.print_toplevel_error e)
+      let msg =
+        if !batch_mode then mt ()
+        else str "Error during initialization:" ++ fnl ()
+      in
+      fatal_error (msg ++ Toplevel.print_toplevel_error any)
   end;
   if !batch_mode then
     (flush_all();

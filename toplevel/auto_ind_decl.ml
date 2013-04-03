@@ -42,7 +42,7 @@ and aux = function
 
 let deconstruct_type t =
   let l,r = decompose_prod t in
-    (List.map (fun (_,b) -> b) (List.rev l))@[r]
+  (List.rev_map snd l)@[r]
 
 exception EqNotFound of inductive * inductive
 exception EqUnknown of string
@@ -108,7 +108,7 @@ let mkFullInd ind n =
 
 let check_bool_is_defined () =
   try let _ = Global.type_of_global_unsafe Coqlib.glob_bool in ()
-  with _ -> raise (UndefinedCst "bool")
+  with e when Errors.noncritical e -> raise (UndefinedCst "bool")
 
 let beq_scheme_kind_aux = ref (fun _ -> failwith "Undefined")
 
@@ -160,11 +160,12 @@ let build_beq_scheme kn =
                 t  a) eq_input lnamesparrec
  in
  let make_one_eq cur =
-  let ind = (kn,cur),[] (* FIXME *) in
+  let u = Univ.Instance.empty in
+  let ind = (kn,cur),u (* FIXME *) in
   (* current inductive we are working on *)
   let cur_packet = mib.mind_packets.(snd (fst ind)) in
   (* Inductive toto : [rettyp] := *)
-  let rettyp = Inductive.type_of_inductive env ((mib,cur_packet),[]) in
+  let rettyp = Inductive.type_of_inductive env ((mib,cur_packet),u) in
   (* split rettyp in a list without the non rec params and the last ->
   e.g. Inductive vec (A:Set) : nat -> Set := ... will do [nat] *)
   let rettyp_l = quick_chop nparrec (deconstruct_type rettyp) in
@@ -301,7 +302,7 @@ let destruct_ind c =
     try let u,v =  destApp c in
           let indc = destInd u in
             indc,v
-    with _-> let indc = destInd c in
+    with DestKO -> let indc = destInd c in
             indc,[||]
 
 (*
@@ -326,7 +327,8 @@ let do_replace_lb lb_scheme_key aavoid narg gls p q =
             else error ("Var "^(Id.to_string s)^" seems unknown.")
       )
     in mkVar (find 1)
-  with _ -> (* if this happen then the args have to be already declared as a
+  with e when Errors.noncritical e ->
+      (* if this happen then the args have to be already declared as a
               Parameter*)
       (
         let mp,dir,lbl = repr_con (fst (destConst v)) in
@@ -373,8 +375,9 @@ let do_replace_bl bl_scheme_key (ind,u as indu) gls aavoid narg lft rgt =
             else error ("Var "^(Id.to_string s)^" seems unknown.")
       )
     in mkVar (find 1)
-  with _ -> (* if this happen then the args have to be already declared as a
-              Parameter*)
+  with e when Errors.noncritical e ->
+      (* if this happen then the args have to be already declared as a
+         Parameter*)
       (
         let mp,dir,lbl = repr_con (fst (destConst v)) in
           mkConst (make_con mp dir (mk_label (
@@ -391,7 +394,7 @@ let do_replace_bl bl_scheme_key (ind,u as indu) gls aavoid narg lft rgt =
         else (
           let u,v = try  destruct_ind tt1
           (* trick so that the good sequence is returned*)
-                with _ -> indu,[||]
+                with e when Errors.noncritical e -> indu,[||]
           in if eq_ind (fst u) ind
              then (Equality.replace t1 t2)::(Auto.default_auto)::(aux q1 q2)
              else (
@@ -424,21 +427,23 @@ let do_replace_bl bl_scheme_key (ind,u as indu) gls aavoid narg lft rgt =
     | ([],[]) -> []
     | _ -> error "Both side of the equality must have the same arity."
   in
-  let (ind1,ca1) = try destApp lft with
-    _ -> error "replace failed."
-  and (ind2,ca2) = try destApp rgt with
-    _ -> error "replace failed."
+  let (ind1,ca1) =
+    try destApp lft with DestKO -> error "replace failed."
+  and (ind2,ca2) =
+    try destApp rgt with DestKO -> error "replace failed."
   in
-  let (sp1,i1) = try fst (destInd ind1) with
-    _ -> (try fst (fst (destConstruct ind1)) with _ ->
-                error "The expected type is an inductive one.")
-  and (sp2,i2) = try fst (destInd ind2) with
-    _ -> (try fst (fst (destConstruct ind2)) with _ ->
-                error "The expected type is an inductive one.")
+  let (sp1,i1) =
+    try fst (destInd ind1) with DestKO ->
+      try fst (fst (destConstruct ind1)) with DestKO ->
+        error "The expected type is an inductive one."
+  and (sp2,i2) =
+    try fst (destInd ind2) with DestKO ->
+      try fst (fst (destConstruct ind2))  with DestKO ->
+        error "The expected type is an inductive one."
   in
-    if not (eq_mind sp1 sp2) || not (Int.equal i1 i2)
-      then (error "Eq should be on the same type")
-      else (aux (Array.to_list ca1) (Array.to_list ca2))
+  if not (eq_mind sp1 sp2) || not (Int.equal i1 i2)
+  then error "Eq should be on the same type"
+  else aux (Array.to_list ca1) (Array.to_list ca2)
 
 (*
   create, from a list of ids [i1,i2,...,in] the list
@@ -588,8 +593,8 @@ let make_bl_scheme mind =
   let lnonparrec,lnamesparrec = (* TODO subst *)
     context_chop (nparams-nparrec) mib.mind_params_ctxt in
   [|Pfedit.build_by_tactic (Global.env())
-    (compute_bl_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
-    (compute_bl_tact (!bl_scheme_kind_aux()) (ind,[])(*FIXME*) lnamesparrec nparrec)|],
+    (compute_bl_goal ind lnamesparrec nparrec, Univ.ContextSet.empty)
+    (compute_bl_tact (!bl_scheme_kind_aux()) (ind,Univ.Instance.empty)(*FIXME*) lnamesparrec nparrec)|],
     Evd.empty_evar_universe_context
 
 let bl_scheme_kind = declare_mutual_scheme_object "_dec_bl" make_bl_scheme
@@ -702,7 +707,7 @@ let make_lb_scheme mind =
   let lnonparrec,lnamesparrec =
     context_chop (nparams-nparrec) mib.mind_params_ctxt in
   [|Pfedit.build_by_tactic (Global.env())
-    (compute_lb_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
+    (compute_lb_goal ind lnamesparrec nparrec, Univ.ContextSet.empty)
     (compute_lb_tact (!lb_scheme_kind_aux()) ind lnamesparrec nparrec)|],
     Evd.empty_evar_universe_context (* FIXME *)
 
@@ -714,7 +719,8 @@ let _ = lb_scheme_kind_aux := fun () -> lb_scheme_kind
 (* Decidable equality *)
 
 let check_not_is_defined () =
-  try ignore (Coqlib.build_coq_not ()) with _ -> raise (UndefinedCst "not")
+  try ignore (Coqlib.build_coq_not ())
+  with e when Errors.noncritical e -> raise (UndefinedCst "not")
 
 (* {n=m}+{n<>m}  part  *)
 let compute_dec_goal ind lnamesparrec nparrec =
@@ -853,14 +859,14 @@ let compute_dec_tact ind lnamesparrec nparrec gsig =
 let make_eq_decidability mind =
   let mib = Global.lookup_mind mind in
   if not (Int.equal (Array.length mib.mind_packets) 1) then
-    anomaly "Decidability lemma for mutual inductive types not supported";
+    anomaly (Pp.str "Decidability lemma for mutual inductive types not supported");
   let ind = (mind,0) in
   let nparams = mib.mind_nparams in
   let nparrec = mib.mind_nparams_rec in
   let lnonparrec,lnamesparrec =
     context_chop (nparams-nparrec) mib.mind_params_ctxt in
   [|Pfedit.build_by_tactic (Global.env())
-    (compute_dec_goal ind lnamesparrec nparrec, Univ.empty_universe_context_set)
+    (compute_dec_goal ind lnamesparrec nparrec, Univ.ContextSet.empty)
     (compute_dec_tact ind lnamesparrec nparrec)|],
     Evd.empty_evar_universe_context (* FIXME *)
 

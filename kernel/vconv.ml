@@ -175,7 +175,7 @@ let rec eq_puniverses f (x,l1) (y,l2) cu =
   else raise NotConvertible
 
 and conv_universes l1 l2 cu =
-  if List.for_all2 eq_levels l1 l2 then cu else raise NotConvertible
+  if Univ.Instance.eq l1 l2 then cu else raise NotConvertible
 
 let rec conv_eq pb t1 t2 cu =
   if t1 == t2 then cu
@@ -228,12 +228,12 @@ and conv_eq_vect vt1 vt2 cu =
 
 let vconv pb env t1 t2 =
   let cu =
-    try conv_eq pb t1 t2 empty_constraint
+    try conv_eq pb t1 t2 Constraint.empty
     with NotConvertible ->
       infos := create_clos_infos betaiotazeta env;
       let v1 = val_of_constr env t1 in
       let v2 = val_of_constr env t2 in
-      let cu = conv_val pb (nb_rel env) v1 v2 empty_constraint in
+      let cu = conv_val pb (nb_rel env) v1 v2 Constraint.empty in
       cu
   in cu
 

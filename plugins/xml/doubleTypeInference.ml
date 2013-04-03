@@ -20,7 +20,7 @@ let cprop =
   N.make_con
    (N.MPfile
      (Libnames.dirpath_of_string "CoRN.algebra.CLogic"))
-   (N.Dir_path.make [])
+   (N.DirPath.empty)
    (N.Label.make "CProp")
 ;;
 

@@ -21,12 +21,13 @@ open Smartlocate
 
 type message = string
 
-let make_dir l = Dir_path.make (List.map Id.of_string (List.rev l))
+let make_dir l = DirPath.make (List.rev_map Id.of_string l)
 
 let find_reference locstr dir s =
   let sp = Libnames.make_path (make_dir dir) (Id.of_string s) in
   try global_of_extended_global (Nametab.extended_global_of_path sp)
-  with Not_found -> anomaly (locstr^": cannot find "^(string_of_path sp))
+  with Not_found ->
+    anomaly ~label:locstr (str "cannot find " ++ Libnames.pr_path sp)
 
 let coq_reference locstr dir s = find_reference locstr ("Coq"::dir) s
 let coq_constant locstr dir s = Universes.constr_of_global (coq_reference locstr dir s)
@@ -50,12 +51,12 @@ let gen_constant_in_modules locstr dirs s =
   match these with
     | [x] -> Universes.constr_of_global x
     | [] ->
-	anomalylabstrm "" (str (locstr^": cannot find "^s^
+	anomaly ~label:locstr (str ("cannot find "^s^
 	" in module"^(if List.length dirs > 1 then "s " else " ")) ++
 	prlist_with_sep pr_comma pr_dirpath dirs)
     | l ->
-	anomalylabstrm ""
-	(str (locstr^": found more than once object of name "^s^
+	anomaly ~label:locstr
+	(str ("found more than once object of name "^s^
 	" in module"^(if List.length dirs > 1 then "s " else " ")) ++
 	prlist_with_sep pr_comma pr_dirpath dirs)
 
@@ -63,22 +64,21 @@ let gen_constant_in_modules locstr dirs s =
 (* For tactics/commands requiring vernacular libraries *)
 
 let check_required_library d =
-  let d' = List.map Id.of_string d in
-  let dir = Dir_path.make (List.rev d') in
-  let mp = (fst(Lib.current_prefix())) in
-  let current_dir = match mp with
-    | MPfile dp -> Dir_path.equal dir dp
-    | _ -> false
-  in
-  if not (Library.library_is_loaded dir) then
-    if not current_dir then
+  let dir = make_dir d in
+  if Library.library_is_loaded dir then ()
+  else
+    let in_current_dir = match Lib.current_prefix () with
+      | MPfile dp, _ -> DirPath.equal dir dp
+      | _ -> false
+    in
+    if not in_current_dir then
 (* Loading silently ...
     let m, prefix = List.sep_last d' in
     read_library
-     (Loc.ghost,make_qualid (Dir_path.make (List.rev prefix)) m)
+     (Loc.ghost,make_qualid (DirPath.make (List.rev prefix)) m)
 *)
 (* or failing ...*)
-      error ("Library "^(Dir_path.to_string dir)^" has to be required first.")
+      error ("Library "^(DirPath.to_string dir)^" has to be required first.")
 
 (************************************************************************)
 (* Specific Coq objects *)
@@ -125,19 +125,23 @@ let arith_module = make_dir arith_module_name
 let jmeq_module_name = ["Coq";"Logic";"JMeq"]
 let jmeq_module = make_dir jmeq_module_name
 
-(* TODO: temporary hack *)
-let make_kn dir id = Globnames.encode_mind dir id
-let make_con dir id = Globnames.encode_con dir id
+(* TODO: temporary hack. Works only if the module isn't an alias *)
+let make_ind dir id = Globnames.encode_mind dir (Id.of_string id)
+let make_con dir id = Globnames.encode_con dir (Id.of_string id)
 
 (** Identity *)
 
-let id = make_con datatypes_module (Id.of_string "id")
-let type_of_id = make_con datatypes_module (Id.of_string "ID")
+let id = make_con datatypes_module "idProp"
+let type_of_id = make_con datatypes_module "IDProp"
 
-let _ = Termops.set_impossible_default_clause (mkConst id,mkConst type_of_id)
+let _ = Termops.set_impossible_default_clause 
+  (fun () -> 
+    let c, ctx = Universes.fresh_global_instance (Global.env()) (ConstRef id) in
+    let (_, u) = destConst c in
+      (c,mkConstU (type_of_id,u)), ctx)
 
 (** Natural numbers *)
-let nat_kn = make_kn datatypes_module (Id.of_string "nat")
+let nat_kn = make_ind datatypes_module "nat"
 let nat_path = Libnames.make_path datatypes_module (Id.of_string "nat")
 
 let glob_nat = IndRef (nat_kn,0)
@@ -148,7 +152,7 @@ let glob_O = ConstructRef path_of_O
 let glob_S = ConstructRef path_of_S
 
 (** Booleans *)
-let bool_kn = make_kn datatypes_module (Id.of_string "bool")
+let bool_kn = make_ind datatypes_module "bool"
 
 let glob_bool = IndRef (bool_kn,0)
 
@@ -158,13 +162,13 @@ let glob_true  = ConstructRef path_of_true
 let glob_false  = ConstructRef path_of_false
 
 (** Equality *)
-let eq_kn = make_kn logic_module (Id.of_string "eq")
+let eq_kn = make_ind logic_module "eq"
 let glob_eq = IndRef (eq_kn,0)
 
-let identity_kn = make_kn datatypes_module (Id.of_string "identity")
+let identity_kn = make_ind datatypes_module "identity"
 let glob_identity = IndRef (identity_kn,0)
 
-let jmeq_kn = make_kn jmeq_module (Id.of_string "JMeq")
+let jmeq_kn = make_ind jmeq_module "JMeq"
 let glob_jmeq = IndRef (jmeq_kn,0)
 
 type coq_sigma_data = {
@@ -184,7 +188,7 @@ let build_bool_type () =
     andb_prop =  init_constant ["Datatypes"] "andb_prop";
     andb_true_intro =  init_constant ["Datatypes"] "andb_true_intro" }
 
-let build_sigma_set () = anomaly "Use build_sigma_type"
+let build_sigma_set () = anomaly (Pp.str "Use build_sigma_type")
 
 let build_sigma_type () =
   { proj1 = init_constant ["Specif"] "projT1";
@@ -253,7 +257,7 @@ let make_dirpath dir =
 let lazy_init_constant_in env dir id ctx = 
   let c = init_constant_ dir id in
   let pc, ctx' = Universes.fresh_global_instance env c in
-    pc, Univ.union_universe_context_set ctx ctx'
+    pc, Univ.ContextSet.union ctx ctx'
 
 let seq_ctx ma f = fun ctx ->
   let a, ctx' = ma ctx in f a ctx'
@@ -271,7 +275,7 @@ let build_coq_eq_data_in env =
     seq_ctx (f "f_equal") (fun eq_congr ->
     ret_ctx {eq = eq; ind = eq_ind; refl = eq_refl; 
 	     sym = eq_sym; trans = eq_trans; congr = eq_congr}))))))
-  in record Univ.empty_universe_context_set
+  in record Univ.ContextSet.empty
 
 let build_coq_eq () = Lazy.force coq_eq_eq
 let build_coq_eq_refl () = Lazy.force coq_eq_refl
@@ -396,7 +400,7 @@ let coq_eq_ref      = lazy (init_reference ["Logic"] "eq")
 let coq_identity_ref = lazy (init_reference ["Datatypes"] "identity")
 let coq_jmeq_ref     = lazy (gen_reference "Coqlib" ["Logic";"JMeq"] "JMeq")
 let coq_eq_true_ref = lazy (gen_reference "Coqlib" ["Init";"Datatypes"] "eq_true")
-let coq_existS_ref  = lazy (anomaly "use coq_existT_ref")
+let coq_existS_ref  = lazy (anomaly (Pp.str "use coq_existT_ref"))
 let coq_existT_ref  = lazy (init_reference ["Specif"] "existT")
 let coq_exist_ref  = lazy (init_reference ["Specif"] "exist")
 let coq_not_ref     = lazy (init_reference ["Logic"] "not")

@@ -160,7 +160,7 @@ type 'a testing_function = {
 
 val make_eq_test : constr -> unit testing_function
 
-val make_eq_univs_test : constr -> Univ.constraints testing_function
+val make_eq_univs_test : constr -> Univ.UniverseConstraints.t testing_function
 
 exception NotUnifiable
 
@@ -175,7 +175,8 @@ val subst_closed_term_occ : occurrences -> constr -> constr -> constr
 (** [subst_closed_term_occ occl c d] replaces occurrences of closed [c] at
    positions [occl] by [Rel 1] in [d] (see also Note OCC), unifying universes
    which results in a set of constraints. *)
-val subst_closed_term_univs_occ : occurrences -> constr -> constr -> constr Univ.constrained
+val subst_closed_term_univs_occ : occurrences -> constr -> constr -> 
+  constr Univ.universe_constrained
 
 (** [subst_closed_term_occ_decl occl c decl] replaces occurrences of closed [c]
    at positions [occl] by [Rel 1] in [decl] *)
@@ -281,5 +282,5 @@ val on_judgment_value : (types -> types) -> unsafe_judgment -> unsafe_judgment
 val on_judgment_type  : (types -> types) -> unsafe_judgment -> unsafe_judgment
 
 (** {6 Functions to deal with impossible cases } *)
-val set_impossible_default_clause : constr * types -> unit
-val coq_unit_judge : unit -> unsafe_judgment
+val set_impossible_default_clause : (unit -> (constr * types) Univ.in_universe_context_set) -> unit
+val coq_unit_judge : unit -> unsafe_judgment Univ.in_universe_context_set

@@ -32,6 +32,8 @@ type instance_decl_function = global_reference -> rel_context -> constr list -> 
  * Search algorithm
  *)
 
+let reduce x = x
+
 let rec subst_evar evar def n c =
   match kind_of_term c with
     | Evar (e,_) when Int.equal e evar -> lift n def
@@ -65,8 +67,8 @@ let rec safe_define evm ev c =
     | Evd.Evar_defined def ->
 	define_subst evm (Termops.filtering [] Reduction.CUMUL def c)
     | Evd.Evar_empty ->
-	let t = Libtypes.reduce (Typing.type_of (Global.env()) evm c) in
-	let u = Libtypes.reduce (evar_concl evi) in
+	let t = reduce (Typing.type_of (Global.env()) evm c) in
+	let u = reduce (evar_concl evi) in
 	let evm = subst_evar_in_evm ev c evm in
 	define_subst (Evd.define ev c evm) (Termops.filtering [] Reduction.CUMUL t u)
 
@@ -94,10 +96,14 @@ module SubstSet : Set.S with type elt = Termops.subst
 		     let compare = Int.Map.compare (Pervasives.compare)
 	      end)
 
+let search_concl typ = assert false
+(** FIXME: if one ever wants to maintain this code, he has to plug the Search
+    machinery into this assertion failure. *)
+
 (* searches instatiations in the library for just one evar [ev] of a
    signature. [k] is called on each resulting signature *)
 let complete_evar (cl,gen,evm:signature) (ev,evi) (k:signature -> unit) =
-  let ev_typ = Libtypes.reduce (evar_concl evi) in
+  let ev_typ = reduce (evar_concl evi) in
   let sort_is_prop = is_Prop (Typing.type_of (Global.env()) evm (evar_concl evi)) in
 (*  msgnl(str"cherche "++pr_constr ev_typ++str" pour "++Pp.int ev);*)
   let substs = ref SubstSet.empty in
@@ -116,7 +122,7 @@ let complete_evar (cl,gen,evm:signature) (ev,evi) (k:signature -> unit) =
 	  if sort_is_prop && SubstSet.mem s !substs then raise Exit;
 	  substs := SubstSet.add s !substs
 	with Termops.CannotFilter -> ()
-    ) (Libtypes.search_concl ev_typ)
+    ) (search_concl ev_typ)
   with Exit -> ()
 
 let evm_fold_rev f evm acc =
@@ -177,11 +183,12 @@ let declare_record_instance gr ctx params =
              const_entry_secctx = None;
 	     const_entry_type=None;
 	     const_entry_polymorphic = true;
-	     const_entry_universes = Univ.empty_universe_context;
-	     const_entry_opaque=false } in
-  let cst = Declare.declare_constant ident
-    (DefinitionEntry ce,Decl_kinds.IsDefinition Decl_kinds.StructureComponent) in
-  new_instance_message ident (Typeops.type_of_constant_in (Global.env())(*FIXME*) (cst,[])) def
+	     const_entry_universes = Univ.Context.empty (*FIXME*);
+         const_entry_opaque=false;
+         const_entry_inline_code = false } in
+  let decl = (DefinitionEntry ce,Decl_kinds.IsDefinition Decl_kinds.StructureComponent) in
+  let cst = Declare.declare_constant ident decl in
+  new_instance_message ident (Typeops.type_of_constant_in (Global.env())(*FIXME*) (cst,Univ.Instance.empty)) def
 
 let declare_class_instance gr ctx params =
   let ident = make_instance_ident gr in
@@ -196,15 +203,18 @@ let declare_class_instance gr ctx params =
        const_entry_body = def;
        (* FIXME *)
        const_entry_polymorphic = false;
-       const_entry_universes = Univ.context_of_universe_context_set uctx;
-       const_entry_opaque = false } in
+       const_entry_universes = Univ.ContextSet.to_context uctx;
+       const_entry_opaque = false;
+       const_entry_inline_code = false } in
   try
   let cst = Declare.declare_constant ident
     (ce,Decl_kinds.IsDefinition Decl_kinds.Instance) in
   Typeclasses.add_instance (Typeclasses.new_instance cl (Some 100) true
 			    (*FIXNE*)true (ConstRef cst));
   new_instance_message ident typ def
-  with e -> msg_info (str"Error defining instance := "++pr_constr def++str" : "++pr_constr typ++str"  "++Errors.print e)
+  with e when Errors.noncritical e ->
+    msg_info (str"Error defining instance := "++pr_constr def++
+              str" : "++pr_constr typ++str"  "++Errors.print e)
 
 let rec iter_under_prod (f:rel_context->constr->unit) (ctx:rel_context) t = f ctx t;
   match kind_of_term t with

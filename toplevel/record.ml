@@ -51,6 +51,16 @@ let interp_fields_evars evars env impls_env nots l =
       (push_rel d env, impl :: uimpls, d::params, univ, impls))
     (env, [], [], Univ.type0m_univ, impls_env) nots l
 
+let compute_constructor_level evars env l =
+  List.fold_right (fun (n,b,t as d) (env, univ) ->
+    let univ = 
+      if b = None then 
+	let s = Retyping.get_sort_of env evars t in
+	  Univ.sup (univ_of_sort s) univ 
+      else univ
+    in (push_rel d env, univ)) 
+    l (env, Univ.type0m_univ)
+
 let binder_of_decl = function
   | Vernacexpr.AssumExpr(n,t) -> (n,None,t)
   | Vernacexpr.DefExpr(n,c,t) -> (n,Some c, match t with Some c -> c | None -> CHole (fst n, None))
@@ -59,7 +69,7 @@ let binders_of_decls = List.map binder_of_decl
 
 let typecheck_params_and_fields def id t ps nots fs =
   let env0 = Global.env () in
-  let evars = ref (Evd.from_env ~ctx:(Univ.empty_universe_context_set) env0) in
+  let evars = ref (Evd.from_env ~ctx:(Univ.ContextSet.empty) env0) in
   let _ = 
     let error bk (loc, name) = 
       match bk, name with
@@ -72,6 +82,7 @@ let typecheck_params_and_fields def id t ps nots fs =
 	   | LocalRawAssum (ls, bk, ce) -> List.iter (error bk) ls) ps
   in 
   let impls_env, ((env1,newps), imps) = interp_context_evars evars env0 ps in
+  (* let _ = evars := Evd.abstract_undefined_variables !evars in *)
   let t' = match t with 
     | Some t -> 
        let env = push_rel_context newps env0 in
@@ -102,18 +113,30 @@ let typecheck_params_and_fields def id t ps nots fs =
   let evars = Evarconv.consider_remaining_unif_problems env_ar evars in
   let evars = Typeclasses.resolve_typeclasses env_ar evars in
   let evars, nf = Evarutil.nf_evars_and_universes evars in
+  let arity = nf t' in
+  let evars = 
+    let _, univ = compute_constructor_level evars env_ar newfs in
+    let aritysort = destSort arity in
+      if is_prop_sort aritysort || 
+	(is_set_sort aritysort && engagement env0 = Some ImpredicativeSet) then
+	evars
+      else Evd.set_leq_sort evars (Type univ) aritysort
+	(* try Evarconv.the_conv_x_leq env_ar ty arity evars  *)
+	(* with Reduction.NotConvertible -> *)
+        (*   Pretype_errors.error_cannot_unify env_ar evars (ty, arity) *)
+  in
+  let evars, nf = Evarutil.nf_evars_and_universes evars in
   let newps = Sign.map_rel_context nf newps in
   let newfs = Sign.map_rel_context nf newfs in
-  let arity = nf t' in
   let ce t = Evarutil.check_evars env0 Evd.empty evars t in
     List.iter (fun (n, b, t) -> Option.iter ce b; ce t) (List.rev newps);
     List.iter (fun (n, b, t) -> Option.iter ce b; ce t) (List.rev newfs);
-    Evd.universe_context evars, arity, imps, newps, impls, newfs
+    Evd.universe_context evars, nf arity, imps, newps, impls, newfs
 
 let degenerate_decl (na,b,t) =
   let id = match na with
     | Name id -> id
-    | Anonymous -> anomaly "Unnamed record variable" in
+    | Anonymous -> anomaly (Pp.str "Unnamed record variable") in
   match b with
     | None -> (id, Entries.LocalAssum t)
     | Some b -> (id, Entries.LocalDef b)
@@ -195,7 +218,7 @@ let declare_projections indsp ?(kind=StructureComponent) ?name coers fieldimpls 
   let (mib,mip) = Global.lookup_inductive indsp in
   let paramdecls = mib.mind_params_ctxt in
   let poly = mib.mind_polymorphic and ctx = mib.mind_universes in
-  let u = if poly then fst ctx else [] in
+  let u = Inductive.inductive_instance mib in
   let indu = indsp, u in
   let r = mkIndU (indsp,u) in
   let rp = applist (r, Termops.extended_rel_list 0 paramdecls) in
@@ -235,7 +258,8 @@ let declare_projections indsp ?(kind=StructureComponent) ?name coers fieldimpls 
                     const_entry_type = Some projtyp;
 		    const_entry_polymorphic = poly;
 		    const_entry_universes = ctx;
-                    const_entry_opaque = false } in
+                    const_entry_opaque = false;
+		    const_entry_inline_code = false } in
 		  let k = (DefinitionEntry cie,IsDefinition kind) in
 		  let kn = declare_constant ~internal:KernelSilent fid k in
 		  Declare.definition_message fid;
@@ -247,7 +271,7 @@ let declare_projections indsp ?(kind=StructureComponent) ?name coers fieldimpls 
 	      Impargs.maybe_declare_manual_implicits false refi impls;
 	      if coe then begin
 	        let cl = Class.class_of_global (IndRef indsp) in
-	        Class.try_add_new_coercion_with_source refi Global poly ~source:cl
+	        Class.try_add_new_coercion_with_source refi ~local:false poly ~source:cl
 	      end;
 	      let proj_args = (*Rel 1 refers to "x"*) paramargs@[mkRel 1] in
 	      let constr_fip = applist (constr_fi,proj_args) in
@@ -309,7 +333,7 @@ let declare_structure finite infer poly ctx id idbuild paramimpls params arity f
   let cstr = (rsp,1) in
   let kinds,sp_projs = declare_projections rsp ~kind ?name coers fieldimpls fields in
   let build = ConstructRef cstr in
-  if is_coe then Class.try_add_new_coercion build Global poly;
+  let () = if is_coe then Class.try_add_new_coercion build ~local:false poly in
   Recordops.declare_structure(rsp,cstr,List.rev kinds,List.rev sp_projs);
   if infer then
     Evd.fold (fun ev evi () -> Recordops.declare_method (ConstructRef cstr) ev sign) sign ();
@@ -343,12 +367,13 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
 	    const_entry_type = None;
 	    const_entry_polymorphic = poly;
 	    const_entry_universes = ctx;
-	    const_entry_opaque = false }
+	    const_entry_opaque = false;
+	    const_entry_inline_code = false }
 	in
 	let cst = Declare.declare_constant (snd id)
 	  (DefinitionEntry class_entry, IsDefinition Definition)
 	in
-	let cstu = (cst, if poly then fst ctx else []) in
+	let cstu = (cst, if poly then Univ.Context.instance ctx else Univ.Instance.empty) in
 	let inst_type = appvectc (mkConstU cstu) (Termops.rel_vect 0 (List.length params)) in
 	let proj_type = it_mkProd_or_LetIn (mkProd(Name (snd id), inst_type, lift 1 field)) params in
 	let proj_body = it_mkLambda_or_LetIn (mkLambda (Name (snd id), inst_type, mkRel 1)) params in
@@ -358,7 +383,8 @@ let declare_class finite def infer poly ctx id idbuild paramimpls params arity f
 	    const_entry_type = Some proj_type;
 	    const_entry_polymorphic = poly;
 	    const_entry_universes = ctx;
-	    const_entry_opaque = false }
+	    const_entry_opaque = false;
+	    const_entry_inline_code = false }
 	in
 	let proj_cst = Declare.declare_constant proj_name
 	  (DefinitionEntry proj_entry, IsDefinition Definition)

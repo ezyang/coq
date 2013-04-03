@@ -62,7 +62,7 @@ let xid = Id.of_string "X"
 let default_id_of_sort = function InProp | InSet -> hid | InType -> xid
 let fresh env id = next_global_ident_away id []
 let with_context_set ctx (b, ctx') = 
-  (b, Univ.union_universe_context_set ctx ctx')
+  (b, Univ.ContextSet.union ctx ctx')
 
 let build_dependent_inductive ind (mib,mip) =
   let realargs,_ = List.chop mip.mind_nrealargs_ctxt mip.mind_arity_ctxt in
@@ -364,7 +364,7 @@ let build_l2r_rew_scheme dep env ind kind =
                      rel_vect 1 nrealargs;
 		     [|mkRel 1|]]) in
   let s, ctx' = Universes.fresh_sort_in_family (Global.env ()) kind in
-  let ctx = Univ.union_universe_context_set ctx ctx' in
+  let ctx = Univ.ContextSet.union ctx ctx' in
   let s = mkSort s in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let cieq = make_case_info (Global.env()) (fst (destInd eq)) RegularStyle in
@@ -466,7 +466,7 @@ let build_l2r_forward_rew_scheme dep env ind kind =
   let realsign_ind_P n aP =
     name_context env ((Name varH,None,aP)::realsign_P n) in
   let s, ctx' = Universes.fresh_sort_in_family (Global.env ()) kind in
-  let ctx = Univ.union_universe_context_set ctx ctx' in
+  let ctx = Univ.ContextSet.union ctx ctx' in
   let s = mkSort s in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let applied_PC =
@@ -544,7 +544,7 @@ let build_r2l_forward_rew_scheme dep env ind kind =
   let realsign_ind =
     name_context env ((Name varH,None,applied_ind)::realsign) in
   let s, ctx' = Universes.fresh_sort_in_family (Global.env ()) kind in
-  let ctx = Univ.union_universe_context_set ctx ctx' in
+  let ctx = Univ.ContextSet.union ctx ctx' in
   let s = mkSort s in
   let ci = make_case_info (Global.env()) ind RegularStyle in
   let applied_PC =
@@ -603,7 +603,7 @@ let fix_r2l_forward_rew_scheme (c, ctx') =
 		(applist (c,
 	          extended_rel_list 3 indargs @ [mkRel 1;mkRel 3;mkRel 2]))))))
       in c', ctx'
-  | _ -> anomaly "Ill-formed non-dependent left-to-right rewriting scheme"
+  | _ -> anomaly (Pp.str "Ill-formed non-dependent left-to-right rewriting scheme")
 
 (**********************************************************************)
 (* Build the right-to-left rewriting lemma for conclusion associated  *)
@@ -781,4 +781,4 @@ let build_congr env (eq,refl,ctx) ind =
 let congr_scheme_kind = declare_individual_scheme_object "_congr"
   (fun ind ->
     (* May fail if equality is not defined *)
-    build_congr (Global.env()) (get_coq_eq Univ.empty_universe_context_set) ind)
+    build_congr (Global.env()) (get_coq_eq Univ.ContextSet.empty) ind)

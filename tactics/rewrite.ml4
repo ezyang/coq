@@ -38,7 +38,7 @@ open Decl_kinds
 (** Typeclass-based generalized rewriting. *)
 
 let classes_dirpath =
-  Dir_path.make (List.map Id.of_string ["Classes";"Coq"])
+  DirPath.make (List.map Id.of_string ["Classes";"Coq"])
 
 let init_setoid () =
   if is_dirpath_prefix_of classes_dirpath (Lib.cwd ()) then ()
@@ -52,7 +52,7 @@ let proper_proxy_class =
 
 let proper_proj = lazy (mkConst (Option.get (pi3 (List.hd (Lazy.force proper_class).cl_projs))))
 
-let make_dir l = Dir_path.make (List.map Id.of_string (List.rev l))
+let make_dir l = DirPath.make (List.rev_map Id.of_string l)
 
 let try_find_global_reference dir s =
   let sp = Libnames.make_path (make_dir ("Coq"::dir)) (Id.of_string s) in
@@ -119,7 +119,7 @@ let is_applied_rewrite_relation env sigma rels t =
 		mkApp (Lazy.force rewrite_relation_class, [| evar; mkApp (c, params) |]) in
 	      let _ = Typeclasses.resolve_one_typeclass env' evd inst in
 		Some (it_mkProd_or_LetIn t rels)
-	  with _ -> None)
+	  with e when Errors.noncritical e -> None)
   | _ -> None
 
 let _ =
@@ -143,11 +143,14 @@ let build_signature evars env m (cstrs : (types * types option) option list)
     new_cstr_evar evars env
       (* ~src:(Loc.ghost, ImplicitArg (ConstRef (Lazy.force respectful), (n, Some na))) *) t
   in
-  let mk_relty evars env ty obj =
+  let mk_relty evars newenv ty obj =
     match obj with
       | None | Some (_, None) ->
 	  let relty = mk_relation ty in
-	    new_evar evars env relty
+	    if closed0 ty then 
+	      let env' = Environ.reset_with_named_context (Environ.named_context_val env) env in
+		new_evar evars env' relty
+	    else new_evar evars newenv relty
       | Some (x, Some rel) -> evars, rel
   in
   let rec aux env evars ty l =
@@ -168,7 +171,7 @@ let build_signature evars env m (cstrs : (types * types option) option list)
 	    let arg' = mkApp (Lazy.force forall_relation, [| ty ; pred ; liftarg |]) in
 	      if Option.is_empty obj then evars, mkProd(na, ty, b), arg', (ty, None) :: cstrs
 	      else error "build_signature: no constraint can apply on a dependent argument"
-      | _, obj :: _ -> anomaly "build_signature: not enough products"
+      | _, obj :: _ -> anomaly ~label:"build_signature" (Pp.str "not enough products")
       | _, [] ->
 	  (match finalcstr with
 	  | None | Some (_, None) ->
@@ -219,7 +222,7 @@ let cstrevars evars = snd evars
 
 let evd_convertible env evd x y =
   try ignore(Evarconv.the_conv_x env x y evd); true
-  with _ -> false
+  with e when Errors.noncritical e -> false
 
 let rec decompose_app_rel env evd t = 
   match kind_of_term t with
@@ -259,8 +262,8 @@ let decompose_applied_relation env sigma flags orig (c,l) left2right =
     match find_rel ctype with
     | Some c -> c
     | None ->
-	let ctx,t' = Reductionops.splay_prod_assum env sigma ctype in (* Search for underlying eq *)
-	match find_rel (it_mkProd_or_LetIn t' ctx) with
+	let ctx,t' = Reductionops.splay_prod env sigma ctype in (* Search for underlying eq *)
+	match find_rel (it_mkProd_or_LetIn t' (List.map (fun (n,t) -> n, None, t) ctx)) with
 	| Some c -> c
 	| None -> error "The term does not end with an applied homogeneous relation."
 
@@ -472,8 +475,8 @@ let rec decomp_pointwise n c =
 	decomp_pointwise (pred n) relb
     | App (f, [| a; b; arelb |]) when eq_constr f (Lazy.force forall_relation) ->
 	decomp_pointwise (pred n) (Reductionops.beta_applist (arelb, [mkRel 1]))
-    | _ -> raise (Invalid_argument "decomp_pointwise")
-	
+    | _ -> invalid_arg "decomp_pointwise"
+
 let rec apply_pointwise rel = function
   | arg :: args ->
       (match kind_of_term rel with
@@ -481,11 +484,11 @@ let rec apply_pointwise rel = function
 	  apply_pointwise relb args
       | App (f, [| a; b; arelb |]) when eq_constr f (Lazy.force forall_relation) ->
 	  apply_pointwise (Reductionops.beta_applist (arelb, [arg])) args
-      | _ -> raise (Invalid_argument "apply_pointwise"))
+      | _ -> invalid_arg "apply_pointwise")
   | [] -> rel
 
 let pointwise_or_dep_relation n t car rel =
-  if noccurn 1 car then
+  if noccurn 1 car && noccurn 1 rel then
     mkApp (Lazy.force pointwise_relation, [| t; lift (-1) car; lift (-1) rel |])
   else
     mkApp (Lazy.force forall_relation, 
@@ -578,7 +581,7 @@ let resolve_morphism env avoid oldt m ?(fnewt=fun x -> x) args args' cstr evars 
   let evars, morph_instance, proj, sigargs, m', args, args' =
     let first = match (Array.findi (fun _ b -> not (Option.is_empty b)) args') with
     | Some i -> i
-    | None -> raise (Invalid_argument "resolve_morphism") in
+    | None -> invalid_arg "resolve_morphism" in
     let morphargs, morphobjs = Array.chop first args in
     let morphargs', morphobjs' = Array.chop first args' in
     let appm = mkApp(m, morphargs) in
@@ -724,7 +727,7 @@ let fold_match ?(force=false) env sigma c =
 let unfold_match env sigma sk app =
   match kind_of_term app with
   | App (f', args) when eq_constant (fst (destConst f')) sk ->
-      let v = Environ.constant_value_in (Global.env ()) (sk,[])(*FIXME*) in
+      let v = Environ.constant_value_in (Global.env ()) (sk,Univ.Instance.empty)(*FIXME*) in
 	Reductionops.whd_beta sigma (mkApp (v, args))
   | _ -> app
 
@@ -1069,7 +1072,8 @@ module Strategies =
 	let sigma, c = Constrintern.interp_open_constr (goalevars evars) env c in
 	let unfolded =
 	  try Tacred.try_red_product env sigma c
-	  with _ -> error "fold: the term is not unfoldable !"
+	  with e when Errors.noncritical e ->
+            error "fold: the term is not unfoldable !"
 	in
 	  try
 	    let sigma = Unification.w_unify env sigma CONV ~flags:Unification.elim_flags unfolded t in
@@ -1077,7 +1081,7 @@ module Strategies =
 	      Some (Some { rew_car = ty; rew_from = t; rew_to = c';
 			   rew_prf = RewCast DEFAULTcast; 
 			   rew_evars = sigma, cstrevars evars })
-	  with _ -> None
+	  with e when Errors.noncritical e -> None
 
     let fold_glob c : strategy =
       fun env avoid t ty cstr evars ->
@@ -1085,7 +1089,8 @@ module Strategies =
 	let sigma, c = Pretyping.understand_tcc (goalevars evars) env c in
 	let unfolded =
 	  try Tacred.try_red_product env sigma c
-	  with _ -> error "fold: the term is not unfoldable !"
+	  with e when Errors.noncritical e ->
+            error "fold: the term is not unfoldable !"
 	in
 	  try
 	    let sigma = Unification.w_unify env sigma CONV ~flags:Unification.elim_flags unfolded t in
@@ -1093,7 +1098,7 @@ module Strategies =
 	      Some (Some { rew_car = ty; rew_from = t; rew_to = c';
 			   rew_prf = RewCast DEFAULTcast; 
 			   rew_evars = sigma, cstrevars evars })
-	  with _ -> None
+	  with e when Errors.noncritical e -> None
   
 
 end
@@ -1169,8 +1174,8 @@ let cl_rewrite_clause_aux ?(abs=None) strat env avoid sigma concl is_hyp : resul
 	    (* cstrs is small *)
 	  let gevars = goalevars evars in
 	    Evd.fold (fun ev evi acc -> 
-			if Evd.mem gevars ev then Evd.add acc ev evi
-			else acc) evars' Evd.empty
+			if not (Evd.mem gevars ev) then Evd.remove acc ev
+			else acc) evars' evars'
 (* 	    Evd.fold (fun ev evi acc -> Evd.remove acc ev) cstrs evars' *)
 	in
 	let res =
@@ -1238,7 +1243,6 @@ let cl_rewrite_clause_tac ?abs strat meta clause gl =
       let res = cl_rewrite_clause_aux ?abs strat (pf_env gl) [] sigma concl is_hyp in
 	treat res
     with
-    | Loc.Exc_located (_, TypeClassError (env, (UnsatisfiableConstraints _ as e)))
     | TypeClassError (env, (UnsatisfiableConstraints _ as e)) ->
 	Refiner.tclFAIL 0
 	  (str"Unable to satisfy the rewriting constraints."
@@ -1329,7 +1333,6 @@ let cl_rewrite_clause_newtac ?abs strat clause =
 	       cl_rewrite_clause_aux ?abs strat env [] sigma ty is_hyp 
 	     in return (res, is_hyp)
 	   with
-	   | Loc.Exc_located (_, TypeClassError (env, (UnsatisfiableConstraints _ as e)))
 	   | TypeClassError (env, (UnsatisfiableConstraints _ as e)) ->
 	     raise (RewriteFailure (str"Unable to satisfy the rewriting constraints."
 			++ fnl () ++ Himsg.explain_typeclass_error env e)))
@@ -1337,7 +1340,7 @@ let cl_rewrite_clause_newtac ?abs strat clause =
   
 let newtactic_init_setoid () = 
   try init_setoid (); Proofview.tclUNIT ()
-  with e -> Proofview.tclZERO e
+  with e when Errors.noncritical e -> Proofview.tclZERO e
 
 let tactic_init_setoid () = 
   init_setoid (); tclIDTAC
@@ -1469,7 +1472,7 @@ let rec strategy_of_ast = function
       | "try" -> Strategies.try_
       | "any" -> Strategies.any
       | "repeat" -> Strategies.repeat
-      | _ -> anomalylabstrm "strategy_of_ast" (str"Unkwnon strategy: " ++ str f)
+      | _ -> anomaly ~label:"strategy_of_ast" (str"Unkwnon strategy: " ++ str f)
     in f' s'
   | StratBinary (f, s, t) ->
     let s' = strategy_of_ast s in
@@ -1477,7 +1480,7 @@ let rec strategy_of_ast = function
     let f' = match f with
       | "compose" -> Strategies.seq
       | "choice" -> Strategies.choice
-      | _ -> anomalylabstrm "strategy_of_ast" (str"Unkwnon strategy: " ++ str f)
+      | _ -> anomaly ~label:"strategy_of_ast" (str"Unkwnon strategy: " ++ str f)
     in f' s' t'
   | StratConstr (c, b) -> apply_glob_constr (fst c) b AllOccurrences
   | StratHints (old, id) -> if old then Strategies.old_hints id else Strategies.hints id
@@ -1794,8 +1797,9 @@ let declare_projection n instance_id r =
       const_entry_secctx = None;
       const_entry_type = Some typ;
       const_entry_polymorphic = false;
-      const_entry_universes = (Univ.context_of_universe_context_set uctx);
-      const_entry_opaque = false }
+      const_entry_universes = Univ.ContextSet.to_context uctx;
+      const_entry_opaque = false;
+      const_entry_inline_code = false }
   in
     ignore(Declare.declare_constant n 
 	   (Entries.DefinitionEntry cst, Decl_kinds.IsDefinition Decl_kinds.Definition))
@@ -1860,11 +1864,11 @@ let add_morphism_infer (glob,poly) m n =
   init_setoid ();
   let instance_id = add_suffix n "_Proper" in
   let instance = build_morphism_signature m in
-  let ctx = Univ.empty_universe_context_set (*FIXME *) in
+  let ctx = Univ.ContextSet.empty (*FIXME *) in
     if Lib.is_modtype () then
       let cst = Declare.declare_constant ~internal:Declare.KernelSilent instance_id
 				(Entries.ParameterEntry 
-				 (None,(instance,Univ.empty_universe_context_set),None), 
+				 (None,poly,(instance,Univ.Context.empty),None), 
 				 Decl_kinds.IsAssumption Decl_kinds.Logical)
       in
 	add_instance (Typeclasses.new_instance (Lazy.force proper_class) None glob 
@@ -2021,9 +2025,10 @@ let setoid_proof gl ty fn fallback =
       let evm = project gl in
       let car = pi3 (List.hd (fst (Reduction.dest_prod env (Typing.type_of env evm rel)))) in
 	fn env evm car rel gl
-    with e ->
+    with e when Errors.noncritical e ->
       try fallback gl
       with Hipattern.NoEquationFound ->
+          let e = Errors.push e in
 	  match e with
 	  | Not_found ->
 	      let rel, args = decompose_app_rel env (project gl) (pf_concl gl) in
