@@ -35,6 +35,12 @@ let evd_comb2 f evdref x y =
     evdref := evd';
     z
 
+let e_new_global evdref x = 
+  evd_comb1 (Evd.fresh_global Evd.univ_flexible (Global.env())) evdref x
+
+let new_global evd x = 
+  Evd.fresh_global Evd.univ_flexible (Global.env()) evd x
+
 (****************************************************)
 (* Expanding/testing/exposing existential variables *)
 (****************************************************)
