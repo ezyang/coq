@@ -1843,10 +1843,13 @@ and interp_atomic ist gl tac =
 	  sigma , a_interp::acc
 	end l (project gl,[])
       in
-      tac args
+      tclTHEN
+       (tclEVARS sigma)
+	(tac args)
   | TacAlias (loc,s,l,(_,body)) -> fun gl ->
     let evdref = ref gl.sigma in
-    let f x = match genarg_tag x with
+    let f gl x = 
+      match genarg_tag x with
     | IntArgType ->
         VInteger (out_gen globwit_int x)
     | IntOrVarArgType ->
@@ -1952,10 +1955,15 @@ and interp_atomic ist gl tac =
 	-> error "This argument type is not supported in tactic notations."
 
     in
-    let lfun = (List.map (fun (x,c) -> (x,f c)) l)@ist.lfun in
+    let gl, lfun = List.fold_left (fun (gl,args) (x,c) -> 
+      let res = f gl c in
+      let gl = { gl with sigma = !evdref } in
+	(gl, (x,res) :: args)) 
+      (gl, []) l 
+    in
+    let lfun = lfun@ist.lfun in
     let trace = push_trace (loc,LtacNotationCall s) ist.trace in
-    let gl = { gl with sigma = !evdref } in
-    interp_tactic { ist with lfun=lfun; trace=trace } body gl
+      interp_tactic { ist with lfun=lfun; trace=trace } body gl
 
 (* Initial call for interpretation *)
 
