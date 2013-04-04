@@ -400,13 +400,16 @@ module EvarMap = struct
       (fun k v -> assert (v.evar_body == Evar_empty);
         EvarInfoMap.is_defined sigma2 k))
 
-  let merge e e' = fold e' (fun n v sigma -> add sigma n v) e
   let add_constraints (sigma, ctx) cstrs =
     let ctx' = add_constraints_context ctx cstrs in
       (sigma, ctx')
   let add_universe_constraints (sigma, ctx) cstrs =
     let ctx' = add_universe_constraints_context ctx cstrs in
       (sigma, ctx')
+
+  let merge e (e',ctx') = 
+    let (e'',ctx'') = EvarInfoMap.fold e' (fun n v sigma -> add sigma n v) e in
+      (e'', union_evar_universe_context ctx'' ctx')
 end
 
 (*******************************************************************)

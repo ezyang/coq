@@ -50,6 +50,8 @@ val new_type_evar :
 val e_new_type_evar : evar_map ref ->
   ?src:Loc.t * Evar_kinds.t -> ?filter:bool list -> rigid -> env -> constr * sorts
 
+val new_global : evar_map -> Globnames.global_reference -> evar_map * constr
+val e_new_global : evar_map ref -> Globnames.global_reference -> constr
 
 (** Create a fresh evar in a context different from its definition context:
    [new_evar_instance sign evd ty inst] creates a new evar of context
