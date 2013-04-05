@@ -175,8 +175,6 @@ val push_context : Univ.universe_context -> env -> env
 val push_context_set : Univ.universe_context_set -> env -> env
 val push_constraints_to_env : 'a Univ.constrained -> env -> env
 
-val push_constraints_to_env : 'a Univ.constrained -> env -> env
-
 val set_engagement : engagement -> env -> env
 
 (** {6 Sets of referred section variables }

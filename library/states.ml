@@ -23,13 +23,11 @@ let (extern_state,intern_state) =
     extern_intern Coq_config.state_magic_number in
   (fun s ->
     let s = ensure_suffix s in
-    if !Flags.load_proofs <> Flags.Force then
-      Errors.error "Write State only works with option -force-load-proofs";
     raw_extern s (freeze())),
   (fun s ->
     let s = ensure_suffix s in
-    unfreeze
-      (with_magic_number_check (raw_intern (Library.get_load_paths ())) s);
+    let paths = Loadpath.get_paths () in
+    unfreeze (with_magic_number_check (raw_intern paths) s);
     Library.overwrite_library_filenames s)
 
 (* Rollback. *)

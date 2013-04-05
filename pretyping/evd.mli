@@ -122,9 +122,6 @@ val evar_filtered_env :  evar_info -> env
 val map_evar_body : (constr -> constr) -> evar_body -> evar_body
 val map_evar_info : (constr -> constr) -> evar_info -> evar_info
 
-val map_evar_body : (constr -> constr) -> evar_body -> evar_body
-val map_evar_info : (constr -> constr) -> evar_info -> evar_info
-
 (*** Unification state ***)
 type evar_map
 

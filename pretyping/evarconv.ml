@@ -606,27 +606,27 @@ and evar_eqappr_x ?(rhs_is_already_stuck = false) ts env evd pbty
 
 and conv_record trs env evd (ctx,c,bs,(params,params1),(us,us2),(ts,ts1),c1,(n,t2)) =
   let evd = Evd.merge_context_set Evd.univ_flexible evd ctx in
-  let (evd',ks,_) =
-    List.fold_left
-      (fun (i,ks,m) b ->
-	 if Int.equal m n then (i,t2::ks, m-1) else
-	 let dloc = (Loc.ghost,Evar_kinds.InternalHole) in
-         let (i',ev) = new_evar i env ~src:dloc (substl ks b) in
-	 (i', ev :: ks, m - 1))
-      (evd,[],List.length bs - 1) bs
-  in
   if Reductionops.compare_stack_shape ts ts1 then
-  ise_and evd'
-    [(fun i ->
-       ise_list2 i
-         (fun i' x1 x -> evar_conv_x trs env i' CONV x1 (substl ks x))
-         params1 params);
-    (fun i ->
-      ise_list2 i
-        (fun i' u1 u -> evar_conv_x trs env i' CONV u1 (substl ks u))
-        us2 us);
-    (fun i -> evar_conv_x trs env i CONV c1 (applist (c,(List.rev ks))));
-    (fun i -> exact_ise_stack2 env i (evar_conv_x trs) ts ts1)]
+    let (evd',ks,_) =
+      List.fold_left
+	(fun (i,ks,m) b ->
+	  if Int.equal m n then (i,t2::ks, m-1) else
+	    let dloc = (Loc.ghost,Evar_kinds.InternalHole) in
+            let (i',ev) = new_evar i env ~src:dloc (substl ks b) in
+	    (i', ev :: ks, m - 1))
+	(evd,[],List.length bs - 1) bs
+    in
+    ise_and evd'
+      [(fun i ->
+	ise_list2 i
+          (fun i' x1 x -> evar_conv_x trs env i' CONV x1 (substl ks x))
+          params1 params);
+       (fun i ->
+	 ise_list2 i
+           (fun i' u1 u -> evar_conv_x trs env i' CONV u1 (substl ks u))
+           us2 us);
+       (fun i -> evar_conv_x trs env i CONV c1 (applist (c,(List.rev ks))));
+       (fun i -> exact_ise_stack2 env i (evar_conv_x trs) ts ts1)]
   else UnifFailure(evd,(*dummy*)NotSameHead)
 
 (* We assume here |l1| <= |l2| *)
@@ -805,14 +805,16 @@ let apply_conversion_problem_heuristic ts env evd pbty t1 t2 =
   let app_empty = match l1, l2 with [], [] -> true | _ -> false in
   match kind_of_term term1, kind_of_term term2 with
   | Evar (evk1,args1), (Rel _|Var _) when app_empty
-      && Array.for_all (fun a -> eq_constr a term2 || isEvar a) args1 ->
+      & List.for_all (fun a -> eq_constr a term2 or isEvar a)
+        (remove_instance_local_defs evd evk1 (Array.to_list args1)) ->
       (* The typical kind of constraint coming from pattern-matching return
          type inference *)
       (match choose_less_dependent_instance evk1 evd term2 args1 with
       | Some evd -> Success evd
       | None -> UnifFailure (evd, ConversionFailed (env,term1,term2)))
   | (Rel _|Var _), Evar (evk2,args2) when app_empty
-      & Array.for_all (fun a -> eq_constr a term1 or isEvar a) args2 ->
+      & List.for_all (fun a -> eq_constr a term1 or isEvar a)
+        (remove_instance_local_defs evd evk2 (Array.to_list args2)) ->
       (* The typical kind of constraint coming from pattern-matching return
          type inference *)
       (match choose_less_dependent_instance evk2 evd term1 args2 with

@@ -132,7 +132,7 @@ let compute_head = function
    let body = Declareops.body_of_constant (Environ.lookup_constant cst env) in
      (match body with
      | None -> RigidHead (RigidParameter cst)
-     | Some c -> kind_of_head env (Lazyconstr.force c))
+     | Some c -> kind_of_head env c)
 | EvalVarRef id ->
     (match pi2 (Global.lookup_named id) with
      | Some c when not (Decls.variable_opacity id) ->
