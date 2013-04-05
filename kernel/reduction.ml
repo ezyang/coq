@@ -226,6 +226,7 @@ let conv_sort env s0 s1 = sort_cmp CONV s0 s1 Constraint.empty
 let conv_sort_leq env s0 s1 = sort_cmp CUMUL s0 s1 Constraint.empty  
 
 let sort_cmp_universes pb s0 s1 cuniv =
+  let dir = if is_cumul pb then ULe else UEq in
   match (s0,s1) with
     | (Prop c1, Prop c2) when is_cumul pb ->
       begin match c1, c2 with
@@ -234,13 +235,12 @@ let sort_cmp_universes pb s0 s1 cuniv =
       end
     | (Prop c1, Prop c2) ->
         if c1 == c2 then cuniv else raise NotConvertible
-    | (Prop c1, Type u) when is_cumul pb ->
-	UniverseConstraints.add (univ_of_sort s0, ULe, u) cuniv
-    | (Type u, Prop c) when is_cumul pb ->
-	UniverseConstraints.add (u, ULe, univ_of_sort s1) cuniv
+    | (Prop c1, Type u) ->
+      UniverseConstraints.add (univ_of_sort s0, dir, u) cuniv
+    | (Type u, Prop c) ->
+      UniverseConstraints.add (u, dir, univ_of_sort s1) cuniv
     | (Type u1, Type u2) ->
-      UniverseConstraints.add (u1, (if is_cumul pb then ULe else UEq), u2) cuniv
-    | (_, _) -> raise NotConvertible
+      UniverseConstraints.add (u1, dir, u2) cuniv
 
 let sort_cmp_universes pb s0 s1 cuniv =   
   try sort_cmp_universes pb s0 s1 cuniv
