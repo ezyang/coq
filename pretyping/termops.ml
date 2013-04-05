@@ -34,8 +34,8 @@ let pr_name = function
 let pr_con sp = str(string_of_con sp)
 
 let pr_puniverses p u = 
-  if u = [] then p 
-  else p ++ str"(*" ++ prlist_with_sep spc Univ.Level.pr u ++ str"*)"
+  if Univ.Instance.is_empty u then p 
+  else p ++ str"(*" ++ Univ.Instance.pr u ++ str"*)"
 
 let rec pr_constr c = match kind_of_term c with
   | Rel n -> str "#"++int n
@@ -145,7 +145,7 @@ let print_env env =
   in
     (sign_env ++ db_env)
 
-(*let current_module = ref Dir_path.empty
+(*let current_module = ref DirPath.empty
 
 let set_module m = current_module := m*)
 
@@ -182,7 +182,7 @@ let push_named_rec_types (lna,typarray,_) env =
       (fun i na t ->
 	 match na with
 	   | Name id -> (id, None, lift i t)
-	   | Anonymous -> anomaly "Fix declarations must be named")
+	   | Anonymous -> anomaly (Pp.str "Fix declarations must be named"))
       lna typarray in
   Array.fold_left
     (fun e assum -> push_named assum e) env ctxt
@@ -192,7 +192,7 @@ let lookup_rel_id id sign =
     | []                     -> raise Not_found
     | (Anonymous, _, _) :: l -> lookrec (n + 1) l
     | (Name id', b, t) :: l  ->
-      if Int.equal (Names.Id.compare id' id) 0 then (n, b, t) else lookrec (n + 1) l
+      if Names.Id.equal id' id then (n, b, t) else lookrec (n + 1) l
   in
   lookrec 1 sign
 
@@ -246,7 +246,7 @@ let rec drop_extra_implicit_args c = match kind_of_term c with
 (* Get the last arg of an application *)
 let last_arg c = match kind_of_term c with
   | App (f,cl) -> Array.last cl
-  | _ -> anomaly "last_arg"
+  | _ -> anomaly (Pp.str "last_arg")
 
 (* Get the last arg of an application *)
 let decompose_app_vect c =
@@ -550,7 +550,7 @@ let collect_vars c =
    [m] is appropriately lifted through abstractions of [t] *)
 
 let dependent_main noevar univs m t =
-  let eqc x y = if univs then fst (eq_constr_univs x y) else eq_constr_nounivs x y in
+  let eqc x y = if univs then fst (eq_constr_universes x y) else eq_constr_nounivs x y in
   let rec deprec m t =
     if eqc m t then
       raise Occur
@@ -768,10 +768,10 @@ let make_eq_test c = {
 } 
 
 let make_eq_univs_test c = {
-  match_fun = (fun c' -> let b, cst = eq_constr_univs c c' in 
+  match_fun = (fun c' -> let b, cst = eq_constr_universes c c' in 
 			   if b then cst else raise NotUnifiable);
-  merge_fun = Univ.Constraint.union;
-  testing_state = Univ.Constraint.empty;
+  merge_fun = Univ.UniverseConstraints.union;
+  testing_state = Univ.UniverseConstraints.empty;
   last_found = None
 } 
 
@@ -968,7 +968,7 @@ let rec eta_reduce_head c =
 	(match kind_of_term (eta_reduce_head c') with
            | App (f,cl) ->
                let lastn = (Array.length cl) - 1 in
-               if lastn < 1 then anomaly "application without arguments"
+               if lastn < 1 then anomaly (Pp.str "application without arguments")
                else
                  (match kind_of_term cl.(lastn) with
                     | Rel 1 ->
@@ -1037,7 +1037,7 @@ let adjust_subst_to_rel_context sign l =
     | (_,Some c,_)::sign', args' ->
 	aux (substl (List.rev subst) c :: subst) sign' args'
     | [], [] -> List.rev subst
-    | _ -> anomaly "Instance and signature do not match"
+    | _ -> anomaly (Pp.str "Instance and signature do not match")
   in aux [] (List.rev sign) l
 
 let fold_named_context_both_sides f l ~init = List.fold_right_and_left f l init
@@ -1087,7 +1087,7 @@ let context_chop k ctx =
     | (0, l2) -> (List.rev acc, l2)
     | (n, ((_,Some _,_ as h)::t)) -> chop_aux (h::acc) (n, t)
     | (n, (h::t)) -> chop_aux (h::acc) (pred n, t)
-    | (_, []) -> anomaly "context_chop"
+    | (_, []) -> anomaly (Pp.str "context_chop")
   in chop_aux [] (k,ctx)
 
 (* Do not skip let-in's *)
@@ -1109,9 +1109,11 @@ let coq_unit_judge =
   let na2 = Name (Id.of_string "H") in
   fun () ->
     match !impossible_default_case with
-    | Some (id,type_of_id) ->
-	make_judge id type_of_id
+    | Some fn -> 
+        let (id,type_of_id), ctx = fn () in
+	  make_judge id type_of_id, ctx
     | None ->
 	(* In case the constants id/ID are not defined *)
 	make_judge (mkLambda (na1,mkProp,mkLambda(na2,mkRel 1,mkRel 1)))
-                 (mkProd (na1,mkProp,mkArrow (mkRel 1) (mkRel 2)))
+                 (mkProd (na1,mkProp,mkArrow (mkRel 1) (mkRel 2))), 
+       Univ.ContextSet.empty

@@ -60,14 +60,18 @@ let observe strm =
 
 
 let do_observe_tac s tac g =
-  let goal = begin try (Printer.pr_goal g) with _ -> assert false end in
+  let goal =
+    try Printer.pr_goal g
+    with e when Errors.noncritical e -> assert false
+  in
   try
-    let v = tac g in msgnl (goal ++ fnl () ++ s ++(str " ")++(str "finished")); v
-  with e ->
-    let e' = Cerrors.process_vernac_interp_error e in
+    let v = tac g in
+    msgnl (goal ++ fnl () ++ s ++(str " ")++(str "finished")); v
+  with reraise ->
+    let e = Cerrors.process_vernac_interp_error reraise in
     msgnl (str "observation "++ s++str " raised exception " ++
-	     Errors.print e' ++ str " on goal " ++ goal );
-    raise e;;
+	     Errors.print e ++ str " on goal " ++ goal );
+    raise reraise;;
 
 
 let observe_tac_strm s tac g =
@@ -114,7 +118,7 @@ let generate_type g_to_f f graph i =
   let ctxt,_ = decompose_prod_assum graph_arity in
   let fun_ctxt,res_type =
     match ctxt with
-      | [] | [_] -> anomaly "Not a valid context"
+      | [] | [_] -> anomaly (Pp.str "Not a valid context")
       | (_,_,res_type)::fun_ctxt -> fun_ctxt,res_type
   in
   let rec args_from_decl i accu = function
@@ -279,7 +283,7 @@ let prove_fun_correct functional_induction funs_constr graphs_constr schemes lem
 	(fun (_,pat) acc ->
 	     match pat with
 	       | Genarg.IntroIdentifier id -> Id.Set.add id acc
-	| _ -> anomaly "Not an identifier"
+	| _ -> anomaly (Pp.str "Not an identifier")
 	)
 	(List.nth intro_pats (pred i))
 	Id.Set.empty
@@ -318,7 +322,7 @@ let prove_fun_correct functional_induction funs_constr graphs_constr schemes lem
       	  (fun (_,pat) acc ->
       	     match pat with
 	       | IntroIdentifier id -> id::acc
-      	       | _ -> anomaly "Not an identifier"
+      	       | _ -> anomaly (Pp.str "Not an identifier")
       	  )
       	  (List.nth intro_pats (pred i))
       	  []
@@ -425,7 +429,7 @@ let prove_fun_correct functional_induction funs_constr graphs_constr schemes lem
       Array.map
 	(fun (_,(ctxt,concl)) ->
 	   match ctxt with
-	     | [] | [_] | [_;_] -> anomaly "bad context"
+	     | [] | [_] | [_;_] -> anomaly (Pp.str "bad context")
 	     | hres::res::(x,_,t)::ctxt ->
 		 Termops.it_mkLambda_or_LetIn
 		   (Termops.it_mkProd_or_LetIn concl [hres;res])
@@ -490,7 +494,7 @@ let prove_fun_correct functional_induction funs_constr graphs_constr schemes lem
       Array.map
 	(fun (_,(ctxt,concl)) ->
 	   match ctxt with
-	     | [] | [_] | [_;_] -> anomaly "bad context"
+	     | [] | [_] | [_;_] -> anomaly (Pp.str "bad context")
 	     | hres::res::(x,_,t)::ctxt ->
 		 Termops.it_mkLambda_or_LetIn
 		   (Termops.it_mkProd_or_LetIn concl [hres;res])
@@ -543,7 +547,7 @@ let prove_fun_correct functional_induction funs_constr graphs_constr schemes lem
 	  (fun (_,pat) acc ->
 	     match pat with
 	       | Genarg.IntroIdentifier id -> Id.Set.add id acc
-	       | _ -> anomaly "Not an identifier"
+	       | _ -> anomaly (Pp.str "Not an identifier")
 	  )
 	  (List.nth intro_pats (pred i))
 	  Id.Set.empty
@@ -826,7 +830,7 @@ let rec reflexivity_with_destruct_cases g =
 	      observe_tac "reflexivity_with_destruct_cases" reflexivity_with_destruct_cases
 	    ]
 	| _ -> reflexivity
-    with _ -> reflexivity
+    with e when Errors.noncritical e -> reflexivity
   in
   let eq_ind =     Coqlib.build_coq_eq () in
   let discr_inject =
@@ -937,7 +941,7 @@ let prove_fun_complete funcs graphs schemes lemmas_types_infos i : tactic =
       then
 	let eq_lemma =
 	  try Option.get (infos).equation_lemma
-	  with Option.IsNone -> anomaly "Cannot find equation lemma"
+	  with Option.IsNone -> anomaly (Pp.str "Cannot find equation lemma")
 	in
 	tclTHENSEQ[
 	  tclMAP h_intro ids;
@@ -1058,7 +1062,7 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
 	 let lem_id = mk_correct_id f_id in
 	 Lemmas.start_proof lem_id
 	   (Decl_kinds.Global, (*FIXME*)false, (Decl_kinds.Proof Decl_kinds.Theorem))
-	   (fst lemmas_types_infos.(i), (*FIXME*)Univ.empty_universe_context_set)
+	   (fst lemmas_types_infos.(i), (*FIXME*)Univ.ContextSet.empty)
 	   (fun _ _ _ -> ());
 	 Pfedit.by
 	   (observe_tac ("prove correctness ("^(Id.to_string f_id)^")")
@@ -1090,7 +1094,7 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
 	(Indrec.build_mutual_induction_scheme (Global.env ()) Evd.empty
 	   (Array.to_list
 	      (Array.mapi
-		 (fun i _ -> ((kn,i),[])(*FIXME*),true,InType)
+		 (fun i _ -> ((kn,i),Univ.Instance.empty)(*FIXME*),true,InType)
 		 mib.Declarations.mind_packets
 	      )
 	   )
@@ -1111,7 +1115,7 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
 	 let lem_id = mk_complete_id f_id in
 	 Lemmas.start_proof lem_id
 	   (Decl_kinds.Global,(*FIXME*)false,(Decl_kinds.Proof Decl_kinds.Theorem))
-	   (fst lemmas_types_infos.(i), (*FIXME*)Univ.empty_universe_context_set)
+	   (fst lemmas_types_infos.(i), (*FIXME*)Univ.ContextSet.empty)
 	   (fun _ _ _ -> ());
 	 Pfedit.by
 	   (observe_tac ("prove completeness ("^(Id.to_string f_id)^")")
@@ -1122,11 +1126,11 @@ let derive_correctness make_scheme functional_induction (funs: constant list) (g
 	 update_Function {finfo with completeness_lemma = Some lem_cst}
       )
       funs;
-  with e ->
+  with reraise ->
     (* In case of problem, we reset all the lemmas *)
     Pfedit.delete_all_proofs ();
     States.unfreeze previous_state;
-    raise e
+    raise reraise
 
 
 
@@ -1150,7 +1154,7 @@ let revert_graph kn post_tac hid g =
 	    let info =
 	      try find_Function_of_graph ind'
 	      with Not_found -> (* The graphs are mutually recursive but we cannot find one of them !*)
-		anomaly "Cannot retrieve infos about a mutual block"
+		anomaly (Pp.str "Cannot retrieve infos about a mutual block")
 	    in
 	    (* if we can find a completeness lemma for this function
 	       then we can come back to the functional form. If not, we do nothing

@@ -266,7 +266,7 @@ type handle = {
 
 type status = New | Ready | Busy | Closed
 
-type task = handle -> (unit -> void) -> void
+type 'a task = handle -> ('a -> void) -> void
 
 type reset_kind = Planned | Unexpected
 
@@ -274,11 +274,23 @@ type coqtop = {
   (* non quoted command-line arguments of coqtop *)
   sup_args : string list;
   (* called whenever coqtop dies *)
-  mutable reset_handler : reset_kind -> task;
+  mutable reset_handler : reset_kind -> unit task;
   (* actual coqtop process and its status *)
   mutable handle : handle;
   mutable status : status;
 }
+
+let return (x : 'a) : 'a task =
+  (); fun _ k -> k x
+
+let bind (m : 'a task) (f : 'a -> 'b task) : 'b task =
+  (); fun h k -> m h (fun x -> f x h k)
+
+let seq (m : unit task) (n : 'a task) : 'a task =
+  (); fun h k -> m h (fun () -> n h k)
+
+let lift (f : unit -> 'a) : 'a task =
+  (); fun _ k -> k (f ())
 
 (** * Starting / signaling / ending a real coqtop sub-process *)
 
@@ -321,6 +333,7 @@ let open_process_pid prog args =
   assert (pid <> 0);
   Unix.close ide2top_r;
   Unix.close top2ide_w;
+  Unix.set_nonblock top2ide_r;
   (pid,top2ide_r,Unix.out_channel_of_descr ide2top_w)
 
 exception TubeError
@@ -336,69 +349,91 @@ let is_blank s pos =
     true
   with Not_found -> false
 
+let rec check_errors = function
+| [] -> ()
+| (`IN | `PRI) :: conds -> check_errors conds
+| e :: _ -> raise TubeError
+
+let handle_intermediate_message logger xml =
+  let message = Serialize.to_message xml in
+  let level = message.Interface.message_level in
+  let content = message.Interface.message_content in
+  logger level content
+
+let handle_final_answer handle ccb xml =
+  let () = Minilib.log "Handling coqtop answer" in
+  let () = handle.waiting_for <- None in
+  with_ccb ccb { bind_ccb = fun (c, f) -> f (Serialize.to_answer xml c) }
+
+type input_state = {
+  mutable fragment : string;
+  mutable lexerror : int option;
+}
+
+let unsafe_handle_input handle state conds =
+  let chan = Glib.Io.channel_of_descr handle.cout in
+  let () = check_errors conds in
+  let s = io_read_all chan in
+  let () = if String.length s = 0 then raise TubeError in
+  let s = state.fragment ^ s in
+  let () = state.fragment <- s in
+  let ccb, logger = match handle.waiting_for with
+  | None -> raise AnswerWithoutRequest
+  | Some (c, l) -> c, l
+  in
+  let lex = Lexing.from_string s in
+  let p = Xml_parser.make (Xml_parser.SLexbuf lex) in
+  let rec loop () =
+    let xml = Xml_parser.parse p in
+    let l_end = Lexing.lexeme_end lex in
+    if Serialize.is_message xml then
+      let remaining = String.sub s l_end (String.length s - l_end) in
+      let () = state.fragment <- remaining in
+      let () = state.lexerror <- None in
+      let () = handle_intermediate_message logger xml in
+      loop ()
+    else
+      (* We should have finished decoding s *)
+      let () = if not (is_blank s l_end) then raise AnswerWithoutRequest in
+      let () = state.fragment <- "" in
+      let () = state.lexerror <- None in
+      ignore (handle_final_answer handle ccb xml)
+  in
+  try loop ()
+  with Xml_parser.Error _ as e ->
+    (* Parsing error at the end of s : we have only received a part of
+        an xml answer. We store the current fragment for later *)
+    let l_end = Lexing.lexeme_end lex in
+    (** Heuristic hack not to reimplement the lexer:  if ever the lexer dies
+        twice at the same place, then this is a non-recoverable error *)
+    let () = match state.lexerror with
+    | None -> ()
+    | Some loc -> if loc = l_end then raise e
+    in
+    let () = state.lexerror <- Some l_end in
+    ()
+
 let install_input_watch handle respawner =
   let io_chan = Glib.Io.channel_of_descr handle.cout in
   let all_conds = [`ERR; `HUP; `IN; `NVAL; `PRI] in (* all except `OUT *)
-  let last_fragment = ref "" in
-  let rec check_errors = function
-    | [] -> ()
-    | (`IN | `PRI) :: conds -> check_errors conds
-    | e :: _ -> raise TubeError
-  in
-  let handle_intermediate_message logger xml =
-    let message = Serialize.to_message xml in
-    let level = message.Interface.message_level in
-    let content = message.Interface.message_content in
-    logger level content
-  in
-  let handle_final_answer ccb xml =
-    Minilib.log "Handling coqtop answer";
-    handle.waiting_for <- None;
-    with_ccb ccb { bind_ccb = fun (c,f) -> f (Serialize.to_answer xml c) }
-  in
-  let unsafe_handle_input conds =
-    check_errors conds;
-    let s = io_read_all io_chan in
-    if s = "" then raise TubeError;
-    let s = !last_fragment ^ s in
-    let ccb,logger = match handle.waiting_for with
-      |None -> raise AnswerWithoutRequest
-      |Some (c,l) -> c,l
-    in
-    let lex = Lexing.from_string s in
-    let finished () = (Lexing.lexeme_end lex = String.length s) in
-    let p = Xml_parser.make (Xml_parser.SLexbuf lex) in
-    let xml_end = ref 0 in
-    let rec loop () =
-      let xml = Xml_parser.parse p in
-      xml_end := Lexing.lexeme_end lex;
-      if Serialize.is_message xml then
-	(handle_intermediate_message logger xml; loop ())
-      else begin
-        (* We should have finished decoding s *)
-        if not (is_blank s !xml_end) then raise AnswerWithoutRequest;
-        last_fragment := "";
-	ignore (handle_final_answer ccb xml)
-      end
-    in
-    try loop ()
-    with Xml_parser.Error _ when finished () ->
-      (* Parsing error at the end of s : we have only received a part of
-         an xml answer. We store the current fragment for later *)
-      last_fragment := String.sub s !xml_end (String.length s - !xml_end)
-  in
+  let state = {
+    fragment = "";
+    lexerror = None;
+  } in
   let print_exception = function
-    | Xml_parser.Error e -> Xml_parser.error e
-    | Serialize.Marshal_error -> "Protocol violation"
-    | e -> Printexc.to_string e
+  | Xml_parser.Error e -> Xml_parser.error e
+  | Serialize.Marshal_error -> "Protocol violation"
+  | e -> Printexc.to_string e
   in
   let handle_input conds =
     if not handle.alive then false (* coqtop already terminated *)
     else
-      try unsafe_handle_input conds; true
+      try
+        let () = unsafe_handle_input handle state conds in
+        true
       with e ->
-	Minilib.log ("Coqtop reader failed, resetting: "^print_exception e);
-	respawner ();
+	let () = Minilib.log ("Coqtop reader failed, resetting: "^print_exception e) in
+	let () = respawner () in
 	false
   in
   ignore (Glib.Io.add_watch ~cond:all_conds ~callback:handle_input io_chan)
@@ -493,7 +528,7 @@ let init_coqtop coqtop task =
 
 (** Cf [Ide_intf] for more details *)
 
-type 'a atask = handle -> ('a Interface.value -> void) -> void
+type 'a query = 'a Interface.value task
 
 let eval_call ?(logger=default_logger) call handle k =
   (** Send messages to coqtop and prepare the decoding of the answer *)

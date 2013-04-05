@@ -35,7 +35,7 @@ let set_typeclass_transparency c local b =
 let _ =
   Typeclasses.register_add_instance_hint
     (fun inst path local pri poly ->
-     let inst' = match inst with IsConstr c -> Auto.IsConstr (c, Univ.empty_universe_context_set)
+     let inst' = match inst with IsConstr c -> Auto.IsConstr (c, Univ.ContextSet.empty)
        | IsGlobal gr -> Auto.IsGlobRef gr
      in
       Flags.silently (fun () ->
@@ -103,17 +103,17 @@ let instance_hook k pri global imps ?hook cst =
   (match hook with Some h -> h cst | None -> ())
 
 let declare_instance_constant k pri global imps ?hook id poly uctx term termtype =
-  let cdecl =
-    let kind = IsDefinition Instance in
-    let entry =
-      { const_entry_body   = term;
-        const_entry_secctx = None;
-	const_entry_type   = Some termtype;
-	const_entry_polymorphic = poly;
-	const_entry_universes = uctx;
-	const_entry_opaque = false }
-    in DefinitionEntry entry, kind
+  let kind = IsDefinition Instance in
+  let entry =
+    { const_entry_body   = term;
+      const_entry_secctx = None;
+      const_entry_type   = Some termtype;
+      const_entry_polymorphic = poly;
+      const_entry_universes = uctx;
+      const_entry_opaque = false;
+      const_entry_inline_code = false }
   in
+  let cdecl = (DefinitionEntry entry, kind) in
   let kn = Declare.declare_constant id cdecl in
     Declare.definition_message id;
     instance_hook k pri global imps ?hook (ConstRef kn);
@@ -183,16 +183,20 @@ let new_instance ?(abstract=false) ?(global=false) poly ctx (instid, bk, cl) pro
       begin
 	if not (Lib.is_modtype ()) then
 	  error "Declare Instance while not in Module Type.";
-	let (_, ty_constr) = instance_constructor (k,u) (List.rev subst) in
+	let subst = List.fold_left2
+	  (fun subst' s (_, b, _) -> if Option.is_empty b then s :: subst' else subst')
+	  [] subst (snd k.cl_context)
+	in
+	let (_, ty_constr) = instance_constructor (k,u) subst in
 	let termtype =
 	  let t = it_mkProd_or_LetIn ty_constr (ctx' @ ctx) in
 	    fst (Evarutil.e_nf_evars_and_universes evars) t
 	in
 	Evarutil.check_evars env Evd.empty !evars termtype;
-	let ctx = Evd.get_universe_context_set !evars in
+	let ctx = Evd.universe_context !evars in
 	let cst = Declare.declare_constant ~internal:Declare.KernelSilent id
 	  (Entries.ParameterEntry 
-            (None,(termtype,ctx),None), Decl_kinds.IsAssumption Decl_kinds.Logical)
+            (None,poly,(termtype,ctx),None), Decl_kinds.IsAssumption Decl_kinds.Logical)
 	in instance_hook k None global imps ?hook (ConstRef cst); id
       end
     else (
@@ -327,7 +331,7 @@ let named_of_rel_context l =
   let acc, ctx =
     List.fold_right
       (fun (na, b, t) (subst, ctx) ->
-	let id = match na with Anonymous -> raise (Invalid_argument "named_of_rel_context") | Name id -> id in
+	let id = match na with Anonymous -> invalid_arg "named_of_rel_context" | Name id -> id in
 	let d = (id, Option.map (substl subst) b, substl subst t) in
 	  (mkVar id :: subst, d :: ctx))
       l ([], [])
@@ -340,16 +344,19 @@ let context l =
   let subst = Evarutil.evd_comb0 Evarutil.nf_evars_and_universes evars in
   let fullctx = Sign.map_rel_context subst fullctx in
   let ce t = Evarutil.check_evars env Evd.empty !evars t in
-  List.iter (fun (n, b, t) -> Option.iter ce b; ce t) fullctx;
-  let ctx = try named_of_rel_context fullctx with _ ->
-    error "Anonymous variables not allowed in contexts."
+  let () = List.iter (fun (n, b, t) -> Option.iter ce b; ce t) fullctx in
+  let ctx =
+    try named_of_rel_context fullctx
+    with e when Errors.noncritical e ->
+      error "Anonymous variables not allowed in contexts."
   in
   let uctx = Evd.get_universe_context_set !evars in
   let fn status (id, _, t) =
+    let uctx = Universes.shrink_universe_context uctx (Universes.universes_of_constr t) in
     if Lib.is_modtype () && not (Lib.sections_are_opened ()) then
-      let cst = Declare.declare_constant ~internal:Declare.KernelSilent id
-	(ParameterEntry (None,(t,uctx),None), IsAssumption Logical)
-      in
+      let uctx = Univ.ContextSet.to_context uctx in	
+      let decl = (ParameterEntry (None,false,(t,uctx),None), IsAssumption Logical) in
+      let cst = Declare.declare_constant ~internal:Declare.KernelSilent id decl in
 	match class_of_constr t with
 	| Some (rels, ((tc,_), args) as _cl) ->
 	    add_instance (Typeclasses.new_instance tc None false (*FIXME*)
@@ -357,13 +364,16 @@ let context l =
             status
 	    (* declare_subclasses (ConstRef cst) cl *)
 	| None -> status
-    else (
-      let impl = List.exists 
-	(fun (x,_) ->
-	   match x with ExplByPos (_, Some id') -> Id.equal id id' | _ -> false) impls
+    else
+      let test (x, _) = match x with
+      | ExplByPos (_, Some id') -> Id.equal id id'
+      | _ -> false
       in
-	Command.declare_assumption false (Local (* global *), true, Definitional) 
-	  (t, uctx)
-	  [] impl (* implicit *) None (* inline *) (Loc.ghost, id) && status)
+      let impl = List.exists test impls in
+      let decl = (Discharge, true, Definitional) in
+      let nstatus =
+        Command.declare_assumption false decl (t, uctx) [] impl
+          Vernacexpr.NoInline (Loc.ghost, id)
+      in
+      status && nstatus
   in List.fold_left fn true (List.rev ctx)
-       

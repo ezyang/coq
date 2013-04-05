@@ -95,6 +95,8 @@ type evar_body =
   | Evar_empty
   | Evar_defined of constr
 
+module Store : Store.S
+
 type evar_info = {
   evar_concl : constr;
   evar_hyps : named_context_val;
@@ -111,10 +113,11 @@ val evar_concl : evar_info -> constr
 val evar_context : evar_info -> named_context
 val evar_filtered_context : evar_info -> named_context
 val evar_hyps : evar_info -> named_context_val
+val evar_filtered_hyps : evar_info -> named_context_val
 val evar_body : evar_info -> evar_body
 val evar_filter : evar_info -> bool list
-val evar_unfiltered_env :  evar_info -> env
 val evar_env :  evar_info -> env
+val evar_filtered_env :  evar_info -> env
 
 val map_evar_body : (constr -> constr) -> evar_body -> evar_body
 val map_evar_info : (constr -> constr) -> evar_info -> evar_info
@@ -160,6 +163,7 @@ val is_defined : evar_map -> evar -> bool
 val is_undefined : evar_map -> evar -> bool
 
 val add_constraints : evar_map -> Univ.constraints -> evar_map
+val add_universe_constraints : evar_map -> Univ.universe_constraints -> evar_map
 
 (** {6 ... } *)
 (** [existential_value sigma ev] raises [NotInstantiatedEvar] if [ev] has
@@ -208,6 +212,7 @@ val extract_changed_conv_pbs : evar_map ->
       (ExistentialSet.t -> evar_constraint -> bool) ->
       evar_map * evar_constraint list
 val extract_all_conv_pbs : evar_map -> evar_map * evar_constraint list
+val loc_of_conv_pb : evar_map -> evar_constraint -> Loc.t
 
 val evar_list : evar_map -> constr -> existential list
 val collect_evars : constr -> ExistentialSet.t
@@ -267,6 +272,8 @@ val evar_universe_context_of : Univ.universe_context_set -> evar_universe_contex
 val empty_evar_universe_context : evar_universe_context
 val union_evar_universe_context : evar_universe_context -> evar_universe_context ->
   evar_universe_context
+val evar_universe_context_subst : evar_universe_context -> Universes.universe_opt_subst
+
 
 val add_constraints_context : evar_universe_context -> 
   Univ.constraints -> evar_universe_context
@@ -274,8 +281,8 @@ val add_constraints_context : evar_universe_context ->
 val normalize_evar_universe_context_variables : evar_universe_context -> 
   Univ.universe_subst in_evar_universe_context
 
-val normalize_evar_universe_context : evar_universe_context -> Univ.universe_subst ->
-  Univ.universe_full_subst in_evar_universe_context
+val normalize_evar_universe_context : evar_universe_context -> 
+  evar_universe_context
 
 val new_univ_variable : rigid -> evar_map -> evar_map * Univ.universe
 val new_sort_variable : rigid -> evar_map -> evar_map * sorts
@@ -284,20 +291,23 @@ val is_sort_variable : evar_map -> sorts -> (Univ.universe_level * bool) option
 (** [is_sort_variable evm s] returns [Some (u, is_rigid)] or [None] if [s] is 
     not a sort variable declared in [evm] *)
 val whd_sort_variable : evar_map -> constr -> constr
-val normalize_universe_level : evar_map -> Univ.universe_level -> Univ.universe_level
+(* val normalize_universe_level : evar_map -> Univ.universe_level -> Univ.universe_level *)
 val normalize_universe : evar_map -> Univ.universe -> Univ.universe
-val normalize_universe_list : evar_map -> Univ.universe_list -> Univ.universe_list
+val normalize_universe_instance : evar_map -> Univ.universe_instance -> Univ.universe_instance
 
 val set_leq_sort : evar_map -> sorts -> sorts -> evar_map
 val set_eq_sort : evar_map -> sorts -> sorts -> evar_map
+val has_lub : evar_map -> Univ.universe -> Univ.universe -> evar_map
 val set_eq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
 val set_leq_level : evar_map -> Univ.universe_level -> Univ.universe_level -> evar_map
+val set_eq_instances : evar_map -> Univ.universe_instance -> Univ.universe_instance -> evar_map
 
 val check_leq : evar_map -> Univ.universe -> Univ.universe -> bool
 
 val evar_universe_context : evar_map -> evar_universe_context
-val get_universe_context_set : ?with_algebraic:bool -> evar_map -> Univ.universe_context_set
+val get_universe_context_set : evar_map -> Univ.universe_context_set
 val universe_context : evar_map -> Univ.universe_context
+val universe_subst : evar_map -> Universes.universe_opt_subst
 
 val merge_universe_context : evar_map -> evar_universe_context -> evar_map
 
@@ -308,9 +318,9 @@ val with_context_set : rigid -> evar_map -> 'a Univ.in_universe_context_set -> e
 val nf_univ_variables : evar_map -> evar_map * Univ.universe_subst
 val abstract_undefined_variables : evar_map -> evar_map
 
-val refresh_undefined_universes : evar_map -> evar_map * Univ.universe_subst
+val refresh_undefined_universes : evar_map -> evar_map * Univ.universe_level_subst
 
-val nf_constraints : evar_map -> evar_map * Univ.universe_full_subst
+val nf_constraints : evar_map -> evar_map
 
 (** Polymorphic universes *)
 
@@ -322,11 +332,14 @@ val fresh_constructor_instance : env -> evar_map -> constructor -> evar_map * pc
 val fresh_global : rigid -> env -> evar_map -> Globnames.global_reference -> evar_map * constr
 
 (********************************************************************
-  Conversion w.r.t. an evar map: might generate universe constraints 
+  Conversion w.r.t. an evar map: might generate universe unifications 
   that are kept in the evarmap.
   Raises [NotConvertible]. *)
 
 val conversion : env -> evar_map -> conv_pb -> constr -> constr -> evar_map
+
+(** This one forgets about the assignemts of universes. *)
+val test_conversion : env -> evar_map -> conv_pb -> constr -> constr -> bool
 
 (********************************************************************
    constr with holes *)

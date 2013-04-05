@@ -10,6 +10,7 @@ open Term
 open Namegen
 open Environ
 open Declarations
+open Declareops
 open Entries
 open Pp
 open Names
@@ -50,10 +51,8 @@ let coq_base_constant s =
     (Coqlib.init_modules @ [["Coq";"Arith";"Le"];["Coq";"Arith";"Lt"]]) s;;
 
 let find_reference sl s =
-    (locate (make_qualid(Names.Dir_path.make
-			   (List.map Id.of_string (List.rev sl)))
-	       (Id.of_string s)));;
-
+  let dp = Names.DirPath.make (List.rev_map Id.of_string sl) in
+  locate (make_qualid dp (Id.of_string s))
 
 let (declare_fun : Id.t -> logical_kind -> constr -> global_reference) =
   fun f_id kind value ->
@@ -61,8 +60,9 @@ let (declare_fun : Id.t -> logical_kind -> constr -> global_reference) =
               const_entry_secctx = None;
 	      const_entry_type = None;
 	      const_entry_polymorphic = (*FIXME*)false;
-	      const_entry_universes = Univ.empty_universe_context;
-	      const_entry_opaque = false } in
+	      const_entry_universes = Univ.Context.empty;
+          const_entry_opaque = false;
+          const_entry_inline_code = false} in
       ConstRef(declare_constant f_id (DefinitionEntry ce, kind));;
 
 let defined () = Lemmas.save_named false
@@ -70,12 +70,12 @@ let defined () = Lemmas.save_named false
 let def_of_const t =
    match (kind_of_term t) with
     Const sp ->
-      (try (match constant_opt_value_in (Global.env()) sp with
+      (try (match constant_opt_value_in (Global.env ()) sp with
              | Some c -> c
-	     | _ -> assert false)
-       with _ ->
-	 anomaly ("Cannot find definition of constant "^
-		    (Id.to_string (Label.to_id (con_label (fst sp)))))
+	     | _ -> raise Not_found)
+       with Not_found ->
+	 anomaly (str "Cannot find definition of constant " ++
+		    (Id.print (Label.to_id (con_label (fst sp)))))
       )
      |_ -> assert false
 
@@ -86,14 +86,11 @@ let type_of_const t =
 
 let constr_of_global = Universes.constr_of_global
 
-let constant sl s =
-  constr_of_global
-    (locate (make_qualid(Names.Dir_path.make
-			   (List.map Id.of_string (List.rev sl)))
-	       (Id.of_string s)));;
+let constant sl s = constr_of_global (find_reference sl s)
+
 let const_of_ref = function
     ConstRef kn -> kn
-  | _ -> anomaly "ConstRef expected"
+  | _ -> anomaly (Pp.str "ConstRef expected")
 
 
 let nf_zeta env =
@@ -243,15 +240,10 @@ let do_observe_tac s tac g =
     let v = tac g in 
     ignore(Stack.pop debug_queue);
     v
-  with e -> 
+  with reraise ->
     if not (Stack.is_empty debug_queue)
-    then
-      begin
-	let e : exn = Cerrors.process_vernac_interp_error e in
-	print_debug_queue true e
-      end
-    ; 
-    raise e
+    then print_debug_queue true (Cerrors.process_vernac_interp_error reraise);
+    raise reraise
 
 let observe_tac s tac g =
   if do_observe ()
@@ -398,7 +390,7 @@ let treat_case forbid_new_ids to_intros finalize_tac nb_lam e infos : tactic =
 	    (fun g' -> 
 	      let ty_teq = pf_type_of g' (mkVar heq) in
 	      let teq_lhs,teq_rhs =
-		let _,args = try destApp ty_teq with _ -> assert false in
+		let _,args = try destApp ty_teq with DestKO -> assert false in
 		args.(1),args.(2)
 	      in
 	      let new_b' = Termops.replace_term teq_lhs teq_rhs new_b in 
@@ -428,13 +420,13 @@ let rec travel_aux jinfo continuation_tac (expr_info:constr infos) =
 	travel jinfo new_continuation_tac 
 	  {expr_info with info = b; is_final=false}
       end
-    | Rel _ -> anomaly "Free var in goal conclusion !"
+    | Rel _ -> anomaly (Pp.str "Free var in goal conclusion !")
     | Prod _ -> 
       begin
 	try
 	  check_not_nested (expr_info.f_id::expr_info.forbidden_ids) expr_info.info;
 	  jinfo.otherS () expr_info continuation_tac expr_info
-	with _ -> 
+	with e when Errors.noncritical e ->
 	  errorlabstrm "Recdef.travel" (str "the term " ++ Printer.pr_lconstr expr_info.info ++ str " can not contain a recursive call to " ++ pr_id expr_info.f_id)
       end
     | Lambda(n,t,b) -> 
@@ -442,7 +434,7 @@ let rec travel_aux jinfo continuation_tac (expr_info:constr infos) =
 	try
 	  check_not_nested (expr_info.f_id::expr_info.forbidden_ids) expr_info.info;
 	  jinfo.otherS () expr_info continuation_tac expr_info
-	with _ -> 
+	with e when Errors.noncritical e ->
 	  errorlabstrm "Recdef.travel" (str "the term " ++ Printer.pr_lconstr expr_info.info ++ str " can not contain a recursive call to " ++ pr_id expr_info.f_id)
       end
     | Case(ci,t,a,l) -> 
@@ -501,23 +493,24 @@ and travel jinfo continuation_tac expr_info =
 
 let rec prove_lt hyple g = 
   begin
-    try 
-      let (_,args) = decompose_app (pf_concl g) in 
-      let x = try destVar (List.hd args) with _ -> assert false in 
-      let z = try destVar (List.hd (List.tl args)) with _ -> assert false in 
-      let h = 
-	List.find (fun id -> 
-	  let _,args' = decompose_app (pf_type_of g (mkVar id)) in  
-	  try x = destVar (List.hd args')
-	  with _ -> false
-	) hyple 
-      in 
-      let y = 
-	List.hd (List.tl (snd (decompose_app (pf_type_of g (mkVar h))))) in 
+    try
+      let (varx,varz) = match decompose_app (pf_concl g) with
+        | _, x::z::_ when isVar x && isVar z -> x, z
+        | _ -> assert false
+      in
+      let h =
+	List.find (fun id ->
+          match decompose_app (pf_type_of g (mkVar id)) with
+            | _, t::_ -> eq_constr t varx
+            | _ -> false
+	) hyple
+      in
+      let y =
+	List.hd (List.tl (snd (decompose_app (pf_type_of g (mkVar h))))) in
       tclTHENLIST[
-	apply (mkApp(le_lt_trans (),[|mkVar x;y;mkVar z;mkVar h|]));
+	apply (mkApp(le_lt_trans (),[|varx;y;varz;mkVar h|]));
 	observe_tac (str "prove_lt") (prove_lt hyple)
-      ]       
+      ]
     with Not_found -> 
       (
 	(
@@ -635,7 +628,7 @@ let terminate_letin (na,b,t,e) expr_info continuation_tac info =
       try 
 	check_not_nested (expr_info.f_id::expr_info.forbidden_ids) b;
 	true
-      with _ -> false 
+      with e when Errors.noncritical e -> false
     in
     if forbid 
     then 
@@ -679,7 +672,7 @@ let terminate_case next_step (ci,a,t,l) expr_info continuation_tac infos g =
     try
       check_not_nested (expr_info.f_id::expr_info.forbidden_ids) a;
       false
-    with _ ->
+    with e when Errors.noncritical e ->
       true
   in
   let a' = infos.info in
@@ -1117,7 +1110,7 @@ let whole_start (concl_tac:tactic) nb_args is_mes func input_type relation rec_a
       let f_id =
 	match f_name with
 	  | Name f_id -> next_ident_away_in_goal f_id ids
-	  | Anonymous -> anomaly "Anonymous function"
+	  | Anonymous -> anomaly (Pp.str "Anonymous function")
       in
       let n_names_types,_ = decompose_lam_n nb_args body1 in
       let n_ids,ids =
@@ -1127,7 +1120,7 @@ let whole_start (concl_tac:tactic) nb_args is_mes func input_type relation rec_a
 	       | Name id ->
 		   let n_id = next_ident_away_in_goal id ids in
 		   n_id::n_ids,n_id::ids
-	       | _ -> anomaly "anonymous argument"
+	       | _ -> anomaly (Pp.str "anonymous argument")
 	  )
 	  ([],(f_id::ids))
 	  n_names_types
@@ -1213,7 +1206,7 @@ let is_rec_res id =
   let id_name = Id.to_string id in
   try
     String.sub id_name 0 (String.length rec_res_name) = rec_res_name
-  with _ -> false
+  with Invalid_argument _ -> false
  
 let clear_goals =
   let rec clear_goal t =
@@ -1250,8 +1243,9 @@ let open_new_goal (build_proof:tactic -> tactic -> unit) using_lemmas ref_ goal_
   let name = match goal_name with
     | Some s -> s
     | None   ->
-	try (add_suffix current_proof_name "_subproof")
-	with _ -> anomaly "open_new_goal with an unamed theorem"
+	try add_suffix current_proof_name "_subproof"
+	with e when Errors.noncritical e ->
+          anomaly (Pp.str "open_new_goal with an unamed theorem")
   in
   let sign = initialize_named_context_for_proof () in
   let na = next_global_ident_away name [] in
@@ -1263,7 +1257,7 @@ let open_new_goal (build_proof:tactic -> tactic -> unit) using_lemmas ref_ goal_
       let na_global = Nametab.global na_ref in
       match na_global with
 	  ConstRef c -> is_opaque_constant c
-	| _ -> anomaly "equation_lemma: not a constant"
+	| _ -> anomaly ~label:"equation_lemma" (Pp.str "not a constant")
     in
     let lemma = mkConst (Lib.make_con na) in
     ref_ := Some lemma ;
@@ -1319,7 +1313,7 @@ let open_new_goal (build_proof:tactic -> tactic -> unit) using_lemmas ref_ goal_
     na
     (Decl_kinds.Global, false, Decl_kinds.Proof Decl_kinds.Lemma)
     sign
-    (gls_type, Univ.empty_universe_context_set) (* FIXME *)
+    (gls_type, Univ.ContextSet.empty) (* FIXME *)
     hook ;
   if Indfun_common.is_strict_tcc  ()
   then
@@ -1366,7 +1360,7 @@ let com_terminate
     let (evmap, env) = Lemmas.get_current_context() in
     start_proof thm_name
       (Global, (*FIXME*)false, Proof Lemma) (Environ.named_context_val env)
-      (compute_terminate_type nb_args fonctional_ref, (*FIXME*) Univ.empty_universe_context_set)
+      (compute_terminate_type nb_args fonctional_ref, (*FIXME*) Univ.ContextSet.empty)
     hook;
 
     by (observe_tac (str "starting_tac") tac_start);
@@ -1408,13 +1402,13 @@ let (com_eqn : int -> Id.t ->
     let opacity =
       match terminate_ref with
 	| ConstRef c -> is_opaque_constant c
-	| _ -> anomaly "terminate_lemma: not a constant"
+	| _ -> anomaly ~label:"terminate_lemma" (Pp.str "not a constant")
     in
     let (evmap, env) = Lemmas.get_current_context() in
     let f_constr = constr_of_global f_ref in
     let equation_lemma_type = subst1 f_constr equation_lemma_type in
     (start_proof eq_name (Global, false, Proof Lemma)
-       (Environ.named_context_val env) (equation_lemma_type,(*FIXME*)Univ.empty_universe_context_set) (fun _ _ _ -> ());
+       (Environ.named_context_val env) (equation_lemma_type,(*FIXME*)Univ.ContextSet.empty) (fun _ _ _ -> ());
      by
        (start_equation f_ref terminate_ref
 	  (fun  x ->
@@ -1498,11 +1492,11 @@ let recursive_definition is_mes function_name rec_impls type_of_f r rec_arg_num 
     let stop = 
       try com_eqn (List.length res_vars) equation_id functional_ref f_ref term_ref (subst_var function_name equation_lemma_type);
 	  false
-      with e ->
+      with e when Errors.noncritical e ->
 	begin
 	  if do_observe ()
 	  then msg_debug (str "Cannot create equation Lemma " ++ Errors.print e)
-	  else anomaly "Cannot create equation Lemma"
+	  else anomaly (Pp.str "Cannot create equation Lemma")
 	  ;
 	  true
 	end
@@ -1533,10 +1527,8 @@ let recursive_definition is_mes function_name rec_impls type_of_f r rec_arg_num 
       using_lemmas
       (List.length res_vars)
       hook 
-  with e ->
-    begin
-      (try ignore (Backtrack.backto previous_label) with _ -> ());
-      (*       anomaly "Cannot create termination Lemma" *)
-      raise e
-    end
+  with reraise ->
+    ignore (Backtrack.backto previous_label);
+    (*       anomaly (Pp.str "Cannot create termination Lemma") *)
+    raise reraise
 

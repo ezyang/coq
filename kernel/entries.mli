@@ -7,9 +7,7 @@
 (************************************************************************)
 
 open Names
-open Univ
 open Term
-open Sign
 
 (** This module defines the entry types for global declarations. This
    information is entered in the environments. This includes global
@@ -49,21 +47,23 @@ type mutual_inductive_entry = {
   mind_entry_inds : one_inductive_entry list;
   mind_entry_polymorphic : bool;
   mind_entry_private : bool option; (* Some true = private Some false = local *)
-  mind_entry_universes : universe_context }
+  mind_entry_universes : Univ.universe_context }
 
 (** {6 Constants (Definition/Axiom) } *)
 
 type definition_entry = {
   const_entry_body   : constr;
-  const_entry_secctx : section_context option;
+  const_entry_secctx : Sign.section_context option;
   const_entry_type   : types option;
   const_entry_polymorphic : bool;
-  const_entry_universes : universe_context;
-  const_entry_opaque : bool }
+  const_entry_universes : Univ.universe_context;
+  const_entry_opaque : bool;
+  const_entry_inline_code : bool }
 
 type inline = int option (* inlining level, None for no inlining *)
 
-type parameter_entry = section_context option * types in_universe_context_set * inline 
+type parameter_entry = 
+    Sign.section_context option * bool * types Univ.in_universe_context * inline 
 
 type constant_entry =
   | DefinitionEntry of definition_entry
@@ -84,5 +84,3 @@ and with_declaration =
 and module_entry =
     { mod_entry_type : module_struct_entry option;
       mod_entry_expr : module_struct_entry option}
-
-

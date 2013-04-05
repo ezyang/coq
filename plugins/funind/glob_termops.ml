@@ -108,7 +108,7 @@ let glob_make_or t1 t2 = mkGApp (mkGRef(Lazy.force Coqlib.coq_or_ref),[t1;t2])
    to [P1 \/ ( .... \/ Pn)]
 *)
 let rec glob_make_or_list = function
-  | [] -> raise (Invalid_argument "mk_or")
+  | [] -> invalid_arg "mk_or"
   | [e] -> e
   | e::l -> glob_make_or e (glob_make_or_list l)
 
@@ -409,7 +409,7 @@ let is_free_in id =
     | GRec _ -> raise (UserError("",str "Not handled GRec"))
     | GSort _ -> false
     | GHole _ -> false
-    | GCast (_,b,(CastConv t|CastVM t)) -> is_free_in b || is_free_in t
+    | GCast (_,b,(CastConv t|CastVM t|CastNative t)) -> is_free_in b || is_free_in t
     | GCast (_,b,CastCoerce) -> is_free_in b
   and is_free_in_br (_,ids,_,rt) =
     (not (List.mem id ids)) && is_free_in rt
@@ -531,8 +531,8 @@ let rec are_unifiable_aux  = function
 	     then raise NotUnifiable
 	     else
 	       let eqs' =
- 		 try  ((List.combine cpl1 cpl2)@eqs)
-		 with _ -> anomaly "are_unifiable_aux"
+		 try (List.combine cpl1 cpl2) @ eqs
+		 with Invalid_argument _ -> anomaly (Pp.str "are_unifiable_aux")
 	       in
 	       are_unifiable_aux eqs'
 
@@ -553,8 +553,8 @@ let rec eq_cases_pattern_aux  = function
 	     then raise NotUnifiable
 	     else
 	       let eqs' =
- 		 try  ((List.combine cpl1 cpl2)@eqs)
-		 with _ -> anomaly "eq_cases_pattern_aux"
+		 try (List.combine cpl1 cpl2) @ eqs
+		 with Invalid_argument _ -> anomaly (Pp.str "eq_cases_pattern_aux")
 	       in
 	       eq_cases_pattern_aux eqs'
 	 | _ -> raise NotUnifiable
@@ -590,7 +590,7 @@ let ids_of_glob_constr c =
       | GLambda (loc,na,k,ty,c) -> idof na :: ids_of_glob_constr [] ty @ ids_of_glob_constr [] c @ acc
       | GProd (loc,na,k,ty,c) -> idof na :: ids_of_glob_constr [] ty @ ids_of_glob_constr [] c @ acc
       | GLetIn (loc,na,b,c) -> idof na :: ids_of_glob_constr [] b @ ids_of_glob_constr [] c @ acc
-      | GCast (loc,c,(CastConv t|CastVM t)) -> ids_of_glob_constr [] c @ ids_of_glob_constr [] t @ acc
+      | GCast (loc,c,(CastConv t|CastVM t|CastNative t)) -> ids_of_glob_constr [] c @ ids_of_glob_constr [] t @ acc
       | GCast (loc,c,CastCoerce) -> ids_of_glob_constr [] c @ acc
       | GIf (loc,c,(na,po),b1,b2) -> ids_of_glob_constr [] c @ ids_of_glob_constr [] b1 @ ids_of_glob_constr [] b2 @ acc
       | GLetTuple (_,nal,(na,po),b,c) ->

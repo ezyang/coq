@@ -22,7 +22,7 @@ open Pcoq.Tactic
 
 let pr_goal gs =
   let (g,sigma) = Goal.V82.nf_evar (Tacmach.project gs) (Evd.sig_it gs) in
-  let env = Goal.V82.unfiltered_env sigma g in
+  let env = Goal.V82.env sigma g in
   let preamb,thesis,penv,pc =
     (str "     *** Declarative Mode ***" ++ fnl ()++fnl ()),
     (str "thesis := "  ++ fnl ()),
@@ -44,15 +44,15 @@ let pr_open_subgoals () =
 *)
 
 let pr_proof_instr instr = 
-  Errors.anomaly "Cannot print a proof_instr"
+  Errors.anomaly (Pp.str "Cannot print a proof_instr")
     (* arnaud: Il nous faut quelque chose de type extr_genarg_printer si on veut aller
                      dans cette direction
        Ppdecl_proof.pr_proof_instr (Global.env()) instr
     *)
 let pr_raw_proof_instr instr =
-  Errors.anomaly "Cannot print a raw proof_instr"
+  Errors.anomaly (Pp.str "Cannot print a raw proof_instr")
 let pr_glob_proof_instr instr =
-  Errors.anomaly "Cannot print a non-interpreted proof_instr"
+  Errors.anomaly (Pp.str "Cannot print a non-interpreted proof_instr")
 
 let interp_proof_instr _ { Evd.it = gl ; sigma = sigma }=
   Decl_interp.interp_proof_instr 

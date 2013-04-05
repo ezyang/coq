@@ -21,12 +21,11 @@ open Libnames
 open Constrexpr
 open Constrexpr_ops
 open Decl_kinds
-open Declaremods
 
 let pr_spc_lconstr = pr_sep_com spc pr_lconstr_expr
 
 let pr_lident (loc,id) =
-  if loc <> Loc.ghost then
+  if Loc.is_ghost loc then
     let (b,_) = Loc.unloc loc in
     pr_located pr_id (Loc.make_loc (b,b+String.length(Id.to_string id)),id)
   else pr_id id
@@ -37,7 +36,7 @@ let string_of_fqid fqid =
 let pr_fqid fqid = str (string_of_fqid fqid)
 
 let pr_lfqid (loc,fqid) =
-  if loc <> Loc.ghost then
+  if Loc.is_ghost loc then
    let (b,_) = Loc.unloc loc in
     pr_located pr_fqid (Loc.make_loc (b,b+String.length(string_of_fqid fqid)),fqid)
   else
@@ -61,18 +60,13 @@ let sep_end = function
   | VernacEndSubproof -> str""
   | _ -> str"."
 
-(* Warning: [pr_raw_tactic] globalises and fails if globalisation fails *)
-
-let pr_raw_tactic_env l env t =
-  pr_glob_tactic env (Tacintern.glob_tactic_env l env t)
-
-let pr_gen env t =
+let pr_gen t =
   pr_raw_generic
     pr_constr_expr
     pr_lconstr_expr
-    (pr_raw_tactic_level env) pr_constr_expr pr_reference t
-
-let pr_raw_tactic tac = pr_raw_tactic (Global.env()) tac
+    pr_raw_tactic_level
+    pr_constr_expr
+    pr_reference t
 
 let rec extract_signature = function
   | [] -> []
@@ -82,7 +76,7 @@ let rec extract_signature = function
 let rec match_vernac_rule tys = function
     [] -> raise Not_found
   | pargs::rls ->
-      if extract_signature pargs = tys then pargs
+      if List.equal Genarg.argument_type_eq (extract_signature pargs) tys then pargs
       else match_vernac_rule tys rls
 
 let sep = fun _ -> spc()
@@ -105,12 +99,12 @@ let pr_set_entry_type = function
 
 let strip_meta id =
   let s = Id.to_string id in
-  if s.[0]='$' then Id.of_string (String.sub s 1 (String.length s - 1))
+  if s.[0] == '$' then Id.of_string (String.sub s 1 (String.length s - 1))
   else id
 
 let pr_production_item = function
   | TacNonTerm (loc,nt,Some (p,sep)) ->
-      let pp_sep = if sep <> "" then str "," ++ quote (str sep) else mt () in
+      let pp_sep = if not (String.is_empty sep) then str "," ++ quote (str sep) else mt () in
       str nt ++ str"(" ++ pr_id (strip_meta p) ++ pp_sep ++ str")"
   | TacNonTerm (loc,nt,None) -> str nt
   | TacTerm s -> qs s
@@ -151,7 +145,7 @@ let pr_section_locality local =
 
 let pr_explanation (e,b,f) =
   let a = match e with
-  | ExplByPos (n,_) -> anomaly "No more supported"
+  | ExplByPos (n,_) -> anomaly (Pp.str "No more supported")
   | ExplByName id -> pr_id id in
   let a = if f then str"!" ++ a else a in
     if b then str "[" ++ a ++ str "]" else a
@@ -230,8 +224,8 @@ let rec pr_module_ast pr_c = function
       hov 1 (str"(" ++ pr_module_ast pr_c me2 ++ str")")
 
 let pr_annot { ann_inline = ann; ann_scope_subst = scl } =
-  let sep () = if scl=[] then mt () else str "," in
-  if ann = DefaultInline && scl = [] then mt ()
+  let sep () = if List.is_empty scl then mt () else str "," in
+  if ann == DefaultInline && List.is_empty scl then mt ()
   else
     str " [" ++
     (match ann with
@@ -257,25 +251,12 @@ let pr_require_token = function
 
 let pr_module_vardecls pr_c (export,idl,(mty,inl)) =
   let m = pr_module_ast pr_c mty in
-  (* Update the Nametab for interpreting the body of module/modtype *)
-  let lib_dir = Lib.library_dp() in
-  List.iter (fun (_,id) ->
-    Declaremods.process_module_bindings [id]
-      [MBId.make lib_dir id,
-       (Modintern.interp_modtype (Global.env()) mty, inl)]) idl;
-  (* Builds the stream *)
   spc() ++
   hov 1 (str"(" ++ pr_require_token export ++
-   prlist_with_sep spc pr_lident idl ++ str":" ++ m ++ str")")
+  prlist_with_sep spc pr_lident idl ++ str":" ++ m ++ str")")
 
 let pr_module_binders l pr_c =
-  (* Effet de bord complexe pour garantir la declaration des noms des
-  modules parametres dans la Nametab des l'appel de pr_module_binders
-  malgre l'aspect paresseux des streams *)
-  let ml = List.map (pr_module_vardecls pr_c) l in
-  prlist (fun id -> id) ml
-
-let pr_module_binders_list l pr_c = pr_module_binders l pr_c
+  prlist_strict (pr_module_vardecls pr_c) l
 
 let pr_type_option pr_c = function
   | CHole (loc, k) -> mt()
@@ -326,20 +307,24 @@ let pr_class_rawexpr = function
   | SortClass -> str"Sortclass"
   | RefClass qid -> pr_smart_global qid
 
-let pr_assumption_token many (l,p,k) = 
+let pr_assumption_token many (l,p,k) =
   let s = match l, k with
-    | (Local,Logical) ->
-	str (if many then "Hypotheses" else "Hypothesis")
-    | (Local,Definitional) ->
-	str (if many then "Variables" else "Variable")
-    | (Global,Logical) ->
-	str (if many then "Axioms" else "Axiom")
-    | (Global,Definitional) ->
-	str (if many then "Parameters" else "Parameter")
-    | (Global,Conjectural) -> str"Conjecture"
-    | (Local,Conjectural) ->
-	anomaly "Don't know how to beautify a local conjecture"
-  in if p then str "Polymorphic " ++ s else s
+  | (Discharge,Logical) ->
+      str (if many then "Hypotheses" else "Hypothesis")
+  | (Discharge,Definitional) ->
+      str (if many then "Variables" else "Variable")
+  | (Global,Logical) ->
+      str (if many then "Axioms" else "Axiom")
+  | (Global,Definitional) ->
+      str (if many then "Parameters" else "Parameter")
+  | (Local, Logical) ->
+      str (if many then "Local Axioms" else "Local Axiom")
+  | (Local,Definitional) ->
+      str (if many then "Local Parameters" else "Local Parameter")
+  | (Global,Conjectural) -> str"Conjecture"
+  | ((Discharge | Local),Conjectural) ->
+      anomaly (Pp.str "Don't know how to beautify a local conjecture")
+ in if p then str "Polymorphic " ++ s else s
 
 let pr_params pr_c (xl,(c,t)) =
   hov 2 (prlist_with_sep sep pr_lident xl ++ spc() ++
@@ -350,8 +335,11 @@ let rec factorize = function
   | [] -> []
   | (c,(idl,t))::l ->
       match factorize l with
-	| (xl,t')::l' when t' = (c,t) -> (idl@xl,t')::l'
-	| l' -> (idl,(c,t))::l'
+        | (xl,((c', t') as r))::l'
+          when (c : bool) == c' && Pervasives.(=) t t' ->
+          (** FIXME: we need equality on constr_expr *)
+          (idl@xl,r)::l'
+        | l' -> (idl,(c,t))::l'
 
 let pr_ne_params_list pr_c l =
   match factorize l with
@@ -387,7 +375,7 @@ let pr_syntax_modifiers = function
       hov 1 (str"(" ++ prlist_with_sep sep_v2 pr_syntax_modifier l ++ str")")
 
 let print_level n =
-  if n <> 0 then str " (at level " ++ int n ++ str ")" else mt ()
+  if not (Int.equal n 0) then str " (at level " ++ int n ++ str ")" else mt ()
 
 let pr_grammar_tactic_rule n (_,pil,t) =
   hov 2 (str "Tactic Notation" ++ print_level n ++ spc() ++
@@ -395,7 +383,7 @@ let pr_grammar_tactic_rule n (_,pil,t) =
     spc() ++ str":=" ++ spc() ++ pr_raw_tactic t))
 
 let pr_statement head (id,(bl,c,guard)) =
-  assert (id<>None);
+  assert (not (Option.is_empty id));
   hov 1
     (head ++ spc() ++ pr_lident (Option.get id) ++ spc() ++
     (match bl with [] -> mt() | _ -> pr_binders bl ++ spc()) ++
@@ -578,7 +566,7 @@ let rec pr_vernac = function
   | VernacNotation (local,c,((_,s),l),opt) ->
       let ps =
 	let n = String.length s in
-	if n > 2 & s.[0] = '\'' & s.[n-1] = '\''
+	if n > 2 && s.[0] == '\'' && s.[n-1] == '\''
 	then
           let s' = String.sub s 1 (n-2) in
           if String.contains s' '\'' then qs s else str s'
@@ -593,7 +581,7 @@ let rec pr_vernac = function
       pr_syntax_modifiers l
 
   (* Gallina *)
-  | VernacDefinition (d,id,b,f) -> (* A verifier... *)
+  | VernacDefinition (d,id,b) -> (* A verifier... *)
       let pr_def_token (l,p,k) =
 	pr_poly p ++
 	str (Kindops.string_of_definition_kind (l,k)) in
@@ -618,7 +606,7 @@ let rec pr_vernac = function
         | None -> mt()
         | Some cc -> str" :=" ++ spc() ++ cc))
 
-  | VernacStartTheoremProof (ki,p,l,_,_) ->
+  | VernacStartTheoremProof (ki,p,l,_) ->
       hov 1 (pr_poly p ++ pr_statement (pr_thm_token ki) (List.hd l) ++
              prlist (pr_statement (spc () ++ str "with")) (List.tl l))
 
@@ -669,7 +657,12 @@ let rec pr_vernac = function
       (prlist (fun ind -> fnl() ++ hov 1 (pr_oneind "with" ind)) (List.tl l))
 
 
-  | VernacFixpoint recs ->
+  | VernacFixpoint (local, recs) ->
+      let local = match local with
+      | Discharge -> "Let "
+      | Local -> "Local "
+      | Global -> ""
+      in
       let pr_onerec = function
         | ((loc,id),ro,bl,type_,def),ntn ->
             let annot = pr_guard_annot pr_lconstr_expr bl ro in
@@ -678,17 +671,22 @@ let rec pr_vernac = function
             ++ pr_opt (fun def -> str":=" ++ brk(1,2) ++ pr_lconstr def) def ++
 	    prlist (pr_decl_notation pr_constr) ntn
       in
-      hov 0 (str "Fixpoint" ++ spc() ++
+      hov 0 (str local ++ str "Fixpoint" ++ spc() ++
         prlist_with_sep (fun _ -> fnl() ++ str"with ") pr_onerec recs)
 
-  | VernacCoFixpoint corecs ->
+  | VernacCoFixpoint (local, corecs) ->
+      let local = match local with
+      | Discharge -> "Let "
+      | Local -> "Local "
+      | Global -> ""
+      in
       let pr_onecorec (((loc,id),bl,c,def),ntn) =
         pr_id id ++ spc() ++ pr_binders bl ++ spc() ++ str":" ++
         spc() ++ pr_lconstr_expr c ++
         pr_opt (fun def -> str" :=" ++ brk(1,2) ++ pr_lconstr def) def ++
 	prlist (pr_decl_notation pr_constr) ntn
       in
-      hov 0 (str "CoFixpoint" ++ spc() ++
+      hov 0 (str local ++ str "CoFixpoint" ++ spc() ++
       prlist_with_sep (fun _ -> fnl() ++ str"with ") pr_onecorec corecs)
   | VernacScheme l ->
       hov 2 (str"Scheme" ++ spc() ++
@@ -709,16 +707,16 @@ let rec pr_vernac = function
       (if f then str"Export" else str"Import") ++ spc() ++
       prlist_with_sep sep pr_import_module l
   | VernacCanonical q -> str"Canonical Structure" ++ spc() ++ pr_smart_global q
-  | VernacCoercion (s,poly,id,c1,c2) ->
-      hov 1 (pr_poly poly ++
-	str"Coercion" ++ (match s with | Local -> spc() ++
-	  str"Local" ++ spc() | Global -> spc()) ++
+  | VernacCoercion (s,p,id,c1,c2) ->
+      hov 1 (pr_poly p ++
+	str"Coercion" ++ (if s then spc() ++
+	  str"Local" ++ spc() else spc()) ++
 	pr_smart_global id ++ spc() ++ str":" ++ spc() ++ pr_class_rawexpr c1 ++
 	spc() ++ str">->" ++ spc() ++ pr_class_rawexpr c2)
   | VernacIdentityCoercion (s,p,id,c1,c2) ->
-      hov 1 (pr_poly p ++      
-	str"Identity Coercion" ++ (match s with | Local -> spc() ++
-	  str"Local" ++ spc() | Global -> spc()) ++ pr_lident id ++
+      hov 1 (pr_poly p ++
+	str"Identity Coercion" ++ (if s then spc() ++
+	  str"Local" ++ spc() else spc()) ++ pr_lident id ++
 	spc() ++ str":" ++ spc() ++ pr_class_rawexpr c1 ++ spc() ++ str">->" ++
 	spc() ++ pr_class_rawexpr c2)
 
@@ -731,9 +729,9 @@ let rec pr_vernac = function
 	Anonymous -> mt ()) ++
        pr_and_type_binders_arg sup ++
        str":" ++ spc () ++
-       pr_constr_expr cl ++ spc () ++
+       pr_constr cl ++ spc () ++
 	 (match props with
-	  | Some p -> spc () ++ str":=" ++ spc () ++ pr_constr_expr p
+	  | Some p -> spc () ++ str":=" ++ spc () ++ pr_constr p
 	  | None -> mt()))
 
  | VernacContext l ->
@@ -751,24 +749,24 @@ let rec pr_vernac = function
 
   (* Modules and Module Types *)
   | VernacDefineModule (export,m,bl,tys,bd) ->
-      let b = pr_module_binders_list bl pr_lconstr in
+      let b = pr_module_binders bl pr_lconstr in
       hov 2 (str"Module" ++ spc() ++ pr_require_token export ++
                pr_lident m ++ b ++
                pr_of_module_type pr_lconstr tys ++
-	       (if bd = [] then mt () else str ":= ") ++
+	       (if List.is_empty bd then mt () else str ":= ") ++
 	       prlist_with_sep (fun () -> str " <+ ")
 	        (pr_module_ast_inl pr_lconstr) bd)
   | VernacDeclareModule (export,id,bl,m1) ->
-      let b = pr_module_binders_list bl pr_lconstr in
+      let b = pr_module_binders bl pr_lconstr in
 	hov 2 (str"Declare Module" ++ spc() ++ pr_require_token export ++
              pr_lident id ++ b ++
              pr_module_ast_inl pr_lconstr m1)
   | VernacDeclareModuleType (id,bl,tyl,m) ->
-      let b = pr_module_binders_list bl pr_lconstr in
+      let b = pr_module_binders bl pr_lconstr in
       let pr_mt = pr_module_ast_inl pr_lconstr in
 	hov 2 (str"Module Type " ++ pr_lident id ++ b ++
 		 prlist_strict (fun m -> str " <: " ++ pr_mt m) tyl ++
-		 (if m = [] then mt () else str ":= ") ++
+		 (if List.is_empty m then mt () else str ":= ") ++
 		 prlist_with_sep (fun () -> str " <+ ") pr_mt m)
   | VernacInclude (mexprs) ->
       let pr_m = pr_module_ast_inl pr_lconstr in
@@ -776,11 +774,9 @@ let rec pr_vernac = function
 	     prlist_with_sep (fun () -> str " <+ ") pr_m mexprs)
   (* Solving *)
   | VernacSolve (i,tac,deftac) ->
-      (if i = 1 then mt() else int i ++ str ": ") ++
+      (if Int.equal i 1 then mt() else int i ++ str ": ") ++
       pr_raw_tactic tac
-      ++ (try if deftac then str ".." else mt ()
-      with UserError _|Loc.Exc_located _ -> mt())
-
+      ++ (if deftac then str ".." else mt ())
   | VernacSolveExistential (i,c) ->
       str"Existential " ++ int i ++ pr_lconstrarg c
 
@@ -813,12 +809,8 @@ let rec pr_vernac = function
 	prlist (function None -> str " _"
                        | Some id -> spc () ++ pr_id id) idl
 	++ (if redef then str" ::=" else str" :=") ++ brk(1,1) ++
-	let idl = List.map Option.get (List.filter (fun x -> not (x=None)) idl)in
-        pr_raw_tactic_env
-	  (idl @ List.map coerce_reference_to_id
-	    (List.map (fun (x, _, _) -> x) (List.filter (fun (_, redef, _) -> not redef) l)))
-	  (Global.env())
-	  body in
+        pr_raw_tactic body
+      in
       hov 1
         (pr_locality local ++ str "Ltac " ++
         prlist_with_sep (fun () -> fnl() ++ str"with ") pr_tac_body l)
@@ -863,7 +855,7 @@ let rec pr_vernac = function
             spc() ++ pr_br imp max (pr_if k (str"!") ++ pr_name id ++ pr_s s) ++
             aux (n-1) tl in
       prlist_with_sep (fun () -> str", ") (aux nargs) impl ++
-      if mods <> [] then str" : " else str"" ++
+      if not (List.is_empty mods) then str" : " else str"" ++
       prlist_with_sep (fun () -> str", " ++ spc()) (function
         | `SimplDontExposeCase -> str "simpl nomatch"
         | `SimplNeverUnfold -> str "simpl never"
@@ -886,7 +878,7 @@ let rec pr_vernac = function
 		| Some idl ->
 		    str (if List.length idl > 1 then "s " else " ") ++
 		      prlist_with_sep spc pr_lident idl)
-  | VernacSetOpacity(b,[k,l]) when k=Conv_oracle.transparent ->
+  | VernacSetOpacity(b,[k,l]) when Conv_oracle.is_transparent k ->
       hov 1 (pr_non_locality b ++ str "Transparent" ++
              spc() ++ prlist_with_sep sep pr_smart_global l)
   | VernacSetOpacity(b,[Conv_oracle.Opaque,l]) ->
@@ -896,7 +888,7 @@ let rec pr_vernac = function
       let pr_lev = function
           Conv_oracle.Opaque -> str"opaque"
         | Conv_oracle.Expand -> str"expand"
-        | l when l = Conv_oracle.transparent -> str"transparent"
+        | l when Conv_oracle.is_transparent l -> str"transparent"
         | Conv_oracle.Level n -> int n in
       let pr_line (l,q) =
         hov 2 (pr_lev l ++ spc() ++
@@ -919,8 +911,8 @@ let rec pr_vernac = function
           spc() ++ str"in" ++ spc () ++ pr_lconstr c)
       | None -> hov 2 (str"Check" ++ spc() ++ pr_lconstr c)
       in
-      (if io = None then mt() else int (Option.get io) ++ str ": ") ++
-      pr_mayeval r c
+      let pr_i = match io with None -> mt () | Some i -> int i ++ str ": " in
+      pr_i ++ pr_mayeval r c
   | VernacGlobalCheck c -> hov 2 (str"Type" ++ pr_constrarg c)
   | VernacDeclareReduction (b,s,r) ->
      pr_locality b ++ str "Declare Reduction " ++ str s ++ str " := " ++
@@ -963,7 +955,7 @@ let rec pr_vernac = function
 
 and pr_extend s cl =
   let pr_arg a =
-    try pr_gen (Global.env()) a
+    try pr_gen a
     with Failure _ -> str ("<error in "^s^">") in
   try
     let rls = List.assoc s (Egramml.get_extend_vernac_grammars()) in
@@ -972,7 +964,7 @@ and pr_extend s cl =
       match rl with
       | Egramml.GramTerminal s :: rl -> str s, rl, cl
       | Egramml.GramNonTerminal _ :: rl -> pr_arg (List.hd cl), rl, List.tl cl
-      | [] -> anomaly "Empty entry" in
+      | [] -> anomaly (Pp.str "Empty entry") in
     let (pp,_) =
       List.fold_left
         (fun (strm,args) pi ->

@@ -316,7 +316,7 @@ let rec it_mkGLambda loc2 env body =
 let build_impls = function
   |Implicit -> (function
 		  |Name id ->  Some (id, Impargs.Manual, (true,true))
-		  |Anonymous -> anomaly "Anonymous implicit argument")
+		  |Anonymous -> anomaly (Pp.str "Anonymous implicit argument"))
   |Explicit -> fun _ -> None
 
 let impls_type_list ?(args = []) =
@@ -543,7 +543,7 @@ let subst_aconstr_in_glob_constr loc intern lvar subst infos c =
             (aux ((x,(a,(scopt,subscopes)))::terms,binderopt) subinfos iter))
             (if lassoc then List.rev l else l) termin
       with Not_found ->
-          anomaly "Inconsistent substitution of recursive notation")
+          anomaly (Pp.str "Inconsistent substitution of recursive notation"))
     | NHole (Evar_kinds.BinderType (Name id as na)) ->
       let na =
         try snd (coerce_to_name (fst (List.assoc id terms)))
@@ -562,7 +562,7 @@ let subst_aconstr_in_glob_constr loc intern lvar subst infos c =
 	  termin bl in
 	make_letins letins res
       with Not_found ->
-          anomaly "Inconsistent substitution of recursive notation")
+          anomaly (Pp.str "Inconsistent substitution of recursive notation"))
     | NProd (Name id, NHole _, c') when option_mem_assoc id binderopt ->
         let (loc,(na,bk,t)),letins = snd (Option.get binderopt) in
 	GProd (loc,na,bk,t,make_letins letins (aux subst' infos c'))
@@ -645,7 +645,7 @@ let intern_var genv (ltacvars,ntnvars) namedctx loc id =
 	let scopes = find_arguments_scope ref in
 	Dumpglob.dump_reference loc "<>" (string_of_qualid (Decls.variable_secpath id)) "var";
 	GRef (loc, ref, None), impls, scopes, []
-      with _ ->
+      with e when Errors.noncritical e ->
 	(* [id] a goal variable *)
 	GVar (loc,id), [], [], []
 
@@ -675,12 +675,15 @@ let dump_extended_global loc = function
   | SynDef sp -> Dumpglob.add_glob_kn loc sp
 
 let intern_extended_global_of_qualid (loc,qid) =
-  try let r = Nametab.locate_extended qid in dump_extended_global loc r; r
-  with Not_found -> error_global_not_found_loc loc qid
+  let r = Nametab.locate_extended qid in dump_extended_global loc r; r
 
 let intern_reference ref =
-  Smartlocate.global_of_extended_global
-    (intern_extended_global_of_qualid (qualid_of_reference ref))
+  let qid = qualid_of_reference ref in
+  let r =
+    try intern_extended_global_of_qualid qid
+    with Not_found -> error_global_not_found_loc (fst qid) (snd qid)
+  in
+  Smartlocate.global_of_extended_global r
 
 (* Is it a global reference or a syntactic definition? *)
 let intern_qualid loc qid intern env lvar args =
@@ -699,12 +702,15 @@ let intern_qualid loc qid intern env lvar args =
 (* Rule out section vars since these should have been found by intern_var *)
 let intern_non_secvar_qualid loc qid intern env lvar args =
   match intern_qualid loc qid intern env lvar args with
-    | GRef (loc, VarRef id, _),_ -> error_global_not_found_loc loc qid
+    | GRef (_, VarRef _, _),_ -> raise Not_found
     | r -> r
 
 let intern_applied_reference intern env namedctx lvar args = function
   | Qualid (loc, qid) ->
-      let r,args2 = intern_qualid loc qid intern env lvar args in
+      let r,args2 =
+	try intern_qualid loc qid intern env lvar args
+	with Not_found -> error_global_not_found_loc loc qid
+      in
       find_appl_head_data r, args2
   | Ident (loc, id) ->
       try intern_var env lvar namedctx loc id, args
@@ -713,11 +719,11 @@ let intern_applied_reference intern env namedctx lvar args = function
       try
 	let r,args2 = intern_non_secvar_qualid loc qid intern env lvar args in
 	find_appl_head_data r, args2
-      with e ->
+      with Not_found ->
 	(* Extra allowance for non globalizing functions *)
 	if !interning_grammar || env.unb then
 	  (GVar (loc,id), [], [], []),args
-	else raise e
+	else error_global_not_found_loc loc qid
 
 let interp_reference vars r =
   let (r,_,_,_),_ =
@@ -855,7 +861,7 @@ let chop_params_pattern loc ind args with_letin =
 let find_constructor loc add_params ref =
   let cstr = (function ConstructRef cstr -> cstr
     |IndRef _ -> user_err_loc (loc,"find_constructor",str "There is an inductive name deep in a \"in\" clause.")
-    |_ -> anomaly "unexpected global_reference in pattern") ref in
+    |_ -> anomaly (Pp.str "unexpected global_reference in pattern")) ref in
   cstr, (function (ind,_ as c) -> match add_params with
     |Some nb_args -> let nb = if Int.equal nb_args (Inductiveops.constructor_nrealhyps c)
       then fst (Inductiveops.inductive_nargs ind)
@@ -890,7 +896,7 @@ let sort_fields mode loc l completer =
 	      | [] -> (i, acc)
 	      | (Some name) :: b->
 		 (match m with
-		    | [] -> anomaly "Number of projections mismatch"
+		    | [] -> anomaly (Pp.str "Number of projections mismatch")
 		    | (_, regular)::tm ->
 		       let boolean = not regular in
                        begin match global_reference_of_reference refer with
@@ -914,7 +920,7 @@ let sort_fields mode loc l completer =
 	    (record.Recordops.s_EXPECTEDPARAM,
 	     Qualid (loc, shortest_qualid_of_global Id.Set.empty (ConstructRef ind)),
 	     build_patt record.Recordops.s_PROJ record.Recordops.s_PROJKIND 1 (0,[]))
-	  with Not_found -> anomaly "Environment corruption for records."
+	  with Not_found -> anomaly (Pp.str "Environment corruption for records.")
 	  in
 	(* now we want to have all fields of the pattern indexed by their place in
 	   the constructor *)
@@ -1099,7 +1105,7 @@ let drop_notations_pattern looked_for =
 	    tmp_scope = scopt} a
 	with Not_found ->
 	  if Id.equal id ldots_var then RCPatAtom (loc,Some id) else
-	    anomaly ("Unbound pattern notation variable: "^(Id.to_string id))
+	    anomaly (str "Unbound pattern notation variable: " ++ Id.print id)
       end
     | NRef g ->
       ensure_kind top g;
@@ -1122,7 +1128,7 @@ let drop_notations_pattern looked_for =
            subst_pat_iterator ldots_var t u)
            (if lassoc then List.rev l else l) termin
        with Not_found ->
-         anomaly "Inconsistent substitution of recursive notation")
+         anomaly (Pp.str "Inconsistent substitution of recursive notation"))
     | NHole _ ->
       let () = assert (List.is_empty args) in
       RCPatAtom (loc, None)
@@ -1224,7 +1230,7 @@ let get_implicit_name n imps =
 let set_hole_implicit i b = function
   | GRef (loc,r,_) | GApp (_,GRef (loc,r,_),_) -> (loc,Evar_kinds.ImplicitArg (r,i,b))
   | GVar (loc,id) -> (loc,Evar_kinds.ImplicitArg (VarRef id,i,b))
-  | _ -> anomaly "Only refs have implicits"
+  | _ -> anomaly (Pp.str "Only refs have implicits")
 
 let exists_implicit_name id =
   List.exists (fun imp -> is_status_implicit imp && Id.equal id (name_of_implicit imp))
@@ -1432,7 +1438,7 @@ let internalize sigma globalenv env allow_patvar lvar c =
 	  | [] -> Option.map (intern_type env') rtnpo (* Only PatVar in "in" clauses *)
 	  | l -> let thevars,thepats=List.split l in
 		 Some (
-		   GCases(Loc.ghost,Term.RegularStyle,Some (GSort (Loc.ghost,GType None)), (* "return Type" *)
+		   GCases(Loc.ghost,Term.RegularStyle,(* Some (GSort (Loc.ghost,GType None)) *)None, (* "return Type" *)
 			  List.map (fun id -> GVar (Loc.ghost,id),(Name id,None)) thevars, (* "match v1,..,vn" *)
 			  [Loc.ghost,[],thepats, (* "|p1,..,pn" *)
 			   Option.cata (intern_type env') (GHole(Loc.ghost,Evar_kinds.CasesType)) rtnpo; (* "=> P" is there were a P "=> _" else *)
@@ -1680,15 +1686,15 @@ let interp_open_constr sigma env c =
 let interp_open_constr_patvar sigma env c =
   let raw = intern_gen (OfType None) sigma env c ~allow_patvar:true in
   let sigma = ref sigma in
-  let evars = ref (Gmap.empty : (Id.t,glob_constr) Gmap.t) in
+  let evars = ref (Id.Map.empty : glob_constr Id.Map.t) in
   let rec patvar_to_evar r = match r with
     | GPatVar (loc,(_,id)) ->
-	( try Gmap.find id !evars
+	( try Id.Map.find id !evars
 	  with Not_found ->
 	    let ev,_ = Evarutil.e_new_type_evar sigma Evd.univ_flexible_alg env in
 	    let ev = Evarutil.e_new_evar sigma env ev in
 	    let rev = GEvar (loc,(fst (Term.destEvar ev)),None) (*TODO*) in
-	    evars := Gmap.add id rev !evars;
+	    evars := Id.Map.add id rev !evars;
 	    rev
 	)
     | _ -> map_glob_constr patvar_to_evar r in

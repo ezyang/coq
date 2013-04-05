@@ -46,7 +46,7 @@ let section_segment_of_reference = function
   | ConstRef con -> Lib.section_segment_of_constant con
   | IndRef (kn,_) | ConstructRef ((kn,_),_) ->
       Lib.section_segment_of_mutual_inductive kn
-  | _ -> [], Univ.empty_universe_context
+  | _ -> [], Univ.Context.empty
 
 let discharge_rename_args = function
   | _, (ReqGlobal (c, names), _) ->

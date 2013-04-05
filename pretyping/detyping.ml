@@ -70,10 +70,7 @@ module PrintingInductiveMake =
   struct
     type t = inductive
     let encode = Test.encode
-    let subst subst (kn, ints as obj) =
-      let kn' = subst_mind subst kn in
-	if kn' == kn then obj else
-	  kn', ints
+    let subst subst obj = subst_ind subst obj
     let printer ind = pr_global_env Id.Set.empty (IndRef ind)
     let key = ["Printing";Test.field]
     let title = Test.title
@@ -85,7 +82,7 @@ module PrintingCasesIf =
   PrintingInductiveMake (struct
     let encode = encode_bool
     let field = "If"
-    let title = "Types leading to pretty-printing of Cases using a `if' form: "
+    let title = "Types leading to pretty-printing of Cases using a `if' form:"
     let member_message s b =
       str "Cases on elements of " ++ s ++
       str
@@ -240,8 +237,8 @@ let rec build_tree na isgoal e ci cl =
   let mkpat n rhs pl = PatCstr(dl,(ci.ci_ind,n+1),pl,update_name na rhs) in
   let cnl = ci.ci_cstr_ndecls in
   List.flatten
-    (List.tabulate (fun i -> contract_branch isgoal e (cnl.(i),mkpat i,cl.(i)))
-       (Array.length cl))
+    (List.init (Array.length cl)
+      (fun i -> contract_branch isgoal e (cnl.(i),mkpat i,cl.(i))))
 
 and align_tree nal isgoal (e,c as rhs) = match nal with
   | [] -> [[],rhs]
@@ -274,7 +271,7 @@ let is_nondep_branch c n =
   try
     let sign,ccl = decompose_lam_n_assum n c in
     noccur_between 1 (rel_context_length sign) ccl
-  with _ -> (* Not eta-expanded or not reduced *)
+  with e when Errors.noncritical e -> (* Not eta-expanded or not reduced *)
     false
 
 let extract_nondep_branches test c b n =
@@ -375,10 +372,12 @@ type binder_kind = BProd | BLambda | BLetIn
 (**********************************************************************)
 (* Main detyping function                                             *)
 
-let detype_anonymous = ref (fun loc n -> anomaly "detype: index to an anonymous variable")
+let detype_anonymous = ref (fun loc n -> anomaly ~label:"detype" (Pp.str "index to an anonymous variable"))
 let set_detype_anonymous f = detype_anonymous := f
 
-let option_of_list l = match l with [] -> None | _ -> Some l
+let option_of_instance l = 
+  if Univ.Instance.is_empty l then None
+  else Some l
 
 let rec detype (isgoal:bool) avoid env t =
   match kind_of_term (collapse_appl t) with
@@ -393,31 +392,34 @@ let rec detype (isgoal:bool) avoid env t =
 	(* Meta in constr are not user-parsable and are mapped to Evar *)
 	GEvar (dl, n, None)
     | Var id ->
-	(try
-	  let _ = Global.lookup_named id in GRef (dl, VarRef id,None)
-	 with _ ->
-	  GVar (dl, id))
+	(try let _ = Global.lookup_named id in GRef (dl, VarRef id, None)
+	 with Not_found -> GVar (dl, id))
     | Sort s -> GSort (dl,detype_sort s)
     | Cast (c1,REVERTcast,c2) when not !Flags.raw_print ->
         detype isgoal avoid env c1
     | Cast (c1,k,c2) ->
         let d1 = detype isgoal avoid env c1 in
 	let d2 = detype isgoal avoid env c2 in
-	GCast(dl,d1,if k == VMcast then CastVM d2 else CastConv d2)
+    let cast = match k with
+    | VMcast -> CastVM d2
+    | NATIVEcast -> CastNative d2
+    | _ -> CastConv d2
+    in
+	GCast(dl,d1,cast)
     | Prod (na,ty,c) -> detype_binder isgoal BProd avoid env na ty c
     | Lambda (na,ty,c) -> detype_binder isgoal BLambda avoid env na ty c
     | LetIn (na,b,_,c) -> detype_binder isgoal BLetIn avoid env na b c
     | App (f,args) ->
 	GApp (dl,detype isgoal avoid env f,
               Array.map_to_list (detype isgoal avoid env) args)
-    | Const (sp,u) -> GRef (dl, ConstRef sp, option_of_list u)
+    | Const (sp,u) -> GRef (dl, ConstRef sp, option_of_instance u)
     | Evar (ev,cl) ->
         GEvar (dl, ev,
                Some (List.map (detype isgoal avoid env) (Array.to_list cl)))
     | Ind (ind_sp,u) ->
-	GRef (dl, IndRef ind_sp, option_of_list u)
+	GRef (dl, IndRef ind_sp, option_of_instance u)
     | Construct (cstr_sp,u) ->
-	GRef (dl, ConstructRef cstr_sp, option_of_list u)
+	GRef (dl, ConstructRef cstr_sp, option_of_instance u)
     | Case (ci,p,c,bl) ->
 	let comp = computable p (ci.ci_pp_info.ind_nargs) in
 	detype_case comp (detype isgoal avoid env)
@@ -503,7 +505,7 @@ and detype_eqns isgoal avoid env ci computable constructs consnargsl bl =
     let mat = build_tree Anonymous isgoal (avoid,env) ci bl in
     List.map (fun (pat,((avoid,env),c)) -> (dl,[],[pat],detype isgoal avoid env c))
       mat
-  with _ ->
+  with e when Errors.noncritical e ->
     Array.to_list
       (Array.map3 (detype_eqn isgoal avoid env) constructs consnargsl bl)
 

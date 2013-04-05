@@ -11,6 +11,7 @@ open Util
 open Names
 open Term
 open Declarations
+open Declareops
 open Environ
 open Reduction
 open Reductionops
@@ -143,11 +144,11 @@ let sign_with_implicits r s nb_params =
 
 let rec handle_exn r n fn_name = function
   | MLexn s ->
-      (try Scanf.sscanf s "UNBOUND %d"
+      (try Scanf.sscanf s "UNBOUND %d%!"
 	 (fun i ->
 	    assert ((0 < i) && (i <= n));
 	    MLexn ("IMPLICIT "^ msg_non_implicit r (n+1-i) (fn_name i)))
-       with _ -> MLexn s)
+       with Scanf.Scan_failure _ | End_of_file -> MLexn s)
   | a -> ast_map (handle_exn r n fn_name) a
 
 (*S Management of type variable contexts. *)
@@ -277,7 +278,7 @@ let rec extract_type env db j c args =
 		  | Undef _ | OpaqueDef _ -> mlt
 		  | Def _ when is_custom r -> mlt
 		  | Def lbody ->
-		      let newc = applist (Declarations.force lbody, args) in
+		      let newc = applist (Lazyconstr.force lbody, args) in
 		      let mlt' = extract_type env db j newc [] in
 		      (* ML type abbreviations interact badly with Coq *)
 		      (* reduction, so [mlt] and [mlt'] might be different: *)
@@ -291,7 +292,7 @@ let rec extract_type env db j c args =
 		  | Undef _  | OpaqueDef _ -> Tunknown (* Brutal approx ... *)
 		  | Def lbody ->
 		      (* We try to reduce. *)
-		      let newc = applist (Declarations.force lbody, args) in
+		      let newc = applist (Lazyconstr.force lbody, args) in
 		      extract_type env db j newc []))
     | Ind ((kn,i),u) ->
 	let s = (extract_ind env kn).ind_packets.(i).ip_sign in
@@ -375,15 +376,15 @@ and extract_ind env kn = (* kn is supposed to be in long form *)
     let packets =
       Array.mapi
 	(fun i mip ->
-	   let b = snd (mind_arity mip) <> InProp in
 	   let (ind,u), ctx = 
 	     Universes.fresh_inductive_instance env (kn,i) in
 	   let ar = Inductive.type_of_inductive env ((mib,mip),u) in
-	   let s,v = if b then type_sign_vl env ar else [],[] in
+	   let info = (fst (flag_of_type env ar) = Info) in
+	   let s,v = if info then type_sign_vl env ar else [],[] in
 	   let t = Array.make (Array.length mip.mind_nf_lc) [] in
 	   { ip_typename = mip.mind_typename;
 	     ip_consnames = mip.mind_consnames;
-	     ip_logical = (not b);
+	     ip_logical = not info;
 	     ip_sign = s;
 	     ip_vars = v;
 	     ip_types = t }, u)
@@ -444,7 +445,7 @@ and extract_ind env kn = (* kn is supposed to be in long form *)
 	  List.skipn mib.mind_nparams (names_prod mip0.mind_user_lc.(0)) in
 	assert (List.length field_names = List.length typ);
 	let projs = ref Cset.empty in
-	let mp,d,_ = repr_mind kn in
+	let mp = MutInd.modpath kn in
 	let rec select_fields l typs = match l,typs with
 	  | [],[] -> []
 	  | _::l, typ::typs when isDummy (expand env typ) ->
@@ -452,7 +453,7 @@ and extract_ind env kn = (* kn is supposed to be in long form *)
 	  | Anonymous::l, typ::typs ->
 	      None :: (select_fields l typs)
 	  | Name id::l, typ::typs ->
-	      let knp = make_con mp d (Label.of_id id) in
+	      let knp = Constant.make2 mp (Label.of_id id) in
 	      (* Is it safe to use [id] for projections [foo.id] ? *)
 	      if List.for_all ((=) Keep) (type2signature env typ)
 	      then projs := Cset.add knp !projs;
@@ -517,7 +518,7 @@ and mlt_env env r = match r with
 	   | Def l_body ->
 	       (match flag_of_type env typ with
 		  | Info,TypeScheme ->
-		      let body = Declarations.force l_body in
+		      let body = Lazyconstr.force l_body in
 		      let s,vl = type_sign_vl env typ in
 		      let db = db_from_sign s in
 		      let t = extract_type_scheme env db body (List.length s)
@@ -683,7 +684,7 @@ and extract_cst_app env mle mlt kn u args =
 	let l,l' = List.chop (projection_arity (ConstRef kn)) mla in
 	if l' <> [] then (List.map (fun _ -> MLexn "Proj Args") l) @ l'
 	else mla
-      with _ -> mla
+      with e when Errors.noncritical e -> mla
   in
   (* For strict languages, purely logical signatures with at least
      one [Kill Kother] lead to a dummy lam. So a [MLdummy] is left
@@ -988,17 +989,21 @@ let extract_constant env kn cb =
     | (Info,TypeScheme) ->
         (match cb.const_body with
 	  | Undef _ -> warn_info (); mk_typ_ax ()
-	  | Def c -> mk_typ (force c)
+	  | Def c -> mk_typ (Lazyconstr.force c)
 	  | OpaqueDef c ->
 	    add_opaque r;
-	    if access_opaque () then mk_typ (force_opaque c) else mk_typ_ax ())
+	    if access_opaque () then
+              mk_typ (Lazyconstr.force_opaque c)
+            else mk_typ_ax ())
     | (Info,Default) ->
         (match cb.const_body with
 	  | Undef _ -> warn_info (); mk_ax ()
-	  | Def c -> mk_def (force c)
+	  | Def c -> mk_def (Lazyconstr.force c)
 	  | OpaqueDef c ->
 	    add_opaque r;
-	    if access_opaque () then mk_def (force_opaque c) else mk_ax ())
+	    if access_opaque () then
+              mk_def (Lazyconstr.force_opaque c)
+            else mk_ax ())
 
 let extract_constant_spec env kn cb =
   let r = ConstRef kn in
@@ -1012,7 +1017,8 @@ let extract_constant_spec env kn cb =
 	  | Undef _ | OpaqueDef _ -> Stype (r, vl, None)
 	  | Def body ->
 	      let db = db_from_sign s in
-	      let t = extract_type_scheme env db (force body) (List.length s)
+              let body = Lazyconstr.force body in
+	      let t = extract_type_scheme env db body (List.length s)
 	      in Stype (r, vl, Some t))
     | (Info, Default) ->
 	let t = snd (record_constant_type env kn (Some typ)) in
@@ -1025,7 +1031,7 @@ let extract_with_type env cb =
 	let s,vl = type_sign_vl env typ in
 	let db = db_from_sign s in
 	let c = match cb.const_body with
-	  | Def body -> force body
+	  | Def body -> Lazyconstr.force body
 	  (* A "with Definition ..." is necessarily transparent *)
 	  | Undef _ | OpaqueDef _ -> assert false
 	in

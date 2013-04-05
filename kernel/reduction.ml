@@ -139,7 +139,7 @@ let betazeta_appvect n c v =
     match kind_of_term t, stack with
         Lambda(_,_,c), arg::stacktl -> stacklam (n-1) (arg::env) c stacktl
       | LetIn(_,b,_,c), _ -> stacklam (n-1) (b::env) c stack
-      | _ -> anomaly "Not enough lambda/let's" in
+      | _ -> anomaly (Pp.str "Not enough lambda/let's") in
   stacklam n [] c (Array.to_list v)
 
 (********************************************************************)
@@ -148,15 +148,22 @@ let betazeta_appvect n c v =
 
 (* Conversion utility functions *)
 type 'a conversion_function = env -> 'a -> 'a -> Univ.constraints
-type 'a trans_conversion_function = transparent_state -> env -> 'a -> 'a -> Univ.constraints
+type 'a trans_conversion_function = Names.transparent_state -> 'a conversion_function
+type 'a universe_conversion_function = env -> 'a -> 'a -> Univ.universe_constraints
+type 'a trans_universe_conversion_function = 
+  Names.transparent_state -> 'a universe_conversion_function
 
 exception NotConvertible
 exception NotConvertibleVect of int
 
+let enforce_eq d u v c = UniverseConstraints.add (u,d,v) c
+let convert_universes l1 l2 cuniv = 
+  enforce_eq_instances_univs l1 l2 cuniv
+
 let conv_table_key k1 k2 cuniv =
   match k1, k2 with
   | ConstKey (cst, u), ConstKey (cst', u') when eq_constant_key cst cst' ->
-      List.fold_right2 Univ.enforce_eq_level u u' cuniv
+    convert_universes u u' cuniv
   | _ -> raise NotConvertible
 
 let compare_stacks f fmind lft1 stk1 lft2 stk2 cuniv =
@@ -205,23 +212,38 @@ let sort_cmp pb s0 s1 cuniv =
       end
     | (Prop c1, Prop c2) ->
         if c1 == c2 then cuniv else raise NotConvertible
-    | (Prop c1, Type u) -> 
-      (match pb with
-         CUMUL -> enforce_leq (if is_pos c1 then type0_univ else type0m_univ) u cuniv
-	| CONV -> enforce_eq (if is_pos c1 then type0_univ else type0m_univ) u cuniv)
-    | (Type u, Prop c) ->
-      (match pb with
-	  CUMUL -> enforce_leq u (if is_pos c then type0_univ else type0m_univ) cuniv
-	| CONV -> enforce_eq u (if is_pos c then type0_univ else type0m_univ) cuniv)
+    | (Prop c1, Type u) when is_cumul pb ->
+      enforce_leq (if is_pos c1 then Universe.type0 else Universe.type0m) u cuniv
+    | (Type u, Prop c) when is_cumul pb ->
+      enforce_leq u (if is_pos c then Universe.type0 else Universe.type0m) cuniv
     | (Type u1, Type u2) ->
 	(match pb with
-           | CONV -> enforce_eq u1 u2 cuniv
+           | CONV -> Univ.enforce_eq u1 u2 cuniv
 	   | CUMUL -> enforce_leq u1 u2 cuniv)
 
+let conv_sort env s0 s1 = sort_cmp CONV s0 s1 Constraint.empty
+let conv_sort_leq env s0 s1 = sort_cmp CUMUL s0 s1 Constraint.empty  
 
-let conv_sort env s0 s1 = sort_cmp CONV s0 s1 empty_constraint
+let sort_cmp_universes pb s0 s1 cuniv =
+  let dir = if is_cumul pb then ULe else UEq in
+  match (s0,s1) with
+    | (Prop c1, Prop c2) when is_cumul pb ->
+      begin match c1, c2 with
+      | Null, _ | _, Pos -> cuniv (* Prop <= Set *)
+      | _ -> raise NotConvertible
+      end
+    | (Prop c1, Prop c2) ->
+        if c1 == c2 then cuniv else raise NotConvertible
+    | (Prop c1, Type u) ->
+      UniverseConstraints.add (univ_of_sort s0, dir, u) cuniv
+    | (Type u, Prop c) ->
+      UniverseConstraints.add (u, dir, univ_of_sort s1) cuniv
+    | (Type u1, Type u2) ->
+      UniverseConstraints.add (u1, dir, u2) cuniv
 
-let conv_sort_leq env s0 s1 = sort_cmp CUMUL s0 s1 empty_constraint
+let sort_cmp_universes pb s0 s1 cuniv =   
+  try sort_cmp_universes pb s0 s1 cuniv
+  with _ -> raise NotConvertible
 
 let rec no_arg_available = function
   | [] -> true
@@ -260,9 +282,6 @@ let in_whnf (t,stk) =
     | (FFlex _ | FProd _ | FEvar _ | FInd _ | FAtom _ | FRel _) -> true
     | FLOCKED -> assert false
 
-let convert_universes l1 l2 cuniv = 
-  List.fold_right2 enforce_eq_level l1 l2 cuniv
-
 (* Conversion between  [lft1]term1 and [lft2]term2 *)
 let rec ccnv cv_pb l2r infos lft1 lft2 term1 term2 cuniv =
   eqappr cv_pb l2r infos (lft1, (term1,[])) (lft2, (term2,[])) cuniv
@@ -288,8 +307,8 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
 	(match kind_of_term a1, kind_of_term a2 with
 	   | (Sort s1, Sort s2) ->
 	       if not (is_empty_stack v1 && is_empty_stack v2) then
-		 anomaly "conversion was given ill-typed terms (Sort)";
-	       sort_cmp cv_pb s1 s2 cuniv
+		 anomaly (Pp.str "conversion was given ill-typed terms (Sort)");
+	       sort_cmp_universes cv_pb s1 s2 cuniv
 	   | (Meta n, Meta m) ->
                if Int.equal n m
 	       then convert_stacks l2r infos lft1 lft2 v1 v2 cuniv
@@ -339,7 +358,7 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
         (* Inconsistency: we tolerate that v1, v2 contain shift and update but
            we throw them away *)
         if not (is_empty_stack v1 && is_empty_stack v2) then
-	  anomaly "conversion was given ill-typed terms (FLambda)";
+	  anomaly (Pp.str "conversion was given ill-typed terms (FLambda)");
         let (_,ty1,bd1) = destFLambda mk_clos hd1 in
         let (_,ty2,bd2) = destFLambda mk_clos hd2 in
         let u1 = ccnv CONV l2r infos el1 el2 ty1 ty2 cuniv in
@@ -347,7 +366,7 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
 
     | (FProd (_,c1,c2), FProd (_,c'1,c'2)) ->
         if not (is_empty_stack v1 && is_empty_stack v2) then
-	  anomaly "conversion was given ill-typed terms (FProd)";
+	  anomaly (Pp.str "conversion was given ill-typed terms (FProd)");
 	(* Luo's system *)
         let u1 = ccnv CONV l2r infos el1 el2 c1 c'1 cuniv in
         ccnv cv_pb l2r infos (el_lift el1) (el_lift el2) c2 c'2 u1
@@ -357,7 +376,7 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
         let () = match v1 with
         | [] -> ()
         | _ ->
-          anomaly "conversion was given unreduced term (FLambda)"
+          anomaly (Pp.str "conversion was given unreduced term (FLambda)")
         in
         let (_,_ty1,bd1) = destFLambda mk_clos hd1 in
 	eqappr CONV l2r infos
@@ -366,7 +385,7 @@ and eqappr cv_pb l2r infos (lft1,st1) (lft2,st2) cuniv =
         let () = match v2 with
         | [] -> ()
         | _ ->
-	  anomaly "conversion was given unreduced term (FLambda)"
+	  anomaly (Pp.str "conversion was given unreduced term (FLambda)")
 	in
         let (_,_ty2,bd2) = destFLambda mk_clos hd2 in
 	eqappr CONV l2r infos
@@ -459,19 +478,34 @@ and convert_vect l2r infos lft1 lft2 v1 v2 cuniv =
 
 let clos_fconv trans cv_pb l2r evars env t1 t2 =
   let infos = trans, create_clos_infos ~evars betaiotazeta env in
-  ccnv cv_pb l2r infos el_id el_id (inject t1) (inject t2) empty_constraint
+  ccnv cv_pb l2r infos el_id el_id (inject t1) (inject t2) UniverseConstraints.empty
 
-let trans_fconv reds cv_pb l2r evars env t1 t2 =
+let trans_fconv_universes reds cv_pb l2r evars env t1 t2 =
   let b, univs = 
-    if cv_pb = CUMUL then leq_constr_univs t1 t2 
-    else eq_constr_univs t1 t2 
+    if cv_pb = CUMUL then leq_constr_universes t1 t2 
+    else eq_constr_universes t1 t2 
   in
     if b then univs
     else clos_fconv reds cv_pb l2r evars env t1 t2
 
+let trans_fconv reds cv_pb l2r evars env t1 t2 =
+  let b, univs = 
+    if cv_pb = CUMUL then leq_constr_universes t1 t2 
+    else eq_constr_universes t1 t2 
+  in
+    if b then Univ.to_constraints (universes env) univs
+    else 
+      let cst = clos_fconv reds cv_pb l2r evars env t1 t2 in
+	Univ.to_constraints (universes env) cst
+
 let trans_conv_cmp ?(l2r=false) conv reds = trans_fconv reds conv l2r (fun _->None)
 let trans_conv ?(l2r=false) ?(evars=fun _->None) reds = trans_fconv reds CONV l2r evars
 let trans_conv_leq ?(l2r=false) ?(evars=fun _->None) reds = trans_fconv reds CUMUL l2r evars
+
+let trans_conv_universes ?(l2r=false) ?(evars=fun _->None) reds = 
+  trans_fconv_universes reds CONV l2r evars
+let trans_conv_leq_universes ?(l2r=false) ?(evars=fun _->None) reds = 
+  trans_fconv_universes reds CUMUL l2r evars
 
 let fconv = trans_fconv (Id.Pred.full, Cpred.full)
 
@@ -485,12 +519,22 @@ let conv_leq_vecti ?(l2r=false) ?(evars=fun _->None) env v1 v2 =
       let c' =
         try conv_leq ~l2r ~evars env t1 t2
         with NotConvertible -> raise (NotConvertibleVect i) in
-      union_constraints c c')
-    empty_constraint
+      Constraint.union c c')
+    Constraint.empty
     v1
     v2
 
 (* option for conversion *)
+let nat_conv = ref (fun cv_pb -> fconv cv_pb false (fun _->None))
+let set_nat_conv f = nat_conv := f
+
+let native_conv cv_pb env t1 t2 =
+  if eq_constr t1 t2 then Constraint.empty
+  else begin
+    let t1 = (it_mkLambda_or_LetIn t1 (rel_context env)) in
+    let t2 = (it_mkLambda_or_LetIn t2 (rel_context env)) in
+    !nat_conv cv_pb env t1 t2 
+  end
 
 let vm_conv = ref (fun cv_pb -> fconv cv_pb false (fun _->None))
 let set_vm_conv f = vm_conv := f
@@ -537,7 +581,7 @@ let conv env t1 t2 =
 let hnf_prod_app env t n =
   match kind_of_term (whd_betadeltaiota env t) with
     | Prod (_,_,b) -> subst1 n b
-    | _ -> anomaly "hnf_prod_app: Need a product"
+    | _ -> anomaly ~label:"hnf_prod_app" (Pp.str "Need a product")
 
 let hnf_prod_applist env t nl =
   List.fold_left (hnf_prod_app env) t nl

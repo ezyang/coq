@@ -1,4 +1,8 @@
 Int
+Option
+Store
+Exninfo
+Backtrace
 Pp_control
 Pp
 Coq_config
@@ -15,4 +19,3 @@ Xml_utils
 Flags
 CUnix
 Envars
-Option

@@ -9,12 +9,18 @@
 let with_option o f x =
   let old = !o in o:=true;
   try let r = f x in o := old; r
-  with e -> o := old; raise e
+  with reraise ->
+    let reraise = Backtrace.add_backtrace reraise in
+    let () = o := old in
+    raise reraise
 
 let without_option o f x =
   let old = !o in o:=false;
   try let r = f x in o := old; r
-  with e -> o := old; raise e
+  with reraise ->
+    let reraise = Backtrace.add_backtrace reraise in
+    let () = o := old in
+    raise reraise
 
 let boot = ref false
 
@@ -172,3 +178,9 @@ let default_inline_level = 100
 let inline_level = ref default_inline_level
 let set_inline_level = (:=) inline_level
 let get_inline_level () = !inline_level
+
+(* Disabling native code compilation for conversion and normalization *)
+let no_native_compiler = ref Coq_config.no_native_compiler
+
+(* Print the mod uid associated to a vo file by the native compiler *)
+let print_mod_uid = ref false

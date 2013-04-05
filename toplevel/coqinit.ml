@@ -11,7 +11,9 @@ open Pp
 
 let (/) = Filename.concat
 
-let set_debug () = Flags.debug := true
+let set_debug () =
+  let () = Backtrace.record_backtrace true in
+  Flags.debug := true
 
 (* Loading of the ressource file.
    rcfile is either $XDG_CONFIG_HOME/.coqrc.VERSION, or $XDG_CONFIG_HOME/.coqrc if the first one
@@ -48,16 +50,17 @@ let load_rcfile() =
 	  mSGNL (str ("No coqrc or coqrc."^Coq_config.version^
 			 " found. Skipping rcfile loading."))
 	*)
-    with e ->
-      (msg_info (str"Load of rcfile failed.");
-       raise e)
+    with reraise ->
+      let reraise = Errors.push reraise in
+      let () = msg_info (str"Load of rcfile failed.") in
+      raise reraise
   else
     Flags.if_verbose msg_info (str"Skipping rcfile loading.")
 
 (* Puts dir in the path of ML and in the LoadPath *)
 let coq_add_path unix_path s =
-  Mltop.add_path ~unix_path ~coq_root:(Names.Dir_path.make [Nameops.coq_root;Names.Id.of_string s])
-let coq_add_rec_path unix_path = Mltop.add_rec_path ~unix_path ~coq_root:(Names.Dir_path.make [Nameops.coq_root])
+  Mltop.add_path ~unix_path ~coq_root:(Names.DirPath.make [Nameops.coq_root;Names.Id.of_string s])
+let coq_add_rec_path unix_path = Mltop.add_rec_path ~unix_path ~coq_root:(Names.DirPath.make [Nameops.coq_root])
 
 (* By the option -include -I or -R of the command line *)
 let includes = ref []
@@ -104,7 +107,7 @@ let init_load_path () =
     if Coq_config.local then coq_add_path (coqlib/"dev") "dev";
     (* then standard library *)
     List.iter
-      (fun (s,alias) -> Mltop.add_rec_path ~unix_path:(coqlib/s) ~coq_root:(Names.Dir_path.make [Names.Id.of_string alias; Nameops.coq_root]))
+      (fun (s,alias) -> Mltop.add_rec_path ~unix_path:(coqlib/s) ~coq_root:(Names.DirPath.make [Names.Id.of_string alias; Nameops.coq_root]))
       theories_dirs_map;
     (* then plugins *)
     List.iter (fun s -> coq_add_rec_path (coqlib/s)) dirs;

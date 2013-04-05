@@ -182,6 +182,7 @@ that maps the pair (Li,ci) to the following data
 
 type obj_typ = {
   o_DEF : constr;
+  o_CTX : Univ.ContextSet.t;
   o_INJ : int;      (* position of trivial argument (negative= none) *)
   o_TABS : constr list;    (* ordered *)
   o_TPARAMS : constr list; (* ordered *)
@@ -208,24 +209,28 @@ let cs_pattern_of_constr t =
   match kind_of_term t with
       App (f,vargs) ->
 	begin
-	  try  Const_cs (global_of_constr f) , -1, Array.to_list vargs with
-	      _ -> raise Not_found
+	  try Const_cs (global_of_constr f) , -1, Array.to_list vargs
+          with e when Errors.noncritical e -> raise Not_found
 	end
     | Rel n -> Default_cs, pred n, []
     | Prod (_,a,b) when not (Termops.dependent (mkRel 1) b) -> Prod_cs, -1, [a; Termops.pop b]
     | Sort s -> Sort_cs (family_of_sort s), -1, []
     | _ ->
 	begin
-	  try  Const_cs (global_of_constr t) , -1, [] with
-	      _ -> raise Not_found
+	  try Const_cs (global_of_constr t) , -1, []
+          with e when Errors.noncritical e -> raise Not_found
 	end
 
 (* Intended to always succeed *)
 let compute_canonical_projections (con,ind) =
-  let v = mkConst con in
-  let c = Environ.constant_value_in (Global.env()) (con,[]) in
-  let lt,t = Reductionops.splay_lam (Global.env()) Evd.empty c in
-  let lt = List.rev (List.map snd lt) in
+  let env = Global.env () in
+  let ctx = Environ.constant_context env con in
+  let u = Univ.Context.instance ctx in
+  let v = (mkConstU (con,u)) in
+  let ctx = Univ.ContextSet.of_context ctx in
+  let c = Environ.constant_value_in env (con,u) in
+  let lt,t = Reductionops.splay_lam env Evd.empty c in
+  let lt = List.rev_map snd lt in
   let args = snd (decompose_app t) in
   let { s_EXPECTEDPARAM = p; s_PROJ = lpj; s_PROJKIND = kl } =
     lookup_structure ind in
@@ -254,7 +259,7 @@ let compute_canonical_projections (con,ind) =
       [] lps in
   List.map (fun (refi,c,inj,argj) ->
     (refi,c),
-    {o_DEF=v; o_INJ=inj; o_TABS=lt;
+    {o_DEF=v; o_CTX=ctx; o_INJ=inj; o_TABS=lt;
      o_TPARAMS=params; o_NPARAMS=List.length params; o_TCOMPS=argj})
     comp
 
@@ -315,7 +320,9 @@ let error_not_structure ref =
 let check_and_decompose_canonical_structure ref =
   let sp = match ref with ConstRef sp -> sp | _ -> error_not_structure ref in
   let env = Global.env () in
-  let vc = match Environ.constant_opt_value_in env (sp,[]) with
+  let ctx = Environ.constant_context env sp in
+  let u = Univ.Context.instance ctx in
+  let vc = match Environ.constant_opt_value_in env (sp, u) with
     | Some vc -> vc
     | None -> error_not_structure ref in
   let body = snd (splay_lam (Global.env()) Evd.empty vc) in
@@ -334,8 +341,11 @@ let check_and_decompose_canonical_structure ref =
 let declare_canonical_structure ref =
   add_canonical_structure (check_and_decompose_canonical_structure ref)
 
-let lookup_canonical_conversion (proj,pat) =
+let lookup_canonical_conversion ((proj,u),pat) =
   List.assoc pat (Refmap.find proj !object_table)
+
+  (* let cst, u' = destConst cs.o_DEF in *)
+  (*   { cs with o_DEF = mkConstU (cst, u) } *)
 
 let is_open_canonical_projection env sigma (c,args) =
   try

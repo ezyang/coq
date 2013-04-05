@@ -204,7 +204,7 @@ let e_possible_resolve db_list local_db gl =
 
 let rec catchable = function
   | Refiner.FailError _ -> true
-  | Loc.Exc_located (_, e) -> catchable e
+  | Proof_type.LtacLocated (_, _, e) -> catchable e
   | e -> Logic.catchable_exception e
 
 let nb_empty_evars s =
@@ -259,12 +259,13 @@ let make_resolve_hyp env sigma st flags only_classes pri (id, _, cty) =
 	  let hints = build_subclasses ~check:false env sigma (VarRef id) None in
 	    (List.map_append
 	       (fun (path, pri, c) -> make_resolves env sigma ~name:(PathHints path)
-		  (true,false,Flags.is_verbose()) pri false (IsConstr (c,Univ.empty_universe_context_set)))
+		  (true,false,Flags.is_verbose()) pri false 
+		 (IsConstr (c,Univ.ContextSet.empty)))
 	       hints)
 	else []
       in
         (hints @ List.map_filter
-	 (fun f -> try Some (f (mkVar id, cty, Univ.empty_universe_context_set))
+	 (fun f -> try Some (f (mkVar id, cty, Univ.ContextSet.empty))
 	           with Failure _ | UserError _ -> None) 
 	 [make_exact_entry ~name sigma pri false; make_apply_entry ~name env sigma flags pri false])
     else []
@@ -699,7 +700,7 @@ let resolve_typeclass_evars debug m env evd filter split fail =
   let evd = 
     try Evarconv.consider_remaining_unif_problems
       ~ts:(Typeclasses.classes_transparent_state ()) env evd
-    with _ -> evd
+    with e when Errors.noncritical e -> evd
   in
     resolve_all_evars debug m env (initial_select_evars filter) evd split fail
 
@@ -789,7 +790,11 @@ END
 
 let typeclasses_eauto ?(only_classes=false) ?(st=full_transparent_state) dbs gl =
   try 
-    let dbs = List.map_filter (fun db -> try Some (Auto.searchtable_map db) with _ -> None) dbs in
+    let dbs = List.map_filter
+      (fun db -> try Some (Auto.searchtable_map db)
+        with e when Errors.noncritical e -> None)
+      dbs
+    in
     let st = match dbs with x :: _ -> Hint_db.transparent_state x | _ -> st in
       eauto ?limit:!typeclasses_depth ~only_classes ~st dbs gl
    with Not_found -> tclFAIL 0 (str" typeclasses eauto failed on: " ++ Printer.pr_goal gl) gl

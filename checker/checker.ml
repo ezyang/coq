@@ -17,7 +17,7 @@ open Check
 let () = at_exit flush_all
 
 let fatal_error info =
-  pperrnl info; flush_all (); exit 1
+  flush_all (); pperrnl info; flush_all (); exit 1
 
 let coq_root = Id.of_string "Coq"
 let parse_dir s =
@@ -36,7 +36,7 @@ let parse_dir s =
 let dirpath_of_string s =
   match parse_dir s with
       [] -> Check.default_root_prefix
-    | dir -> Dir_path.make (List.map Id.of_string dir)
+    | dir -> DirPath.make (List.map Id.of_string dir)
 let path_of_string s =
   match parse_dir s with
       [] -> invalid_arg "path_of_string"
@@ -70,18 +70,19 @@ let add_path ~unix_path:dir ~coq_root:coq_dirpath =
 
 let convert_string d =
   try Id.of_string d
-  with _ ->
-    if_verbose msg_warning (str ("Directory "^d^" cannot be used as a Coq identifier (skipped)"));
+  with Errors.UserError _ ->
+    if_verbose msg_warning
+      (str ("Directory "^d^" cannot be used as a Coq identifier (skipped)"));
     raise Exit
 
 let add_rec_path ~unix_path ~coq_root =
   if exists_dir unix_path then
     let dirs = all_subdirs ~unix_path in
-    let prefix = Dir_path.repr coq_root in
+    let prefix = DirPath.repr coq_root in
     let convert_dirs (lp, cp) =
       try
-        let path = List.map convert_string (List.rev cp) @ prefix in
-        Some (lp, Names.Dir_path.make path)
+        let path = List.rev_map convert_string cp @ prefix in
+        Some (lp, Names.DirPath.make path)
       with Exit -> None
     in
     let dirs = List.map_filter convert_dirs dirs in
@@ -113,9 +114,9 @@ let init_load_path () =
   let plugins = coqlib/"plugins" in
   (* NOTE: These directories are searched from last to first *)
   (* first standard library *)
-  add_rec_path ~unix_path:(coqlib/"theories") ~coq_root:(Names.Dir_path.make[coq_root]);
+  add_rec_path ~unix_path:(coqlib/"theories") ~coq_root:(Names.DirPath.make[coq_root]);
   (* then plugins *)
-  add_rec_path ~unix_path:plugins ~coq_root:(Names.Dir_path.make [coq_root]);
+  add_rec_path ~unix_path:plugins ~coq_root:(Names.DirPath.make [coq_root]);
   (* then user-contrib *)
   if Sys.file_exists user_contrib then
     add_rec_path ~unix_path:user_contrib ~coq_root:Check.default_root_prefix;
@@ -238,8 +239,6 @@ let rec explain_exn = function
       hov 0 (str "Out of memory")
   | Stack_overflow ->
       hov 0 (str "Stack overflow")
-  | Anomaly (s,pps) ->
-      hov 1 (anomaly_string () ++ where s ++ pps ++ report ())
   | Match_failure(filename,pos1,pos2) ->
       hov 1 (anomaly_string () ++ str "Match failure in file " ++
 	     str (guill filename) ++ str " at line " ++ int pos1 ++
@@ -271,10 +270,6 @@ let rec explain_exn = function
 (*      let ctx = Check.get_env() in
       hov 0
         (str "Error:" ++ spc () ++ Himsg.explain_inductive_error ctx e)*)
-  | Loc.Exc_located (loc, exc) ->
-      hov 0 ((if loc = Loc.ghost then (mt ())
-               else (str"At location " ++ print_loc loc ++ str":" ++ fnl ()))
-               ++ explain_exn exc)
   | Assert_failure (s,b,e) ->
       hov 0 (anomaly_string () ++ str "assert failure" ++ spc () ++
 	       (if s = "" then mt ()
@@ -283,9 +278,7 @@ let rec explain_exn = function
 		   str ", characters " ++ int e ++ str "-" ++
 		   int (e+6) ++ str ")")) ++
 	       report ())
-  | reraise ->
-      hov 0 (anomaly_string () ++ str "Uncaught exception " ++
-	       str (Printexc.to_string reraise)++report())
+  | e -> Errors.print e (* for anomalies and other uncaught exceptions *)
 
 let parse_args argv =
   let rec parse = function
@@ -338,13 +331,7 @@ let parse_args argv =
         fatal_error (str "Unknown option " ++ str s)
     | s :: rem ->  add_compile s; parse rem
   in
-  try
-    parse (List.tl (Array.to_list argv))
-  with
-    | UserError(_, s) as e ->
-      if Pp.is_empty s then exit 1
-      else fatal_error (explain_exn e)
-    | e -> begin fatal_error (explain_exn e) end
+  parse (List.tl (Array.to_list argv))
 
 
 (* To prevent from doing the initialization twice *)

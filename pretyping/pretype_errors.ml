@@ -14,20 +14,32 @@ open Namegen
 open Environ
 open Type_errors
 
+type unification_error =
+  | OccurCheck of existential_key * constr
+  | NotClean of existential * constr
+  | NotSameArgSize
+  | NotSameHead
+  | NoCanonicalStructure
+  | ConversionFailed of env * constr * constr
+  | MetaOccurInBody of existential_key
+  | InstanceNotSameType of existential_key * env * types * types
+  | UnifUnivInconsistency
+
 type pretype_error =
   (* Old Case *)
   | CantFindCaseType of constr
-  (* Unification *)
-  | OccurCheck of existential_key * constr
-  | NotClean of existential_key * constr * Evar_kinds.t
+  (* Type inference unification *)
+  | ActualTypeNotCoercible of unsafe_judgment * types * unification_error
+  (* Tactic unification *)
+  | UnifOccurCheck of existential_key * constr
   | UnsolvableImplicit of Evd.evar_info * Evar_kinds.t *
       Evd.unsolvability_explanation option
-  | CannotUnify of constr * constr
+  | CannotUnify of constr * constr * unification_error option
   | CannotUnifyLocal of constr * constr * constr
   | CannotUnifyBindingType of constr * constr
   | CannotGeneralize of constr
   | NoOccurrenceFound of constr * Id.t option
-  | CannotFindWellTypedAbstraction of constr * constr list
+  | CannotFindWellTypedAbstraction of constr * constr list * (env * type_error) option
   | WrongAbstractionType of Name.t * constr * types * types
   | AbstractionOverMeta of Name.t * Name.t
   | NonLinearUnification of Name.t * constr
@@ -41,32 +53,8 @@ exception PretypeError of env * Evd.evar_map * pretype_error
 
 let precatchable_exception = function
   | Errors.UserError _ | TypeError _ | PretypeError _
-  | Loc.Exc_located(_,(Errors.UserError _ | TypeError _ |
-    Nametab.GlobalizationError _ | PretypeError _)) -> true
+  | Nametab.GlobalizationError _ -> true
   | _ -> false
-
-let nf_evar = Reductionops.nf_evar
-let j_nf_evar sigma j =
-  { uj_val = nf_evar sigma j.uj_val;
-    uj_type = nf_evar sigma j.uj_type }
-let j_nf_betaiotaevar sigma j =
-  { uj_val = nf_evar sigma j.uj_val;
-    uj_type = Reductionops.nf_betaiota sigma j.uj_type }
-let jl_nf_evar sigma jl = List.map (j_nf_evar sigma) jl
-let jv_nf_betaiotaevar sigma jl =
-  Array.map (j_nf_betaiotaevar sigma) jl
-let jv_nf_evar sigma = Array.map (j_nf_evar sigma)
-let tj_nf_evar sigma {utj_val=v;utj_type=t} =
-  {utj_val=nf_evar sigma v;utj_type=t}
-
-let env_nf_evar sigma env =
-  process_rel_context
-    (fun d e -> push_rel (map_rel_declaration (nf_evar sigma) d) e) env
-
-let env_nf_betaiotaevar sigma env =
-  process_rel_context
-    (fun d e ->
-      push_rel (map_rel_declaration (Reductionops.nf_betaiota sigma) d) e) env
 
 (* This simplifies the typing context of Cases clauses *)
 (* hope it does not disturb other typing contexts *)
@@ -92,6 +80,25 @@ let contract2 env a b = match contract env [a;b] with
 let contract3 env a b c = match contract env [a;b;c] with
   | env, [a;b;c] -> env,a,b,c | _ -> assert false
 
+let contract4 env a b c d = match contract env [a;b;c;d] with
+  | env, [a;b;c;d] -> (env,a,b,c),d | _ -> assert false
+
+let contract4_vect env a b c d v =
+  match contract env ([a;b;c;d] @ Array.to_list v) with
+  | env, a::b::c::d::l -> (env,a,b,c),d,Array.of_list l
+  | _ -> assert false
+
+let contract3' env a b c = function
+  | OccurCheck (evk,d) -> let x,d = contract4 env a b c d in x,OccurCheck(evk,d)
+  | NotClean ((evk,args),d) ->
+      let x,d,args = contract4_vect env a b c d args in x,NotClean((evk,args),d)
+  | ConversionFailed (env',t1,t2) ->
+      let (env',t1,t2) = contract2 env' t1 t2 in
+      contract3 env a b c, ConversionFailed (env',t1,t2)
+  | NotSameArgSize | NotSameHead | NoCanonicalStructure
+  | MetaOccurInBody _ | InstanceNotSameType _ 
+  | UnifUnivInconsistency as x -> contract3 env a b c, x
+
 let raise_pretype_error (loc,env,sigma,te) =
   Loc.raise loc (PretypeError(env,sigma,te))
 
@@ -99,10 +106,11 @@ let raise_located_type_error (loc,env,sigma,te) =
   Loc.raise loc (PretypeError(env,sigma,TypingError te))
 
 
-let error_actual_type_loc loc env sigma {uj_val=c;uj_type=actty} expty =
-  let env, c, actty, expty = contract3 env c actty expty in
+let error_actual_type_loc loc env sigma {uj_val=c;uj_type=actty} expty reason =
+  let (env, c, actty, expty), reason = contract3' env c actty expty reason in
   let j = {uj_val=c;uj_type=actty} in
-  raise_located_type_error (loc, env, sigma, ActualType (j, expty))
+  raise_pretype_error
+    (loc, env, sigma, ActualTypeNotCoercible (j, expty, reason))
 
 let error_cant_apply_not_functional_loc loc env sigma rator randl =
   raise_located_type_error
@@ -134,26 +142,28 @@ let error_not_a_type_loc loc env sigma j =
     a precise location. *)
 
 let error_occur_check env sigma ev c =
-  raise (PretypeError (env, sigma, OccurCheck (ev,c)))
-
-let error_not_clean env sigma ev c (loc,k) =
-  Loc.raise loc (PretypeError (env, sigma, NotClean (ev,c,k)))
+  raise (PretypeError (env, sigma, UnifOccurCheck (ev,c)))
 
 let error_unsolvable_implicit loc env sigma evi e explain =
   Loc.raise loc
     (PretypeError (env, sigma, UnsolvableImplicit (evi, e, explain)))
 
-let error_cannot_unify env sigma (m,n) =
-  raise (PretypeError (env, sigma,CannotUnify (m,n)))
+let error_cannot_unify_loc loc env sigma ?reason (m,n) =
+  let env, m, n = contract2 env m n in
+  Loc.raise loc (PretypeError (env, sigma,CannotUnify (m,n,reason)))
+
+let error_cannot_unify env sigma ?reason (m,n) =
+  let env, m, n = contract2 env m n in
+  raise (PretypeError (env, sigma,CannotUnify (m,n,reason)))
 
 let error_cannot_unify_local env sigma (m,n,sn) =
   raise (PretypeError (env, sigma,CannotUnifyLocal (m,n,sn)))
 
 let error_cannot_coerce env sigma (m,n) =
-  raise (PretypeError (env, sigma,CannotUnify (m,n)))
+  raise (PretypeError (env, sigma,CannotUnify (m,n,None)))
 
-let error_cannot_find_well_typed_abstraction env sigma p l =
-  raise (PretypeError (env, sigma,CannotFindWellTypedAbstraction (p,l)))
+let error_cannot_find_well_typed_abstraction env sigma p l e =
+  raise (PretypeError (env, sigma,CannotFindWellTypedAbstraction (p,l,e)))
 
 let error_wrong_abstraction_type env sigma na a p l =
   raise (PretypeError (env, sigma,WrongAbstractionType (na,a,p,l)))

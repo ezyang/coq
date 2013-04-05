@@ -43,12 +43,12 @@ type global_declaration =
   | GlobalRecipe of Cooking.recipe
 
 val add_constant :
-  Dir_path.t -> Label.t -> global_declaration -> safe_environment ->
+  DirPath.t -> Label.t -> global_declaration -> safe_environment ->
       constant * safe_environment
 
 (** Adding an inductive type *)
 val add_mind :
-  Dir_path.t -> Label.t -> mutual_inductive_entry -> safe_environment ->
+  DirPath.t -> Label.t -> mutual_inductive_entry -> safe_environment ->
     mutual_inductive * safe_environment
 
 (** Adding a module *)
@@ -65,7 +65,14 @@ val add_modtype :
 val add_constraints :
   Univ.constraints -> safe_environment -> safe_environment
 
-(** Setting the strongly constructive or classical logical engagement *)
+(** Adding universe constraints *)
+val push_context_set :
+  Univ.universe_context_set -> safe_environment -> safe_environment
+
+val push_context :
+  Univ.universe_context -> safe_environment -> safe_environment
+
+(** Settin the strongly constructive or classical logical engagement *)
 val set_engagement : engagement -> safe_environment -> safe_environment
 
 (** {6 Interactive module functions } *)
@@ -102,25 +109,16 @@ val delta_of_senv : safe_environment -> delta_resolver*delta_resolver
 (** exporting and importing modules *)
 type compiled_library
 
-val start_library : Dir_path.t -> safe_environment
+type native_library = Nativecode.global list
+
+val start_library : DirPath.t -> safe_environment
       -> module_path * safe_environment
 
-val export : safe_environment -> Dir_path.t
-      -> module_path * compiled_library
+val export : safe_environment -> DirPath.t
+      -> module_path * compiled_library * native_library
 
 val import : compiled_library -> Digest.t -> safe_environment
-      -> module_path * safe_environment
-
-(** Remove the body of opaque constants *)
-
-module LightenLibrary :
-sig
-  type table
-  type lightened_compiled_library
-  val save : compiled_library -> lightened_compiled_library * table
-  val load : load_proof:Flags.load_proofs -> table Lazy.t ->
-    lightened_compiled_library -> compiled_library
-end
+      -> module_path * safe_environment * Nativecode.symbol array
 
 (** {6 Typing judgments } *)
 

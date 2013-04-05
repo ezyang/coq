@@ -105,10 +105,10 @@ module MakeTable =
     let print_table table_name printer table =
       pp (str table_name ++
 	   (hov 0
-	      (if MySet.is_empty table then str "None" ++ fnl ()
+	      (if MySet.is_empty table then str " None" ++ fnl ()
                else MySet.fold
-		 (fun a b -> printer a ++ spc () ++ b)
-		 table (mt ()) ++ fnl ())))
+		 (fun a b -> spc () ++ printer a ++ b)
+		 table (mt ()) ++ str "." ++ fnl ())))
 
     class table_of_A () =
     object
@@ -269,15 +269,15 @@ type 'a write_function = 'a -> unit
 let declare_int_option =
   declare_option
     (fun v -> IntValue v)
-    (function IntValue v -> v | _ -> anomaly "async_option")
+    (function IntValue v -> v | _ -> anomaly (Pp.str "async_option"))
 let declare_bool_option =
   declare_option
     (fun v -> BoolValue v)
-    (function BoolValue v -> v | _ -> anomaly "async_option")
+    (function BoolValue v -> v | _ -> anomaly (Pp.str "async_option"))
 let declare_string_option =
   declare_option
     (fun v -> StringValue v)
-    (function StringValue v -> v | _ -> anomaly "async_option")
+    (function StringValue v -> v | _ -> anomaly (Pp.str "async_option"))
 
 (* 3- User accessible commands *)
 

@@ -7,11 +7,7 @@
 (************************************************************************)
 
 open Names
-open Univ
 open Term
-open Cemitcodes
-open Sign
-open Mod_subst
 
 (** This module defines the internal representation of global
    declarations. This includes global constants/axioms, mutual
@@ -23,25 +19,6 @@ type engagement = ImpredicativeSet
 
 type constant_type = types
 
-type constr_substituted
-
-val from_val : constr -> constr_substituted
-val force : constr_substituted -> constr
-
-(** Opaque proof terms are not loaded immediately, but are there
-    in a lazy form. Forcing this lazy may trigger some unmarshal of
-    the necessary structure. *)
-
-type lazy_constr
-
-val subst_lazy_constr : substitution -> lazy_constr -> lazy_constr
-val force_lazy_constr : lazy_constr -> constr_substituted
-val make_lazy_constr : constr_substituted Lazy.t -> lazy_constr
-val lazy_constr_is_val : lazy_constr -> bool
-
-val force_opaque : lazy_constr -> constr
-val opaque_from_val : constr -> lazy_constr
-
 (** Inlining level of parameters at functor applications.
     None means no inlining *)
 
@@ -52,29 +29,24 @@ type inline = int option
 
 type constant_def =
   | Undef of inline
-  | Def of constr_substituted
-  | OpaqueDef of lazy_constr
+  | Def of Lazyconstr.constr_substituted
+  | OpaqueDef of Lazyconstr.lazy_constr
+
+type native_name =
+  | Linked of string
+  | LinkedLazy of string
+  | LinkedInteractive of string
+  | NotLinked
 
 type constant_body = {
-    const_hyps : section_context; (** New: younger hyp at top *)
+    const_hyps : Sign.section_context; (** New: younger hyp at top *)
     const_body : constant_def;
-    const_type : types;
-    const_body_code : to_patch_substituted;
+    const_type : constant_type;
+    const_body_code : Cemitcodes.to_patch_substituted;
     const_polymorphic : bool; (** Is it polymorphic or not *)
-    const_universes : universe_context }
-
-val subst_const_def : substitution -> constant_def -> constant_def
-val subst_const_body : substitution -> constant_body -> constant_body
-
-(** Is there a actual body in const_body or const_body_opaque ? *)
-
-val constant_has_body : constant_body -> bool
-
-(** Accessing const_body_opaque or const_body *)
-
-val body_of_constant : constant_body -> constr_substituted option
-
-val is_opaque : constant_body -> bool
+    const_universes : Univ.universe_context;
+    const_native_name : native_name ref;
+    const_inline_code : bool }
 
 (** {6 Representation of mutual inductive types in the kernel } *)
 
@@ -83,19 +55,7 @@ type recarg =
   | Mrec of inductive
   | Imbr of inductive
 
-val eq_recarg : recarg -> recarg -> bool
-
-val subst_recarg : substitution -> recarg -> recarg
-
 type wf_paths = recarg Rtree.t
-
-val mk_norec : wf_paths
-val mk_paths : recarg -> wf_paths list array -> wf_paths
-val dest_recarg : wf_paths -> recarg
-val dest_subterms : wf_paths -> wf_paths list array
-val recarg_length : wf_paths -> int -> int
-
-val subst_wf_paths : substitution -> wf_paths -> wf_paths
 
 (**
 {v
@@ -161,7 +121,7 @@ type mutual_inductive_body = {
 
     mind_ntypes : int;  (** Number of types in the block *)
 
-    mind_hyps : section_context;  (** Section hypotheses on which the block depends *)
+    mind_hyps : Sign.section_context;  (** Section hypotheses on which the block depends *)
 
     mind_nparams : int;  (** Number of expected parameters *)
 
@@ -171,13 +131,19 @@ type mutual_inductive_body = {
 
     mind_polymorphic : bool; (** Is it polymorphic or not *)
 
+<<<<<<< HEAD
     mind_private : bool option ref; (** allow pattern-matching Some true ok, Some false blocked *)
 
     mind_universes : universe_context; (** Local universe variables and constraints *)
+=======
+    mind_universes : Univ.universe_context; (** Local universe variables and constraints *)
+>>>>>>> 679f3a313dba143a29cb5af76e7cfe43c6b3191e
+
+(** {8 Data for native compilation } *)
+
+    mind_native_name : native_name ref; (** status of the code (linked or not, and where) *)
 
   }
-
-val subst_mind_body : substitution -> mutual_inductive_body -> mutual_inductive_body
 
 (** {6 Modules: signature component specifications, module types, and
   module declarations } *)
@@ -197,7 +163,7 @@ and structure_body = (Label.t * structure_field_body) list
 and struct_expr_body =
   | SEBident of module_path
   | SEBfunctor of MBId.t * module_type_body * struct_expr_body
-  | SEBapply of struct_expr_body * struct_expr_body * constraints
+  | SEBapply of struct_expr_body * struct_expr_body * Univ.constraints
   | SEBstruct of structure_body
   | SEBwith of struct_expr_body * with_declaration_body
 
@@ -209,36 +175,26 @@ and module_body =
     {  (** absolute path of the module *)
       mod_mp : module_path;
       (** Implementation *)
-      mod_expr : struct_expr_body option; 
+      mod_expr : struct_expr_body option;
       (** Signature *)
       mod_type : struct_expr_body;
-      (** algebraic structure expression is kept 
+      (** algebraic structure expression is kept
 	 if it's relevant for extraction  *)
-      mod_type_alg : struct_expr_body option; 
+      mod_type_alg : struct_expr_body option;
       (** set of all constraint in the module  *)
-      mod_constraints : constraints;
+      mod_constraints : Univ.constraints;
       (** quotiented set of equivalent constant and inductive name  *)
-      mod_delta : delta_resolver;
+      mod_delta : Mod_subst.delta_resolver;
       mod_retroknowledge : Retroknowledge.action list}
-      
+
 and module_type_body =
-    { 
+    {
       (** Path of the module type *)
       typ_mp : module_path;
       typ_expr : struct_expr_body;
-      (** algebraic structure expression is kept 
+      (** algebraic structure expression is kept
 	 if it's relevant for extraction  *)
       typ_expr_alg : struct_expr_body option ;
-      typ_constraints : constraints;
+      typ_constraints : Univ.constraints;
       (** quotiented set of equivalent constant and inductive name  *)
-      typ_delta :delta_resolver}
-
-
-(** Hash-consing *)
-
-(** Here, strictly speaking, we don't perform true hash-consing
-    of the structure, but simply hash-cons all inner constr
-    and other known elements *)
-
-val hcons_const_body : constant_body -> constant_body
-val hcons_mind : mutual_inductive_body -> mutual_inductive_body
+      typ_delta : Mod_subst.delta_resolver}

@@ -99,16 +99,16 @@ let isEvalRef env c = match kind_of_term c with
 
 let destEvalRefU c = match kind_of_term c with
   | Const (cst,u) ->  EvalConst cst, u
-  | Var id  -> (EvalVar id, [])
-  | Rel n -> (EvalRel n, [])
-  | Evar ev -> (EvalEvar ev, [])
-  | _ -> anomaly "Not an unfoldable reference"
+  | Var id  -> (EvalVar id, Univ.Instance.empty)
+  | Rel n -> (EvalRel n, Univ.Instance.empty)
+  | Evar ev -> (EvalEvar ev, Univ.Instance.empty)
+  | _ -> anomaly (Pp.str "Not an unfoldable reference")
 
 let unsafe_reference_opt_value sigma env eval = 
   match eval with
   | EvalConst cst ->
     (match (lookup_constant cst env).Declarations.const_body with 
-    | Declarations.Def c -> Some (Declarations.force c)
+    | Declarations.Def c -> Some (Lazyconstr.force c)
     | _ -> None)
   | EvalVar id ->
       let (_,v,_) = lookup_named id env in
@@ -306,7 +306,7 @@ let compute_consteval_mutual_fix sigma env ref =
 	  (* Forget all \'s and args and do as if we had started with c' *)
 	  let ref,_ = destEvalRefU c' in
 	  (match unsafe_reference_opt_value sigma env ref with
-	    | None -> anomaly "Should have been trapped by compute_direct"
+	    | None -> anomaly (Pp.str "Should have been trapped by compute_direct")
 	    | Some c -> srec env (minarg-nargs) [] ref c)
       | _ -> (* Should not occur *) NotAnElimination
   in
@@ -476,7 +476,7 @@ let contract_fix_use_function env sigma f
   ((recindices,bodynum),(_names,_types,bodies as typedbodies)) =
   let nbodies = Array.length recindices in
   let make_Fi j = (mkFix((recindices,j),typedbodies), f j) in
-  let lbodies = List.tabulate make_Fi nbodies in
+  let lbodies = List.init nbodies make_Fi in
   substl_checking_arity env (List.rev lbodies) (nf_beta sigma bodies.(bodynum))
 
 let reduce_fix_use_function env sigma f whfun fix stack =
@@ -499,7 +499,7 @@ let contract_cofix_use_function env sigma f
   (bodynum,(_names,_,bodies as typedbodies)) =
   let nbodies = Array.length bodies in
   let make_Fi j = (mkCoFix(j,typedbodies), f j) in
-  let subbodies = List.tabulate make_Fi nbodies in
+  let subbodies = List.init nbodies make_Fi in
   substl_checking_arity env (List.rev subbodies)
     (nf_beta sigma bodies.(bodynum))
 
@@ -541,9 +541,9 @@ let match_eval_ref env constr =
   match kind_of_term constr with
   | Const (sp, u) when is_evaluable env (EvalConstRef sp) ->
       Some (EvalConst sp, u)
-  | Var id when is_evaluable env (EvalVarRef id) -> Some (EvalVar id, [])
-  | Rel i -> Some (EvalRel i, [])
-  | Evar ev -> Some (EvalEvar ev, [])
+  | Var id when is_evaluable env (EvalVarRef id) -> Some (EvalVar id, Univ.Instance.empty)
+  | Rel i -> Some (EvalRel i, Univ.Instance.empty)
+  | Evar ev -> Some (EvalEvar ev, Univ.Instance.empty)
   | _ -> None
 
 let match_eval_ref_value sigma env constr = 
@@ -823,6 +823,7 @@ and whd_construct_stack env sigma s =
 let try_red_product env sigma c =
   let simpfun = clos_norm_flags betaiotazeta env sigma in
   let rec redrec env x =
+    let x = whd_betaiota sigma x in
     match kind_of_term x with
       | App (f,l) ->
           (match kind_of_term f with
@@ -852,7 +853,7 @@ let try_red_product env sigma c =
 
 let red_product env sigma c =
   try try_red_product env sigma c
-  with Redelimination -> error "Not reducible."
+  with Redelimination -> error "No head constant to reduce."
 
 (*
 (* This old version of hnf uses betadeltaiota instead of itself (resp
@@ -921,7 +922,9 @@ let whd_simpl_orelse_delta_but_fix env sigma c =
       | CoFix _ | Fix _ -> s'
       | _ -> redrec (applist(c, stack)))
     | None -> s'
-  in applist (redrec c)
+  in
+  let simpfun = clos_norm_flags betaiota env sigma in
+  simpfun (applist (redrec c))
 
 let hnf_constr = whd_simpl_orelse_delta_but_fix
 
@@ -976,7 +979,7 @@ let contextually byhead (occs,c) f env sigma t =
 let match_constr_evaluable_ref c evref = 
   match kind_of_term c, evref with
   | Const (c,u), EvalConstRef c' when eq_constant c c' -> Some u
-  | Var id, EvalVarRef id' when id_eq id id' -> Some []
+  | Var id, EvalVarRef id' when id_eq id id' -> Some Univ.Instance.empty
   | _, _ -> None
 
 let substlin env evalref n (nowhere_except_in,locs) c =

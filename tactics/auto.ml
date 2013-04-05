@@ -586,10 +586,10 @@ let make_resolve_hyp env sigma (hname,_,htyp) =
   try
     [make_apply_entry env sigma (true, true, false) None false
        ~name:(PathHints [VarRef hname])
-       (mkVar hname, htyp, Univ.empty_universe_context_set)]
+       (mkVar hname, htyp, Univ.ContextSet.empty)]
   with
     | Failure _ -> []
-    | e when Logic.catchable_exception e -> anomaly "make_resolve_hyp"
+    | e when Logic.catchable_exception e -> anomaly (Pp.str "make_resolve_hyp")
 
 (* REM : in most cases hintname = id *)
 let make_unfold eref =
@@ -715,7 +715,7 @@ let subst_autohint (subst,(local,name,hintlist as obj)) =
       | Give_exact (c,t,ctx) ->
           let c' = subst_mps subst c in
 	  let t' = subst_mps subst t in
-          if c==c' then data.code else Give_exact (c',t',ctx)
+          if c==c' && t'== t then data.code else Give_exact (c',t',ctx)
       | Res_pf_THEN_trivial_fail (c,t,ctx) ->
           let c' = subst_mps subst c in
           let t' = subst_mps subst t in
@@ -927,12 +927,12 @@ let interp_hints =
         let ind = global_inductive_with_alias qid in
 	let mib,_ = Global.lookup_inductive ind in
 	Dumpglob.dump_reference (fst (qualid_of_reference qid)) "<>" (string_of_reference qid) "ind";
-        List.tabulate (fun i -> let c = (ind,i+1) in
-				let gr = ConstructRef c in
-				  None, mib.Declarations.mind_polymorphic, true, 
-		       PathHints [gr], IsGlobRef gr)
-	  (nconstructors ind) in
-	HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
+          List.init (nconstructors ind) 
+	    (fun i -> let c = (ind,i+1) in
+		      let gr = ConstructRef c in
+			None, mib.Declarations.mind_polymorphic, true, 
+			PathHints [gr], IsGlobRef gr)
+      in HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
   | HintsExtern (pri, patcom, tacexp) ->
       let pat =	Option.map fp patcom in
       let tacexp = !forward_intern_tac (match pat with None -> [] | Some (l, _) -> l) tacexp in
@@ -1124,7 +1124,7 @@ let exact poly (c,clenv) =
   let c' = 
     if poly then
       let evd', subst = Evd.refresh_undefined_universes clenv.evd in
-	subst_univs_constr subst c 
+	subst_univs_level_constr subst c 
     else c
   in exact_check c'
     
@@ -1134,7 +1134,9 @@ let expand_constructor_hints env lems =
   List.map_append (fun (sigma,lem) ->
     match kind_of_term lem with
     | Ind (ind,u) ->
-	List.tabulate (fun i -> IsConstr (mkConstructU ((ind,i+1),u), Univ.empty_universe_context_set)) (nconstructors ind)
+	List.init (nconstructors ind) 
+	  (fun i -> IsConstr (mkConstructU ((ind,i+1),u), 
+			      Univ.ContextSet.empty))
     | _ ->
 	[prepare_hint false env (sigma,lem)]) lems
 
@@ -1144,7 +1146,7 @@ let expand_constructor_hints env lems =
 let add_hint_lemmas eapply lems hint_db gl =
   let lems = expand_constructor_hints (pf_env gl) lems in
   let hintlist' =
-    List.map_append (pf_apply make_resolves gl (eapply,true,false) None false) lems in
+    List.map_append (pf_apply make_resolves gl (eapply,true,false) None true) lems in
   Hint_db.add_list hintlist' hint_db
 
 let make_local_hint_db ?ts eapply lems gl =
@@ -1246,9 +1248,9 @@ let tclLOG (dbg,depth,trace) pp tac =
 	  let out = tac gl in
 	  msg_debug (str s ++ spc () ++ pp () ++ str ". (*success*)");
 	  out
-	with e ->
+	with reraise ->
 	  msg_debug (str s ++ spc () ++ pp () ++ str ". (*fail*)");
-	  raise e
+	  raise reraise
       end
     | Info ->
       (* For "info (trivial/auto)", we store a log trace *)
@@ -1257,9 +1259,9 @@ let tclLOG (dbg,depth,trace) pp tac =
 	  let out = tac gl in
 	  trace := (depth, Some pp) :: !trace;
 	  out
-	with e ->
+	with reraise ->
 	  trace := (depth, None) :: !trace;
-	  raise e
+	  raise reraise
       end
 
 (** For info, from the linear trace information, we reconstitute the part

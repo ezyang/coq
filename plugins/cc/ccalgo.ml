@@ -51,7 +51,7 @@ module ST=struct
 
   let enter t sign st=
     if Hashtbl.mem st.toterm sign then
-	anomaly "enter: signature already entered"
+	anomaly ~label:"enter" (Pp.str "signature already entered")
     else
 	Hashtbl.replace st.toterm sign t;
 	Hashtbl.replace st.tosign t sign
@@ -272,7 +272,7 @@ let find uf i= find_aux uf [] i
 let get_representative uf i=
   match uf.map.(i).clas with
       Rep r -> r
-    | _ -> anomaly "get_representative: not a representative"
+    | _ -> anomaly ~label:"get_representative" (Pp.str "not a representative")
 
 let find_pac uf i pac =
   PacMap.find pac (get_representative uf i).constructors
@@ -280,7 +280,7 @@ let find_pac uf i pac =
 let get_constructor_info uf i=
   match uf.map.(i).term with
       Constructor cinfo->cinfo
-    | _ -> anomaly "get_constructor: not a constructor"
+    | _ -> anomaly ~label:"get_constructor" (Pp.str "not a constructor")
 
 let size uf i=
   (get_representative uf i).weight
@@ -325,7 +325,7 @@ let term uf i=uf.map.(i).term
 let subterms uf i=
   match uf.map.(i).vertex with
       Node(j,k) -> (j,k)
-    | _ -> anomaly "subterms: not a node"
+    | _ -> anomaly ~label:"subterms" (Pp.str "not a node")
 
 let signature uf i=
   let j,k=subterms uf i in (find uf j,find uf k)
@@ -400,9 +400,12 @@ let rec canonize_name c =
 (* rebuild a term from a pattern and a substitution *)
 
 let build_subst uf subst =
-  Array.map (fun i ->
-	       try term uf i
-	       with _ -> anomaly "incomplete matching") subst
+  Array.map
+    (fun i ->
+      try term uf i
+      with e when Errors.noncritical e ->
+        anomaly (Pp.str "incomplete matching"))
+    subst
 
 let rec inst_pattern subst = function
     PVar i ->
@@ -657,8 +660,8 @@ let process_constructor_mark t i rep pac state =
 			{lhs=s1;rhs=s2;rule=Injection(s,opac,t,pac,n)}
 			state.combine;
 		      f (n-1) q1 q2
-		  | _-> anomaly
-		      "add_pacs : weird error in injection subterms merge"
+		  | _-> anomaly ~label:"add_pacs"
+		      (Pp.str "weird error in injection subterms merge")
 	    in f cinfo.ci_nhyps opac.args pac.args
       | Partial_applied | Partial _ ->
 	  add_pac rep pac t;
@@ -727,9 +730,7 @@ let __eps__ = Id.of_string "_eps_"
 let new_state_var typ state =
   let id = pf_get_new_id __eps__ state.gls in
   let {it=gl ; sigma=sigma} = state.gls in
-  let new_hyps =
-    Environ.push_named_context_val (id,None,typ) (Goal.V82.hyps sigma gl) in
-  let gls = Goal.V82.new_goal_with sigma gl new_hyps in
+  let gls = Goal.V82.new_goal_with sigma gl [id,None,typ] in
     state.gls<- gls;
     id
 
@@ -750,7 +751,7 @@ let complete_one_class state i=
 	let ct = app (term state.uf i) typ pac.arity in
 	  state.uf.epsilons <- pac :: state.uf.epsilons;
 	  ignore (add_term state ct)
-    | _ -> anomaly "wrong incomplete class"
+    | _ -> anomaly (Pp.str "wrong incomplete class")
 
 let complete state =
   Int.Set.iter (complete_one_class state) state.pa_classes
@@ -890,7 +891,7 @@ let find_instances state =
 	check_for_interrupt ();
 	do_match state res pb_stack
       done;
-      anomaly "get out of here !"
+      anomaly (Pp.str "get out of here !")
     with Stack.Empty -> () in
     !res
 

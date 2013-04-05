@@ -92,7 +92,7 @@ let kind_of_head env t =
     | [] ->
       let () = assert (not b) in
       aux (k + 1) [] c b
-    | h :: l -> aux (k + 1) l (subst1 h c) b
+    | h :: l -> aux k l (subst1 h c) b
     end
   | LetIn _ -> assert false
   | Meta _ | Evar _ -> NotImmediatelyComputableHead
@@ -119,7 +119,7 @@ let kind_of_head env t =
         else
           (* enough arguments to [cst] *)
           k,List.skipn n l,List.nth l (i-1) in
-      let l' = List.tabulate (fun _ -> mkMeta 0) q @ rest in
+      let l' = List.make q (mkMeta 0) @ rest in
       aux k' l' a (with_subcase or with_case)
   | ConstructorHead when with_case -> NotImmediatelyComputableHead
   | x -> x
@@ -129,10 +129,10 @@ let kind_of_head env t =
 let compute_head = function
 | EvalConstRef cst ->
    let env = Global.env() in
-   let body = Declarations.body_of_constant (Environ.lookup_constant cst env) in
+   let body = Declareops.body_of_constant (Environ.lookup_constant cst env) in
      (match body with
      | None -> RigidHead (RigidParameter cst)
-     | Some c -> kind_of_head env (Declarations.force c))
+     | Some c -> kind_of_head env c)
 | EvalVarRef id ->
     (match pi2 (Global.lookup_named id) with
      | Some c when not (Decls.variable_opacity id) ->

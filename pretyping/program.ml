@@ -6,17 +6,19 @@
 (*         *       GNU Lesser General Public License Version 2.1        *)
 (************************************************************************)
 
+open Pp
 open Errors
 open Util
 open Names
 open Term
 
-let make_dir l = Dir_path.make (List.map Id.of_string (List.rev l))
+let make_dir l = DirPath.make (List.rev_map Id.of_string l)
 
 let find_reference locstr dir s =
   let sp = Libnames.make_path (make_dir dir) (Id.of_string s) in
   try Nametab.global_of_path sp
-  with Not_found -> anomaly (locstr^": cannot find "^(Libnames.string_of_path sp))
+  with Not_found ->
+    anomaly ~label:locstr (Pp.str "cannot find" ++ spc () ++ Libnames.pr_path sp)
 
 let coq_reference locstr dir s = find_reference locstr ("Coq"::dir) s
 let coq_constant locstr dir s = Universes.constr_of_global (coq_reference locstr dir s)
@@ -53,7 +55,7 @@ let mk_coq_not x = mkApp (delayed_force coq_not, [| x |])
 
 let unsafe_fold_right f = function
     hd :: tl -> List.fold_right f tl hd
-  | [] -> raise (Invalid_argument "unsafe_fold_right")
+  | [] -> invalid_arg "unsafe_fold_right"
 
 let mk_coq_and l =
   let and_typ = delayed_force coq_and in

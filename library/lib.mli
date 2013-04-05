@@ -72,15 +72,15 @@ val contents_after : Libnames.object_name option -> library_segment
 (** {6 Functions relative to current path } *)
 
 (** User-side names *)
-val cwd : unit -> Names.Dir_path.t
-val cwd_except_section : unit -> Names.Dir_path.t
-val current_dirpath : bool -> Names.Dir_path.t (* false = except sections *)
+val cwd : unit -> Names.DirPath.t
+val cwd_except_section : unit -> Names.DirPath.t
+val current_dirpath : bool -> Names.DirPath.t (* false = except sections *)
 val make_path : Names.Id.t -> Libnames.full_path
 val make_path_except_section : Names.Id.t -> Libnames.full_path
 val path_of_include : unit -> Libnames.full_path
 
 (** Kernel-side names *)
-val current_prefix : unit -> Names.module_path * Names.Dir_path.t
+val current_prefix : unit -> Names.module_path * Names.DirPath.t
 val make_kn : Names.Id.t -> Names.kernel_name
 val make_con : Names.Id.t -> Names.constant
 
@@ -124,19 +124,19 @@ val end_modtype :
 
 (** {6 Compilation units } *)
 
-val start_compilation : Names.Dir_path.t -> Names.module_path -> unit
-val end_compilation : Names.Dir_path.t -> Libnames.object_prefix * library_segment
+val start_compilation : Names.DirPath.t -> Names.module_path -> unit
+val end_compilation : Names.DirPath.t -> Libnames.object_prefix * library_segment
 
-(** The function [library_dp] returns the [Dir_path.t] of the current
+(** The function [library_dp] returns the [DirPath.t] of the current
    compiling library (or [default_library]) *)
-val library_dp : unit -> Names.Dir_path.t
+val library_dp : unit -> Names.DirPath.t
 
 (** Extract the library part of a name even if in a section *)
-val dp_of_mp : Names.module_path -> Names.Dir_path.t
-val split_mp : Names.module_path -> Names.Dir_path.t * Names.Dir_path.t
-val split_modpath : Names.module_path -> Names.Dir_path.t * Names.Id.t list
-val library_part :  Globnames.global_reference -> Names.Dir_path.t
-val remove_section_part : Globnames.global_reference -> Names.Dir_path.t
+val dp_of_mp : Names.module_path -> Names.DirPath.t
+val split_mp : Names.module_path -> Names.DirPath.t * Names.DirPath.t
+val split_modpath : Names.module_path -> Names.DirPath.t * Names.Id.t list
+val library_part :  Globnames.global_reference -> Names.DirPath.t
+val remove_section_part : Globnames.global_reference -> Names.DirPath.t
 
 (** {6 Sections } *)
 
@@ -190,7 +190,7 @@ val named_of_variable_context : variable_context -> Sign.named_context
 val section_segment_of_constant : Names.constant -> variable_context Univ.in_universe_context
 val section_segment_of_mutual_inductive: Names.mutual_inductive -> variable_context Univ.in_universe_context
 
-val section_instance : Globnames.global_reference -> Univ.universe_list * Names.Id.t array
+val section_instance : Globnames.global_reference -> Univ.universe_instance * Names.Id.t array
 val is_in_section : Globnames.global_reference -> bool
 
 val add_section_variable : Names.Id.t -> Decl_kinds.binding_kind -> Univ.universe_context_set -> unit

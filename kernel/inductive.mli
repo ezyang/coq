@@ -32,9 +32,11 @@ type mind_specif = mutual_inductive_body * one_inductive_body
 val lookup_mind_specif : env -> inductive -> mind_specif
 
 (** {6 Functions to build standard types related to inductive } *)
-val ind_subst : mutual_inductive -> mutual_inductive_body -> universe_list -> constr list
+val ind_subst : mutual_inductive -> mutual_inductive_body -> universe_instance -> constr list
 
-val make_inductive_subst : mutual_inductive_body -> universe_list -> universe_subst
+val make_inductive_subst : mutual_inductive_body -> universe_instance -> universe_subst
+
+val inductive_instance : mutual_inductive_body -> universe_instance
 
 val instantiate_inductive_constraints : mutual_inductive_body -> universe_subst -> constraints
 

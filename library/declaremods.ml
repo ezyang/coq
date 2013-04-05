@@ -16,16 +16,7 @@ open Libnames
 open Libobject
 open Lib
 open Mod_subst
-
-(** Rigid / flexible signature *)
-
-type 'a module_signature =
-  | Enforce of 'a (** ... : T *)
-  | Check of 'a list (** ... <: T1 <: T2, possibly empty *)
-
-(** Should we adapt a few scopes during functor application ? *)
-
-type scope_subst = (string * string) list
+open Vernacexpr
 
 let scope_subst = ref (String.Map.empty : string String.Map.t)
 
@@ -41,14 +32,6 @@ let subst_scope sc =
 let reset_scope_subst () =
   scope_subst := String.Map.empty
 
-(** Which inline annotations should we honor, either None or the ones
-    whose level is less or equal to the given integer *)
-
-type inline =
-  | NoInline
-  | DefaultInline
-  | InlineAt of int
-
 let default_inline () = Some (Flags.get_inline_level ())
 
 let inl2intopt = function
@@ -56,14 +39,7 @@ let inl2intopt = function
   | InlineAt i -> Some i
   | DefaultInline -> default_inline ()
 
-type funct_app_annot =
-  { ann_inline : inline;
-    ann_scope_subst : scope_subst }
-
 let inline_annot a = inl2intopt a.ann_inline
-
-type 'a annotated = ('a * funct_app_annot)
-
 
 (* modules and components *)
 
@@ -123,7 +99,7 @@ let modtab_objects =
 (* currently started interactive module (if any) - its arguments (if it
    is a functor) and declared output type *)
 let openmod_info =
-  ref ((MPfile(Dir_path.initial),[],None,[])
+  ref ((MPfile(DirPath.initial),[],None,[])
 	 : module_path *  MBId.t list *
            (module_struct_entry * int option) option *
 	   module_type_body list)
@@ -146,19 +122,19 @@ let _ = Summary.declare_summary "MODULE-INFO"
 	    Summary.init_function = (fun () ->
 				       modtab_substobjs := MPmap.empty;
 				       modtab_objects := MPmap.empty;
-				       openmod_info := ((MPfile(Dir_path.initial),
+				       openmod_info := ((MPfile(DirPath.initial),
 							 [],None,[]));
 				       library_cache := Dirmap.empty) }
 
 (* auxiliary functions to transform full_path and kernel_name given
-   by Lib into module_path and Dir_path.t needed for modules *)
+   by Lib into module_path and DirPath.t needed for modules *)
 
 let mp_of_kn kn =
   let mp,sec,l = repr_kn kn in
-    if Dir_path.equal sec Dir_path.empty then
+    if DirPath.is_empty sec then
       MPdot (mp,l)
     else
-      anomaly ("Non-empty section in module name!" ^ string_of_kn kn)
+      anomaly (str "Non-empty section in module name!" ++ spc () ++ pr_kn kn)
 
 let dir_of_sp sp =
   let dir,id = repr_path sp in
@@ -246,8 +222,8 @@ let compute_visibility exists what i dir dirinfo =
       Nametab.Until i
 (*
 let do_load_and_subst_module i dir mp substobjs keep =
-  let prefix = (dir,(mp,Dir_path.empty)) in
-  let dirinfo = DirModule (dir,(mp,Dir_path.empty)) in
+  let prefix = (dir,(mp,DirPath.empty)) in
+  let dirinfo = DirModule (dir,(mp,DirPath.empty)) in
   let vis = compute_visibility false "load_and_subst" i dir dirinfo in
   let objects = compute_subst_objects mp substobjs resolver in
   Nametab.push_dir vis dir dirinfo;
@@ -263,8 +239,8 @@ let do_load_and_subst_module i dir mp substobjs keep =
 *)
 
 let do_module exists what iter_objects i dir mp substobjs keep=
-  let prefix = (dir,(mp,Dir_path.empty)) in
-  let dirinfo = DirModule (dir,(mp,Dir_path.empty)) in
+  let prefix = (dir,(mp,DirPath.empty)) in
+  let dirinfo = DirModule (dir,(mp,DirPath.empty)) in
   let vis = compute_visibility exists what i dir dirinfo in
     Nametab.push_dir vis dir dirinfo;
     modtab_substobjs := MPmap.add mp substobjs !modtab_substobjs;
@@ -310,25 +286,25 @@ let (in_module : substitutive_objects -> obj),
     subst_function = subst_module;
     classify_function = classify_module }
 
-let cache_keep _ = anomaly "This module should not be cached!"
+let cache_keep _ = anomaly (Pp.str "This module should not be cached!")
 
 let load_keep i ((sp,kn),seg) =
   let mp = mp_of_kn kn in
-  let prefix = dir_of_sp sp, (mp,Dir_path.empty) in
+  let prefix = dir_of_sp sp, (mp,DirPath.empty) in
     begin
       try
 	let prefix',objects = MPmap.find mp !modtab_objects in
 	  if not (eq_op prefix' prefix) then
-	    anomaly "Two different modules with the same path!";
+	    anomaly (Pp.str "Two different modules with the same path!");
 	  modtab_objects := MPmap.add mp (prefix,objects@seg) !modtab_objects;
       with
-	  Not_found -> anomaly "Keep objects before substitutive"
+	  Not_found -> anomaly (Pp.str "Keep objects before substitutive")
     end;
     load_objects i prefix seg
 
 let open_keep i ((sp,kn),seg) =
   let dirpath,mp = dir_of_sp sp, mp_of_kn kn in
-    open_objects i (dirpath,(mp,Dir_path.empty)) seg
+    open_objects i (dirpath,(mp,DirPath.empty)) seg
 
 let in_modkeep : lib_objects -> obj =
   declare_object {(default_object "MODULE KEEP OBJECTS") with
@@ -366,10 +342,10 @@ let cache_modtype ((sp,kn),(entry,modtypeobjs,sub_mty_l)) =
   let _ =
     match entry with
       | None ->
-	  anomaly "You must not recache interactive module types!"
+	  anomaly (Pp.str "You must not recache interactive module types!")
       | Some (mte,inl) ->
 	  if not (mp_eq mp (Global.add_modtype (basename sp) mte inl)) then
-	    anomaly "Kernel and Library names do not match"
+	    anomaly (Pp.str "Kernel and Library names do not match")
   in
 
   (* Using declare_modtype should lead here, where we check
@@ -433,11 +409,11 @@ let in_modtype : modtype_obj -> obj =
 
 let rec replace_module_object idl (mbids,mp,lib_stack) (mbids2,mp2,objs) mp1 =
   let () = match mbids with
-  | [] -> () | _ -> anomaly "Unexpected functor objects" in
+  | [] -> () | _ -> anomaly (Pp.str "Unexpected functor objects") in
   let rec replace_idl = function
     | _,[] -> []
     | id::idl,(id',obj)::tail when Id.equal id id' ->
-      if not (String.equal (object_tag obj) "MODULE") then anomaly "MODULE expected!";
+      if not (String.equal (object_tag obj) "MODULE") then anomaly (Pp.str "MODULE expected!");
       let substobjs = match idl with
       | [] ->
         let mp' = MPdot(mp, Label.of_id id) in
@@ -506,15 +482,16 @@ let rec get_modtype_substobjs env mp_from inline = function
 (* add objects associated to them *)
 let process_module_bindings argids args =
   let process_arg id (mbid,(mty,ann)) =
-    let dir = Dir_path.make [id] in
+    let dir = DirPath.make [id] in
     let mp = MPbound mbid in
     let (mbids,mp_from,objs) =
-      get_modtype_substobjs (Global.env()) mp (inline_annot ann) mty in
-    let substobjs = (mbids,mp,subst_objects
-		       (map_mp mp_from mp empty_delta_resolver) objs)in
-      do_module false "start" load_objects 1 dir mp substobjs []
+      get_modtype_substobjs (Global.env()) mp (inline_annot ann) mty
     in
-      List.iter2 process_arg argids args
+    let subst = map_mp mp_from mp empty_delta_resolver in
+    let substobjs = (mbids,mp,subst_objects subst objs) in
+    do_module false "start" load_objects 1 dir mp substobjs []
+  in
+  List.iter2 process_arg argids args
 
 (* Same with module_type_body *)
 
@@ -524,7 +501,7 @@ let rec seb2mse = function
   | SEBwith (s,With_module_body (l,mp)) -> MSEwith(seb2mse s,With_Module(l,mp))
   | SEBwith (s,With_definition_body(l,cb)) ->
       (match cb.const_body with
-	| Def c -> MSEwith(seb2mse s,With_Definition(l,Declarations.force c))
+	| Def c -> MSEwith(seb2mse s,With_Definition(l,Lazyconstr.force c))
 	| _ -> assert false)
   | _ -> failwith "seb2mse: received a non-atomic seb"
 
@@ -539,17 +516,18 @@ let intern_args interp_modtype (idl,(arg,ann)) =
   let lib_dir = Lib.library_dp() in
   let mbids = List.map (fun (_,id) -> MBId.make lib_dir id) idl in
   let mty = interp_modtype (Global.env()) arg in
-  let dirs = List.map (fun (_,id) -> Dir_path.make [id]) idl in
-  let (mbi,mp_from,objs) = get_modtype_substobjs (Global.env())
-    (MPbound (List.hd mbids)) inl mty in
+  let dirs = List.map (fun (_,id) -> DirPath.make [id]) idl in
+  let (mbi,mp_from,objs) =
+    get_modtype_substobjs (Global.env()) (MPbound (List.hd mbids)) inl mty
+  in
   List.map2
     (fun dir mbid ->
        let resolver = Global.add_module_parameter mbid mty inl in
        let mp = MPbound mbid in
-       let substobjs = (mbi,mp,subst_objects
-			  (map_mp mp_from mp resolver) objs) in
-	 do_module false "interp" load_objects 1 dir mp substobjs [];
-	 (mbid,(mty,inl)))
+       let subst = map_mp mp_from mp resolver in
+       let substobjs = (mbi,mp,subst_objects subst objs) in
+       do_module false "interp" load_objects 1 dir mp substobjs [];
+       (mbid,(mty,inl)))
     dirs mbids
 
 let start_module_ interp_modtype export id args res fs =
@@ -591,13 +569,13 @@ let end_module () =
 	    get_modtype_substobjs (Global.env()) mp inline mty in
 	  Some mp1,(mbids@mbids1,mp1,objs), [], []
       | Some (MSEfunctor _, _) ->
-	  anomaly "Funsig cannot be here..."
+	  anomaly (Pp.str "Funsig cannot be here...")
       | Some (MSEapply _ as mty, inline) ->
 	  let (mbids1,mp1,objs) =
 	    get_modtype_substobjs (Global.env()) mp inline mty in
 	  Some mp1,(mbids@mbids1,mp1,objs), [], []
   with
-	Not_found -> anomaly "Module objects not found..."
+	Not_found -> anomaly (Pp.str "Module objects not found...")
   in
     (* must be called after get_modtype_substobjs, because of possible
      dependencies on functor arguments *)
@@ -625,9 +603,9 @@ let end_module () =
   let newoname = Lib.add_leaves id objects in
 
     if not (eq_full_path (fst newoname) (fst oldoname)) then
-      anomaly "Names generated on start_ and end_module do not match";
+      anomaly (Pp.str "Names generated on start_ and end_module do not match");
     if not (mp_eq (mp_of_kn (snd newoname)) mp) then
-      anomaly "Kernel and Library names do not match";
+      anomaly (Pp.str "Kernel and Library names do not match");
 
     Lib.add_frozen_state () (* to prevent recaching *);
     mp
@@ -643,7 +621,7 @@ let module_objects mp =
 (************************************************************************)
 (* libraries *)
 
-type library_name = Dir_path.t
+type library_name = DirPath.t
 
 (* The first two will form substitutive_objects, the last one is keep *)
 type library_objects =
@@ -652,21 +630,26 @@ type library_objects =
 
 let register_library dir cenv objs digest =
   let mp = MPfile dir in
-  let substobjs, keep =
+  let substobjs, keep, values =
   try 
     ignore(Global.lookup_module mp);
     (* if it's in the environment, the cached objects should be correct *)
     Dirmap.find dir !library_cache
   with Not_found ->
-    if not (mp_eq mp (Global.import cenv digest)) then
-      anomaly "Unexpected disk module name";
+    let mp', values = Global.import cenv digest in
+    if not (mp_eq mp mp') then
+      anomaly (Pp.str "Unexpected disk module name");
     let mp,substitute,keep = objs in
     let substobjs = [], mp, substitute in
-    let modobjs = substobjs, keep in
+    let modobjs = substobjs, keep, values in
     library_cache := Dirmap.add dir modobjs !library_cache;
       modobjs
   in
     do_module false "register_library" load_objects 1 dir mp substobjs keep
+
+let get_library_symbols_tbl dir =
+  let _,_,values = Dirmap.find dir !library_cache in
+  values
 
 let start_library dir =
   let mp = Global.start_library dir in
@@ -680,9 +663,9 @@ let set_end_library_hook f = end_library_hook := f
 let end_library dir =
   !end_library_hook();
   let prefix, lib_stack = Lib.end_compilation dir in
-  let mp,cenv = Global.export dir in
+  let mp,cenv,ast = Global.export dir in
   let substitute, keep, _ = Lib.classify_segment lib_stack in
-    cenv,(mp,substitute,keep)
+    cenv,(mp,substitute,keep),ast
 
 
 (* implementation of Export M and Import M *)
@@ -743,10 +726,10 @@ let end_modtype () =
   in
   if not (eq_full_path (fst oname) (fst oldoname)) then
     anomaly
-      "Section paths generated on start_ and end_modtype do not match";
+      (str "Section paths generated on start_ and end_modtype do not match");
   if not (mp_eq (mp_of_kn (snd oname)) mp) then
     anomaly
-      "Kernel and Library names do not match";
+      (str "Kernel and Library names do not match");
 
   Lib.add_frozen_state ()(* to prevent recaching *);
   mp
@@ -764,9 +747,8 @@ let declare_modtype_ interp_modtype id args mtys (mty,ann) fs =
   (* and declare the module type as a whole *)
 
   register_scope_subst ann.ann_scope_subst;
-  let substobjs = (mbids,mmp,
-		   subst_objects (map_mp mp_from mmp empty_delta_resolver) objs)
-  in
+  let subst = map_mp mp_from mmp empty_delta_resolver in
+  let substobjs = (mbids,mmp, subst_objects subst objs) in
   reset_scope_subst ();
   Summary.unfreeze_summaries fs;
   ignore (add_leaf id (in_modtype (Some (entry,inl), substobjs, sub_mty_l)));
@@ -832,7 +814,7 @@ let declare_module_ interp_modtype interp_modexpr id args res mexpr_o fs =
     match entry with
       | {mod_entry_type = Some mte} -> get_modtype_substobjs env mmp inl_res mte
       | {mod_entry_expr = Some mexpr} -> get_module_substobjs env mmp inl_expr mexpr
-      | _ -> anomaly "declare_module: No type, no body ..."
+      | _ -> anomaly ~label:"declare_module" (Pp.str "No type, no body ...")
   in
   let (mbids,mp_from,objs) = substobjs in
   (* Undo the simulated interactive building of the module *)
@@ -845,17 +827,15 @@ let declare_module_ interp_modtype interp_modexpr id args res mexpr_o fs =
   in (* PLTODO *)
   let mp_env,resolver = Global.add_module id entry inl in
 
-  if not (mp_eq mp_env mp) then anomaly "Kernel and Library names do not match";
+  if not (mp_eq mp_env mp)
+  then anomaly (Pp.str "Kernel and Library names do not match");
 
-  
   check_subtypes mp subs;
   register_scope_subst scl;
-  let substobjs = (mbids,mp_env,
-		   subst_objects(map_mp mp_from mp_env resolver) objs) in
+  let subst = map_mp mp_from mp_env resolver in
+  let substobjs = (mbids,mp_env, subst_objects subst objs) in
   reset_scope_subst ();
-  ignore (add_leaf
-	    id
-	    (in_module substobjs));
+  ignore (add_leaf id (in_module substobjs));
   mmp
 
 (* Include *)
@@ -885,18 +865,18 @@ let lift_oname (sp,kn) =
 
 let cache_include (oname,(me,(mbis,mp1,objs))) =
   let dir,mp1 = lift_oname oname in
-  let prefix = (dir,(mp1,Dir_path.empty)) in
+  let prefix = (dir,(mp1,DirPath.empty)) in
     load_objects 1 prefix objs;
     open_objects 1 prefix objs
 
 let load_include  i (oname,(me,(mbis,mp1,objs))) =
   let dir,mp1 = lift_oname oname in
-  let prefix = (dir,(mp1,Dir_path.empty)) in
+  let prefix = (dir,(mp1,DirPath.empty)) in
     load_objects i prefix objs
 
 let open_include i (oname,(me,(mbis,mp1,objs))) =
   let dir,mp1 = lift_oname oname in
-  let prefix = (dir,(mp1,Dir_path.empty)) in
+  let prefix = (dir,(mp1,DirPath.empty)) in
     open_objects i prefix objs
 
 let subst_include (subst,(me,substobj)) =
@@ -981,8 +961,8 @@ let declare_one_include_inner annot (me,is_mod) =
   let id = current_mod_id() in
   let resolver =  Global.add_include me is_mod inl in
   register_scope_subst annot.ann_scope_subst;
-  let substobjs = (mbids,mp1,
-		   subst_objects (map_mp mp mp1 resolver) objs) in
+  let subst = map_mp mp mp1 resolver in
+  let substobjs = (mbids,mp1, subst_objects subst objs) in
   reset_scope_subst ();
   ignore (add_leaf id (in_include (me, substobjs)))
 
@@ -999,9 +979,11 @@ let declare_include_ interp_struct me_asts =
 let protect_summaries f =
   let fs = Summary.freeze_summaries () in
   try f fs
-  with e ->
+  with reraise ->
     (* Something wrong: undo the whole process *)
-    Summary.unfreeze_summaries fs; raise e
+    let reraise = Errors.push reraise in
+    let () = Summary.unfreeze_summaries fs in
+    raise reraise
 
 let declare_include interp_struct me_asts =
   protect_summaries

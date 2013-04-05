@@ -100,7 +100,7 @@ let extract_bound_vars =
   | (n :: l, (na1, na2, _) :: stk) when Int.equal k n ->
       begin match na1, na2 with
       | Name id1, Name _ -> list_insert id1 (aux (k + 1) (l, stk))
-      | Name _, Anonymous -> anomaly "Unnamed bound variable"
+      | Name _, Anonymous -> anomaly (Pp.str "Unnamed bound variable")
       | Anonymous, _ -> raise PatternMatchingFailure
       end
   | (l, _ :: stk) -> aux (k + 1) (l, stk)
@@ -149,7 +149,7 @@ let matches_core convert allow_partial_app allow_bound_rels pat c =
     | _, _ -> (match convert with 
                | None -> false
 	       | Some (env,sigma) -> 
-	         let sigma,c' = Evd.fresh_global Evd.univ_flexible env sigma ref in
+	         let sigma,c' = Evd.fresh_global Evd.univ_flexible_alg env sigma ref in
 		   is_conv env sigma c' c)
   in
   let rec sorec stk subst p t =

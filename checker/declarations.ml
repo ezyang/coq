@@ -7,6 +7,8 @@ open Validate
 type values
 type reloc_table
 type to_patch_substituted
+(* Native code *)
+type native_name
 (*Retroknowledge *)
 type action
 type retroknowledge
@@ -26,6 +28,7 @@ type delta_hint =
 module Deltamap = struct
   type t = module_path MPmap.t * delta_hint KNmap.t
   let empty = MPmap.empty, KNmap.empty
+  let is_empty (mm, km) = MPmap.is_empty mm && KNmap.is_empty km
   let add_kn kn hint (mm,km) = (mm,KNmap.add kn hint km)
   let add_mp mp mp' (mm,km) = (MPmap.add mp mp' mm, km)
   let remove_mp mp (mm,km) = (MPmap.remove mp mm, km)
@@ -42,12 +45,6 @@ end
 type delta_resolver = Deltamap.t
 
 let empty_delta_resolver = Deltamap.empty
-
-module MBImap = Map.Make
-  (struct
-    type t = MBId.t
-    let compare = Pervasives.compare
-   end)
 
 module Umap = struct
   type 'a t = 'a MPmap.t * 'a MBImap.t
@@ -123,10 +120,8 @@ let solve_delta_kn resolve kn =
       make_kn new_mp dir l
 
 let gen_of_delta resolve x kn fix_can =
-  try
-    let new_kn = solve_delta_kn resolve kn in
-    if kn == new_kn then x else fix_can new_kn
-  with _ -> x
+  let new_kn = solve_delta_kn resolve kn in
+  if kn == new_kn then x else fix_can new_kn
 
 let constant_of_delta resolve con =
   let kn = user_con con in
@@ -208,6 +203,11 @@ let gen_subst_mp f sub mp1 mp2 =
     | None, Some (mp',resolve) -> Canonical, (f mp1 mp'), resolve
     | Some (mp1',_), Some (mp2',resolve2) -> Canonical, (f mp1' mp2'), resolve2
 
+let make_mind_equiv mpu mpc dir l =
+  let knu = make_kn mpu dir l in
+  if mpu == mpc then mind_of_kn knu
+  else mind_of_kn_equiv knu (make_kn mpc dir l)
+
 let subst_ind sub mind =
   let kn1,kn2 = user_mind mind, canonical_mind mind in
   let mp1,dir,l = repr_kn kn1 in
@@ -219,6 +219,11 @@ let subst_ind sub mind =
       | User -> mind_of_delta resolve mind'
       | Canonical -> mind_of_delta2 resolve mind'
   with No_subst -> mind
+
+let make_con_equiv mpu mpc dir l =
+  let knu = make_kn mpu dir l in
+  if mpu == mpc then constant_of_kn knu
+  else constant_of_kn_equiv knu (make_kn mpc dir l)
 
 let subst_con0 sub con =
   let kn1,kn2 = user_con con,canonical_con con in
@@ -322,7 +327,7 @@ let from_val a = ref (LSval a)
  
 let rec replace_mp_in_mp mpfrom mpto mp =
   match mp with
-    | _ when mp = mpfrom -> mpto
+    | _ when ModPath.equal mp mpfrom -> mpto
     | MPdot (mp1,l) ->
 	let mp1' = replace_mp_in_mp mpfrom mpto mp1 in
 	  if mp1==mp1' then mp
@@ -331,7 +336,7 @@ let rec replace_mp_in_mp mpfrom mpto mp =
 
 let rec mp_in_mp mp mp1 =
   match mp1 with
-    | _ when mp1 = mp -> true
+    | _ when ModPath.equal mp1 mp -> true
     | MPdot (mp2,l) -> mp_in_mp mp mp2
     | _ -> false
 
@@ -404,14 +409,14 @@ let update_delta_resolver resolver1 resolver2 =
 let add_delta_resolver resolver1 resolver2 =
   if resolver1 == resolver2 then
     resolver2
-  else if resolver2 = empty_delta_resolver then
+  else if Deltamap.is_empty resolver2 then
     resolver1
   else
     Deltamap.join (update_delta_resolver resolver1 resolver2) resolver2
 
 let substition_prefixed_by k mp subst =
   let mp_prefixmp kmp (mp_to,reso) sub =
-    if mp_in_mp mp kmp && mp <> kmp then
+    if mp_in_mp mp kmp && not (ModPath.equal mp kmp) then
       let new_key = replace_mp_in_mp mp k kmp in
       Umap.add_mp new_key (mp_to,reso) sub
     else sub
@@ -446,10 +451,13 @@ let force fsubst r =
   match !r with
   | LSval a -> a
   | LSlazy(s,a) ->
-      let subst = List.fold_left join empty_subst (List.rev s) in
-      let a' = fsubst subst a in
-      r := LSval a';
-      a'
+    match List.rev s with
+      | [] -> assert false
+      | sub0::subs ->
+        let subst = List.fold_left join sub0 subs in
+        let a' = fsubst subst a in
+        r := LSval a';
+        a'
 
 let subst_substituted s r =
   match !r with
@@ -459,24 +467,34 @@ let subst_substituted s r =
 
 let force_constr = force subst_mps
 
+let from_val c = ref (LSval c)
+
 type constr_substituted = constr substituted
 
 let val_cstr_subst = val_substituted val_constr
 
 let subst_constr_subst = subst_substituted
 
-(** Beware! In .vo files, lazy_constr are stored as integers
-   used as indexes for a separate table. The actual lazy_constr is restored
-   later, by [Safe_typing.LightenLibrary.load]. This allows us
-   to use here a different definition of lazy_constr than coqtop:
-   since the checker will inspect all proofs parts, even opaque
-   ones, no need to use Lazy.t here *)
+(* Nota : in coqtop, the [lazy_constr] type also have a [Direct]
+   constructor, but it shouldn't occur inside a .vo, so we ignore it *)
 
-type lazy_constr = constr_substituted
-let subst_lazy_constr = subst_substituted
-let force_lazy_constr = force_constr
-let lazy_constr_from_val c = c
-let val_lazy_constr = val_cstr_subst
+type lazy_constr =
+  | Indirect of substitution list * DirPath.t * int
+(* | Direct of constr_substituted *)
+
+let subst_lazy_constr sub = function
+  | Indirect (l,dp,i) -> Indirect (sub::l,dp,i)
+
+let indirect_opaque_access =
+  ref ((fun dp i -> assert false) : DirPath.t -> int -> constr)
+
+let force_lazy_constr = function
+  | Indirect (l,dp,i) ->
+    let c = !indirect_opaque_access dp i in
+    force_constr (List.fold_right subst_constr_subst l (from_val c))
+
+let val_lazy_constr =
+  val_sum "lazy_constr" 0 [|[|val_list val_subst;val_dp;val_int|]|]
 
 (** Inlining level of parameters at functor applications.
     This is ignored by the checker. *)
@@ -508,12 +526,14 @@ type constant_body = {
     const_body : constant_def;
     const_type : constr;
     const_body_code : to_patch_substituted;
-    const_constraints : Univ.constraints }
+    const_constraints : Univ.constraints;
+    const_native_name : native_name ref;
+    const_inline_code : bool }
 
 let body_of_constant cb = match cb.const_body with
   | Undef _ -> None
-  | Def c -> Some c
-  | OpaqueDef c -> Some c
+  | Def c -> Some (force_constr c)
+  | OpaqueDef c -> Some (force_lazy_constr c)
 
 let constant_has_body cb = match cb.const_body with
   | Undef _ -> false
@@ -528,7 +548,9 @@ let val_cb = val_tuple ~name:"constant_body"
     val_cst_def;
     val_cst_type;
     no_val;
-    val_cstrs|]
+    val_cstrs;
+    no_val;
+    val_bool|]
 
 let subst_rel_declaration sub (id,copt,t as x) =
   let copt' = Option.smartmap (subst_mps sub) copt in
@@ -673,21 +695,24 @@ type mutual_inductive_body = {
   (* Universes constraints enforced by the inductive declaration *)
     mind_constraints : Univ.constraints;
 
+  (* Data for native compilation *)
+    mind_native_name : native_name ref;
+
   }
 let val_ind_pack = val_tuple ~name:"mutual_inductive_body"
   [|val_array val_one_ind;val_bool;val_bool;val_int;val_nctxt;
-    val_int; val_int; val_rctxt;val_cstrs|]
+    val_int; val_int; val_rctxt;val_cstrs;no_val|]
 
 
 let subst_arity sub s = (subst_mps sub s)
 
 (* TODO: should be changed to non-coping after Term.subst_mps *)
-let subst_const_body sub cb = {
-    const_hyps = (assert (cb.const_hyps=[]); []);
+(* NB: we leave bytecode and native code fields untouched *)
+let subst_const_body sub cb =
+ { cb with
+    const_hyps = (assert (List.is_empty cb.const_hyps); []);
     const_body = subst_constant_def sub cb.const_body;
-    const_type = subst_arity sub cb.const_type;
-    const_body_code = (*Cemitcodes.subst_to_patch_subst sub*) cb.const_body_code;
-    const_constraints = cb.const_constraints}
+    const_type = subst_arity sub cb.const_type }
 
 let subst_arity sub s =
   { mind_user_arity = subst_mps sub s.mind_user_arity;
@@ -715,13 +740,14 @@ let subst_mind sub mib =
   { mind_record = mib.mind_record ;
     mind_finite = mib.mind_finite ;
     mind_ntypes = mib.mind_ntypes ;
-    mind_hyps = (assert (mib.mind_hyps=[]); []) ;
+    mind_hyps = (assert (List.is_empty mib.mind_hyps); []) ;
     mind_nparams = mib.mind_nparams;
     mind_nparams_rec = mib.mind_nparams_rec;
     mind_params_ctxt =
       map_rel_context (subst_mps sub) mib.mind_params_ctxt;
     mind_packets = Array.smartmap (subst_mind_packet sub) mib.mind_packets ;
-    mind_constraints = mib.mind_constraints  }
+    mind_constraints = mib.mind_constraints;
+    mind_native_name = mib.mind_native_name}
 
 (* Modules *)
 

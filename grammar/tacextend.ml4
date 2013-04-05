@@ -34,7 +34,7 @@ let rec make_when loc = function
       let l = make_when loc l in
       let loc = CompatLoc.merge loc' loc in
       let t = mlexpr_of_argtype loc' t in
-      <:expr< Genarg.genarg_tag $lid:p$ = $t$ && $l$ >>
+      <:expr< Genarg.argument_type_eq (Genarg.genarg_tag $lid:p$) $t$ && $l$ >>
   | _::l -> make_when loc l
 
 let rec make_let e = function
@@ -168,11 +168,11 @@ let declare_tactic loc s cl =
                  Tacexpr.TacExtend($default_loc$,$se$,l)))
            | None -> () ])
           $atomic_tactics$
-      with e ->
+      with [ e when Errors.noncritical e ->
 	Pp.msg_warning
 	  (Pp.app
 	     (Pp.str ("Exception in tactic extend " ^ $se$ ^": "))
-	     (Errors.print e));
+	     (Errors.print e)) ];
       Egramml.extend_tactic_grammar $se$ $gl$;
       List.iter Pptactic.declare_extra_tactic_pprule $pp$; } >>
     ]

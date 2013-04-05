@@ -166,7 +166,7 @@ let sort_of_product env domsort rangsort =
 let judge_of_cast env (c,cj) k tj =
   let conversion =
     match k with
-    | VMcast -> vm_conv CUMUL
+    | VMcast | NATIVEcast -> vm_conv CUMUL
     | DEFAULTcast -> conv_leq in
   try
     conversion env cj tj
@@ -350,10 +350,10 @@ let rec execute env cstr =
 
     (* Partial proofs: unsupported by the kernel *)
     | Meta _ ->
-	anomaly "the kernel does not support metavariables"
+	anomaly (Pp.str "the kernel does not support metavariables")
 
     | Evar _ ->
-	anomaly "the kernel does not support existential variables"
+	anomaly (Pp.str "the kernel does not support existential variables")
 
 and execute_type env constr =
   let j = execute env constr in

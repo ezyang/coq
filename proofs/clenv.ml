@@ -62,11 +62,11 @@ let clenv_type clenv = meta_instance clenv.evd clenv.templtyp
 
 let refresh_undefined_univs clenv =
   match kind_of_term clenv.templval.rebus with
-  | Var _ -> clenv, Univ.empty_subst
-  | App (f, args) when isVar f -> clenv, Univ.empty_subst
+  | Var _ -> clenv, Univ.empty_level_subst
+  | App (f, args) when isVar f -> clenv, Univ.empty_level_subst
   | _ ->  
     let evd', subst = Evd.refresh_undefined_universes clenv.evd in
-    let map_freelisted f = { f with rebus = subst_univs_constr subst f.rebus } in
+    let map_freelisted f = { f with rebus = subst_univs_level_constr subst f.rebus } in
       { clenv with evd = evd'; templval = map_freelisted clenv.templval;
 	templtyp = map_freelisted clenv.templtyp }, subst
 
@@ -182,7 +182,7 @@ let error_incompatible_inst clenv mv  =
           (str "An incompatible instantiation has already been found for " ++
            pr_id id)
     | _ ->
-        anomaly "clenv_assign: non dependent metavar already assigned"
+        anomaly ~label:"clenv_assign" (Pp.str "non dependent metavar already assigned")
 
 (* TODO: replace by clenv_unify (mkMeta mv) rhs ? *)
 let clenv_assign mv rhs clenv =
@@ -436,7 +436,7 @@ let error_already_defined b =
           (str "Binder name \"" ++ pr_id id ++
            str"\" already defined with incompatible value.")
     | AnonHyp n ->
-        anomalylabstrm ""
+        anomaly
           (str "Position " ++ int n ++ str" already defined.")
 
 let clenv_unify_binding_type clenv c t u =
@@ -449,7 +449,8 @@ let clenv_unify_binding_type clenv c t u =
       let evd,c = w_coerce_to_type (cl_env clenv) clenv.evd c t u in
       TypeProcessed, { clenv with evd = evd }, c
     with 
-      | PretypeError (_,_,NotClean _) as e -> raise e
+      | PretypeError (_,_,ActualTypeNotCoercible (_,_,NotClean _)) as e ->
+	  raise e
       | e when precatchable_exception e ->
 	  TypeNotProcessed, clenv, c
 

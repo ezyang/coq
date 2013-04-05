@@ -11,15 +11,27 @@ open Pp
 (** This modules implements basic manipulations of errors for use
     throughout Coq's code. *)
 
+(** {6 Error handling} *)
+
+val push : exn -> exn
+(** Alias for [Backtrace.add_backtrace]. *)
+
 (** {6 Generic errors.}
 
  [Anomaly] is used for system errors and [UserError] for the
    user's ones. *)
 
-exception Anomaly of string * std_ppcmds
-val anomaly : string -> 'a
-val anomalylabstrm : string -> std_ppcmds -> 'a
-val anomaly_loc : Loc.t * string * std_ppcmds -> 'a
+val make_anomaly : ?label:string -> std_ppcmds -> exn
+(** Create an anomaly. *)
+
+val anomaly : ?loc:Loc.t -> ?label:string -> std_ppcmds -> 'a
+(** Raise an anomaly, with an optional location and an optional
+    label identifying the anomaly. *)
+
+val is_anomaly : exn -> bool
+(** Check whether a given exception is an anomaly.
+    This is mostly provided for compatibility. Please avoid doing specific
+    tricks with anomalies thanks to it. See rather [noncritical] below. *)
 
 exception UserError of string * std_ppcmds
 val error : string -> 'a
@@ -40,12 +52,6 @@ val todo : string -> unit
 exception Timeout
 exception Drop
 exception Quit
-
-(** Like [Exc_located], but specifies the outermost file read, the
-   input buffer associated to the location of the error (or the module name
-   if boolean is true), and the error itself. *)
-
-exception Error_in_file of string * (bool * string * Loc.t) * exn
 
 (** [register_handler h] registers [h] as a handler.
     When an expression is printed with [print e], it
@@ -74,6 +80,9 @@ val print : exn -> Pp.std_ppcmds
     isn't printed (used in Ltac debugging). *)
 val print_no_report : exn -> Pp.std_ppcmds
 
-(** Same as [print], except that anomalies are not printed but re-raised
-    (used for the Fail command) *)
-val print_no_anomaly : exn -> Pp.std_ppcmds
+(** Critical exceptions shouldn't be catched and ignored by mistake
+    by inner functions during a [vernacinterp]. They should be handled
+    only in [Toplevel.do_vernac] (or Ideslave), to be displayed to the user.
+    Typical example: [Sys.Break], [Assert_failure], [Anomaly] ...
+*)
+val noncritical : exn -> bool

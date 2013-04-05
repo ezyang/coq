@@ -160,7 +160,7 @@ let fold_named_context_reverse f ~init env =
 (* Universe constraints *)
 
 let add_constraints c env =
-  if is_empty_constraint c then
+  if Constraint.is_empty c then
     env
   else
     let s = env.env_stratification in
@@ -173,6 +173,9 @@ let set_engagement c env = (* Unsafe *)
 
 let push_constraints_to_env (_,univs) env =
   add_constraints univs env
+
+let push_context ctx env = add_constraints (Context.constraints ctx) env
+let push_context_set ctx env = add_constraints (ContextSet.constraints ctx) env
 
 (* Global constants *)
 
@@ -193,11 +196,16 @@ let constant_type env (kn,u) =
       let subst = make_universe_subst u cb.const_universes in
 	(subst_univs_constr subst cb.const_type, 
 	 instantiate_univ_context subst cb.const_universes)
-    else cb.const_type, Univ.empty_constraint
+    else cb.const_type, Constraint.empty
 
 let constant_type_in_ctx env kn =
   let cb = lookup_constant kn env in
     cb.const_type, cb.const_universes
+
+let constant_context env kn =
+  let cb = lookup_constant kn env in
+    if cb.const_polymorphic then cb.const_universes
+    else Context.empty
 
 type const_evaluation_result = NoBody | Opaque
 
@@ -209,9 +217,9 @@ let constant_value env (kn,u) =
     | Def l_body -> 
       if cb.const_polymorphic then
 	let subst = make_universe_subst u cb.const_universes in
-	  (subst_univs_constr subst (Declarations.force l_body),
+	  (subst_univs_constr subst (Lazyconstr.force l_body),
 	   instantiate_univ_context subst cb.const_universes)
-      else Declarations.force l_body, Univ.empty_constraint
+      else Lazyconstr.force l_body, Constraint.empty
     | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
     | Undef _ -> raise (NotEvaluableConst NoBody)
 
@@ -225,16 +233,16 @@ let constant_value_and_type env (kn, u) =
       let subst = make_universe_subst u cb.const_universes in
       let cst = instantiate_univ_context subst cb.const_universes in
       let b' = match cb.const_body with
-	| Def l_body -> Some (subst_univs_constr subst (Declarations.force l_body))
+	| Def l_body -> Some (subst_univs_constr subst (Lazyconstr.force l_body))
 	| OpaqueDef _ -> None
 	| Undef _ -> None
       in b', subst_univs_constr subst cb.const_type, cst
     else 
       let b' = match cb.const_body with
-	| Def l_body -> Some (Declarations.force l_body)
+	| Def l_body -> Some (Lazyconstr.force l_body)
 	| OpaqueDef _ -> None
 	| Undef _ -> None
-      in b', cb.const_type, Univ.empty_constraint
+      in b', cb.const_type, Constraint.empty
 
 (* These functions should be called under the invariant that [env] 
    already contains the constraints corresponding to the constant 
@@ -254,8 +262,8 @@ let constant_value_in env (kn,u) =
     | Def l_body -> 
       if cb.const_polymorphic then
 	let subst = make_universe_subst u cb.const_universes in
-	  subst_univs_constr subst (Declarations.force l_body)
-      else Declarations.force l_body
+	  subst_univs_constr subst (Lazyconstr.force l_body)
+      else Lazyconstr.force l_body
     | OpaqueDef _ -> raise (NotEvaluableConst Opaque)
     | Undef _ -> raise (NotEvaluableConst NoBody)
 
@@ -530,13 +538,13 @@ fun env field value ->
     match value with
       | Const (kn,_) ->  retroknowledge add_int31_op env value 2
 	                               op kn
-      | _ -> anomaly "Environ.register: should be a constant"
+      | _ -> anomaly ~label:"Environ.register" (Pp.str "should be a constant")
   in
   let add_int31_unop_from_const op =
     match value with
       | Const (kn,_) ->  retroknowledge add_int31_op env value 1
 	                               op kn
-      | _ -> anomaly "Environ.register: should be a constant"
+      | _ -> anomaly ~label:"Environ.register" (Pp.str "should be a constant")
   in
   (* subfunction which completes the function constr_of_int31 above
      by performing the actual retroknowledge operations *)
@@ -551,9 +559,9 @@ fun env field value ->
 		  | Ind (i31t,u) ->
 		      Retroknowledge.add_vm_decompile_constant_info rk
 		               value (constr_of_int31 i31t i31bit_type)
-		  | _ -> anomaly "Environ.register: should be an inductive type")
-	    | _ -> anomaly "Environ.register: Int31Bits should be an inductive type")
-      | _ -> anomaly "Environ.register: add_int31_decompilation_from_type called with an abnormal field"
+		  | _ -> anomaly ~label:"Environ.register" (Pp.str "should be an inductive type"))
+	    | _ -> anomaly ~label:"Environ.register" (Pp.str "Int31Bits should be an inductive type"))
+      | _ -> anomaly ~label:"Environ.register" (Pp.str "add_int31_decompilation_from_type called with an abnormal field")
   in
   {env with retroknowledge =
   let retroknowledge_with_reactive_info =
@@ -561,7 +569,7 @@ fun env field value ->
     | KInt31 (_, Int31Type) ->
         let i31c = match value with
                      | Ind (i31t,u) -> (Construct ((i31t, 1),u))
-		     | _ -> anomaly "Environ.register: should be an inductive type"
+		     | _ -> anomaly ~label:"Environ.register" (Pp.str "should be an inductive type")
 	in
 	add_int31_decompilation_from_type
 	  (add_vm_before_match_info
@@ -581,14 +589,14 @@ fun env field value ->
 				 | Const (kn,u) ->
 				     retroknowledge add_int31_op env value 3
 	                               Cbytecodes.Kdiv21int31 kn
-				 | _ -> anomaly "Environ.register: should be a constant")
+				 | _ -> anomaly ~label:"Environ.register" (Pp.str "should be a constant"))
     | KInt31 (_, Int31Div) -> add_int31_binop_from_const Cbytecodes.Kdivint31
     | KInt31 (_, Int31AddMulDiv) -> (* this is a ternary operation *)
                                 (match value with
 				 | Const (kn,u) ->
 				     retroknowledge add_int31_op env value 3
 	                               Cbytecodes.Kaddmuldivint31 kn
-				 | _ -> anomaly "Environ.register: should be a constant")
+				 | _ -> anomaly ~label:"Environ.register" (Pp.str "should be a constant"))
     | KInt31 (_, Int31Compare) -> add_int31_binop_from_const Cbytecodes.Kcompareint31
     | KInt31 (_, Int31Head0) -> add_int31_unop_from_const Cbytecodes.Khead0int31
     | KInt31 (_, Int31Tail0) -> add_int31_unop_from_const Cbytecodes.Ktail0int31

@@ -18,15 +18,16 @@ let unfreeze (fl,fs) =
   Summary.unfreeze_summaries fs
 
 let (extern_state,intern_state) =
+  let ensure_suffix f = CUnix.make_suffix f ".coq" in
   let (raw_extern, raw_intern) =
-    extern_intern Coq_config.state_magic_number ".coq" in
+    extern_intern Coq_config.state_magic_number in
   (fun s ->
-    if !Flags.load_proofs <> Flags.Force then
-      Errors.error "Write State only works with option -force-load-proofs";
+    let s = ensure_suffix s in
     raw_extern s (freeze())),
   (fun s ->
-    unfreeze
-      (with_magic_number_check (raw_intern (Library.get_load_paths ())) s);
+    let s = ensure_suffix s in
+    let paths = Loadpath.get_paths () in
+    unfreeze (with_magic_number_check (raw_intern paths) s);
     Library.overwrite_library_filenames s)
 
 (* Rollback. *)

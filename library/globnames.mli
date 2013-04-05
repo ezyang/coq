@@ -61,6 +61,9 @@ end
 module Refset : Set.S with type elt = global_reference
 module Refmap : Map.S with type key = global_reference
 
+module Refset_env : Set.S with type elt = global_reference
+module Refmap_env : Map.S with type key = global_reference
+
 (** {6 Extended global references } *)
 
 type syndef_name = kernel_name
@@ -80,10 +83,10 @@ type global_reference_or_constr =
 
 (** {6 Temporary function to brutally form kernel names from section paths } *)
 
-val encode_mind : Dir_path.t -> Id.t -> mutual_inductive
-val decode_mind : mutual_inductive -> Dir_path.t * Id.t
-val encode_con : Dir_path.t -> Id.t -> constant
-val decode_con : constant -> Dir_path.t * Id.t
+val encode_mind : DirPath.t -> Id.t -> mutual_inductive
+val decode_mind : mutual_inductive -> DirPath.t * Id.t
+val encode_con : DirPath.t -> Id.t -> constant
+val decode_con : constant -> DirPath.t * Id.t
 
 (** {6 Popping one level of section in global names } *)
 

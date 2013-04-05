@@ -95,7 +95,7 @@ and cases_pattern_notation_substitution_eq (s1, n1) (s2, n2) =
 let eq_universes u1 u2 =
   match u1, u2 with
   | None, None -> true
-  | Some l, Some l' -> List.equal (=) l l'
+  | Some l, Some l' -> l = l'
   | _, _ -> false
 
 let rec constr_expr_eq e1 e2 =

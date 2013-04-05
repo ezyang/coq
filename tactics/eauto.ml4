@@ -97,16 +97,17 @@ open Unification
 let priority l = List.map snd (List.filter (fun (pr,_) -> Int.equal pr 0) l)
 
 let unify_e_resolve poly flags (c,clenv) gls =
-  let clenv', subst = if poly then Clenv.refresh_undefined_univs clenv else clenv, Univ.empty_subst in
+  let clenv', subst = if poly then Clenv.refresh_undefined_univs clenv 
+  else clenv, Univ.empty_level_subst in
   let clenv' = connect_clenv gls clenv' in
   let _ = clenv_unique_resolver ~flags clenv' gls in
-  h_simplest_eapply (subst_univs_constr subst c) gls
+  h_simplest_eapply (subst_univs_level_constr subst c) gls
 
 let e_exact poly flags (c,clenv) =
   let clenv', subst = 
     if poly then Clenv.refresh_undefined_univs clenv 
-    else clenv, Univ.LMap.empty
-  in e_give_exact ~flags (subst_univs_constr subst c)
+    else clenv, Univ.empty_level_subst
+  in e_give_exact ~flags (subst_univs_level_constr subst c)
     
 let rec e_trivial_fail_db db_list local_db goal =
   let tacl =
@@ -208,7 +209,8 @@ module SearchProblem = struct
 (* 	    let gl = Proof_trees.db_pr_goal (List.hd (sig_it glls)) in *)
 (* 	      msg (hov 1 (pptac ++ str" gives: \n" ++ pr_goals lgls ++ str"\n")); *)
 	      (lgls,pptac) :: aux tacl
-	  with e -> Refiner.catch_failerror e; aux tacl
+	  with e when Errors.noncritical e ->
+            Refiner.catch_failerror e; aux tacl
     in aux l
 
   (* Ordering of states is lexicographic on depth (greatest first) then

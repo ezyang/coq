@@ -123,7 +123,7 @@ let possibly_empty_subentries loc (prods,act) =
     | Some id ->
         let s = Names.Id.to_string id in <:expr< let $lid:s$ = $v$ in $e$ >> in
   let rec aux = function
-    | [] -> <:expr< let loc = $default_loc$ in let _ = loc = loc in $act$ >>
+    | [] -> <:expr< let loc = $default_loc$ in let _ = loc in $act$ >>
     | GramNonTerminal(_,OptArgType _,_,p) :: tl ->
         bind_name p <:expr< None >> (aux tl)
     | GramNonTerminal(_,List0ArgType _,_,p) :: tl ->
@@ -140,7 +140,8 @@ let possibly_empty_subentries loc (prods,act) =
     (* an exception rather than returning a value; *)
     (* declares loc because some code can refer to it; *)
     (* ensures loc is used to avoid "unused variable" warning *)
-    (true, <:expr< try Some $aux prods$ with [ _ -> None ] >>)
+    (true, <:expr< try Some $aux prods$
+                   with [ e when Errors.noncritical e -> None ] >>)
   else
     (* Static optimisation *)
     (false, aux prods)
@@ -261,8 +262,8 @@ let declare_vernac_argument loc s pr cl =
 	(None, [(None, None, $rules$)]);
       Pptactic.declare_extra_genarg_pprule
         ($rawwit$, $pr_rules$)
-        ($globwit$, fun _ _ _ _ -> Errors.anomaly "vernac argument needs not globwit printer")
-        ($wit$, fun _ _ _ _ -> Errors.anomaly "vernac argument needs not wit printer") }
+        ($globwit$, fun _ _ _ _ -> Errors.anomaly (Pp.str "vernac argument needs not globwit printer"))
+        ($wit$, fun _ _ _ _ -> Errors.anomaly (Pp.str "vernac argument needs not wit printer")) }
       >> ]
 
 open Pcoq

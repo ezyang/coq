@@ -19,7 +19,7 @@ let meaningful_submodule = [ "Z"; "N"; "Pos" ]
 
 let string_of_global r =
   let dp = Nametab.dirpath_of_global r in
-  let prefix = match Names.Dir_path.repr dp with
+  let prefix = match Names.DirPath.repr dp with
     | [] -> ""
     | m::_ ->
       let s = Names.Id.to_string m in
@@ -210,18 +210,26 @@ let rec mk_nat = function
 
 (* Lists *)
 
-let coq_cons typ = Term.mkApp (constant "cons", [|typ|])
-let coq_nil typ =  Term.mkApp (constant "nil", [|typ|])
+let mkListConst c u = 
+  Term.mkConstructU (Globnames.destConstructRef 
+		     (Coqlib.gen_reference "" ["Init";"Datatypes"] c),
+		     Univ.Instance.of_array [|u|])
 
-let mk_list typ l =
+let coq_cons univ typ = Term.mkApp (mkListConst "cons" univ, [|typ|])
+let coq_nil univ typ =  Term.mkApp (mkListConst "nil" univ, [|typ|])
+
+let mk_list univ typ l =
   let rec loop = function
-    | [] -> coq_nil typ
+    | [] -> coq_nil univ typ
     | (step :: l) ->
-	Term.mkApp (coq_cons typ, [| step; loop l |]) in
+	Term.mkApp (coq_cons univ typ, [| step; loop l |]) in
   loop l
 
-let mk_plist l = mk_list Term.mkProp l
+let mk_plist = 
+  let type1lev = Universes.new_univ_level (Global.current_dirpath ()) in
+    fun l -> mk_list type1lev Term.mkProp l
 
+let mk_list = mk_list Univ.Level.set
 let mk_shuffle_list l = mk_list (Lazy.force coq_t_fusion) l
 
 
@@ -333,7 +341,7 @@ let parse_term t =
     | Kapp("Z.succ",[t]) -> Tsucc t
     | Kapp("Z.pred",[t]) -> Tplus(t, mk_Z (Bigint.neg Bigint.one))
     | Kapp(("Zpos"|"Zneg"|"Z0"),_) ->
-	(try Tnum (recognize t) with _ -> Tother)
+	(try Tnum (recognize t) with e when Errors.noncritical e -> Tother)
     | _ -> Tother
   with e when Logic.catchable_exception e -> Tother
 
@@ -355,6 +363,6 @@ let is_scalar t =
     | Kapp(("Z.opp"|"Z.succ"|"Z.pred"),[t]) -> aux t
     | Kapp(("Zpos"|"Zneg"|"Z0"),_) -> let _ = recognize t in true
     | _ -> false in
-  try aux t with _ -> false
+  try aux t with e when Errors.noncritical e -> false
 
 end

@@ -152,8 +152,9 @@ let decl_constant na c =
       const_entry_secctx = None;
       const_entry_type = None;
       const_entry_polymorphic = false;
-      const_entry_universes = Univ.empty_universe_context;(*FIXME*)
-      const_entry_opaque = true },
+      const_entry_universes = Univ.Context.empty;(*FIXME*)
+      const_entry_opaque = true;
+      const_entry_inline_code = false},
     IsProof Lemma))
 
 (* Calling a global tactic *)
@@ -179,12 +180,12 @@ let carg c = TacDynamic(Loc.ghost,Pretyping.constr_in c)
 
 let dummy_goal env =
   let (gl,_,sigma) = 
-    Goal.V82.mk_goal Evd.empty (named_context_val env) mkProp Store.empty in
+    Goal.V82.mk_goal Evd.empty (named_context_val env) mkProp Evd.Store.empty in
   {Evd.it = gl;
    Evd.sigma = sigma}
 
 let exec_tactic env n f args =
-  let lid = List.tabulate(fun i -> Id.of_string("x"^string_of_int i)) n in
+  let lid = List.init n (fun i -> Id.of_string("x"^string_of_int i)) in
   let res = ref [||] in
   let get_res ist =
     let l = List.map (fun id ->  List.assoc id ist.lfun) lid in
@@ -250,13 +251,13 @@ let my_constant c =
   lazy (Coqlib.gen_constant_in_modules "Ring" plugin_modules c)
 
 let new_ring_path =
-  Dir_path.make (List.map Id.of_string ["Ring_tac";plugin_dir;"Coq"])
+  DirPath.make (List.map Id.of_string ["Ring_tac";plugin_dir;"Coq"])
 let ltac s =
-  lazy(make_kn (MPfile new_ring_path) (Dir_path.make []) (Label.make s))
+  lazy(make_kn (MPfile new_ring_path) DirPath.empty (Label.make s))
 let znew_ring_path =
-  Dir_path.make (List.map Id.of_string ["InitialRing";plugin_dir;"Coq"])
+  DirPath.make (List.map Id.of_string ["InitialRing";plugin_dir;"Coq"])
 let zltac s =
-  lazy(make_kn (MPfile znew_ring_path) (Dir_path.make []) (Label.make s))
+  lazy(make_kn (MPfile znew_ring_path) DirPath.empty (Label.make s))
 
 let mk_cst l s = lazy (Coqlib.gen_constant "newring" l s);;
 let pol_cst s = mk_cst [plugin_dir;"Ring_polynom"] s ;;
@@ -832,10 +833,10 @@ END
 (***********************************************************************)
 
 let new_field_path =
-  Dir_path.make (List.map Id.of_string ["Field_tac";plugin_dir;"Coq"])
+  DirPath.make (List.map Id.of_string ["Field_tac";plugin_dir;"Coq"])
 
 let field_ltac s =
-  lazy(make_kn (MPfile new_field_path) (Dir_path.make []) (Label.make s))
+  lazy(make_kn (MPfile new_field_path) DirPath.empty (Label.make s))
 
 
 let _ = add_map "field"

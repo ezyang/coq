@@ -72,10 +72,14 @@ let load = ref WithoutTop
 let is_native = Dynlink.is_native
 
 (* Sets and initializes a toplevel (if any) *)
-let set_top toplevel = load := WithTop toplevel
+let set_top toplevel = load :=
+  WithTop toplevel;
+  Nativelib.load_obj := toplevel.load_obj
 
 (* Removes the toplevel (if any) *)
-let remove ()= load := WithoutTop
+let remove () =
+  load := WithoutTop;
+  Nativelib.load_obj := (fun x -> () : string -> unit)
 
 (* Tests if an Ocaml toplevel runs under Coq *)
 let is_ocaml_top () =
@@ -97,10 +101,10 @@ let report_on_load_obj_error exc =
   let x = Obj.repr exc in
   (* Try an horrible (fragile) hack to report on Symtable dynlink errors *)
   (* (we follow ocaml's Printexc.to_string decoding of exceptions) *)
-  if Obj.is_block x && Obj.magic(Obj.field (Obj.field x 0) 0) = "Symtable.Error"
+  if Obj.is_block x && String.equal (Obj.magic (Obj.field (Obj.field x 0) 0)) "Symtable.Error"
   then
     let err_block = Obj.field x 1 in
-    if Obj.tag err_block = 0 then
+    if Int.equal (Obj.tag err_block) 0 then
       (* Symtable.Undefined_global of string *)
       str "reference to undefined global " ++
       str (Obj.magic (Obj.field err_block 0))
@@ -113,11 +117,14 @@ let dir_ml_load s =
     | WithTop t ->
       (try t.load_obj s
        with
-       | (UserError _ | Failure _ | Anomaly _ | Not_found as u) -> raise u
-       | exc ->
-           let msg = report_on_load_obj_error exc in
-           errorlabstrm "Mltop.load_object" (str"Cannot link ml-object " ++
-                str s ++ str" to Coq code (" ++ msg ++ str ")."))
+       | e when Errors.noncritical e ->
+        let e = Errors.push e in
+        match e with
+        | (UserError _ | Failure _ | Not_found as u) -> raise u
+        | exc ->
+            let msg = report_on_load_obj_error exc in
+            errorlabstrm "Mltop.load_object" (str"Cannot link ml-object " ++
+                  str s ++ str" to Coq code (" ++ msg ++ str ")."))
     | WithoutTop ->
         let warn = Flags.is_verbose() in
         let _,gname = find_file_in_path ~warn !coq_mlpath_copy s in
@@ -149,32 +156,33 @@ let add_path ~unix_path:dir ~coq_root:coq_dirpath =
   if exists_dir dir then
     begin
       add_ml_dir dir;
-      Library.add_load_path true (dir,coq_dirpath)
+      Loadpath.add_load_path dir true coq_dirpath
     end
   else
     msg_warning (str ("Cannot open " ^ dir))
 
 let convert_string d =
   try Names.Id.of_string d
-  with _ ->
+  with UserError _ ->
     if_warn msg_warning (str ("Directory "^d^" cannot be used as a Coq identifier (skipped)"));
     raise Exit
 
 let add_rec_path ~unix_path ~coq_root =
   if exists_dir unix_path then
     let dirs = all_subdirs ~unix_path in
-    let prefix = Names.Dir_path.repr coq_root in
+    let prefix = Names.DirPath.repr coq_root in
     let convert_dirs (lp, cp) =
       try
-        let path = List.map convert_string (List.rev cp) @ prefix in
-        Some (lp, Names.Dir_path.make path)
+        let path = List.rev_map convert_string cp @ prefix in
+        Some (lp, Names.DirPath.make path)
       with Exit -> None
     in
     let dirs = List.map_filter convert_dirs dirs in
-    List.iter (fun lpe -> add_ml_dir (fst lpe)) dirs;
-    add_ml_dir unix_path;
-    List.iter (Library.add_load_path false) dirs;
-    Library.add_load_path true (unix_path, coq_root)
+    let () = List.iter (fun lpe -> add_ml_dir (fst lpe)) dirs in
+    let () = add_ml_dir unix_path in
+    let add (path, dir) = Loadpath.add_load_path path false dir in
+    let () = List.iter add dirs in
+    Loadpath.add_load_path unix_path true coq_root
   else
     msg_warning (str ("Cannot open " ^ unix_path))
 
@@ -285,9 +293,9 @@ let if_verbose_load verb f name fname =
     try
       f name fname;
       msg_info (str (info^" done]"));
-    with e ->
+    with reraise ->
       msg_info (str (info^" failed]"));
-      raise e
+      raise reraise
 
 (** Load a module for the first time (i.e. dynlink it)
     or simulate its reload (i.e. doing nothing except maybe

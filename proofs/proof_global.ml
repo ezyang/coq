@@ -67,7 +67,7 @@ type lemma_possible_guards = int list list
 type proof_info = {
   strength : Decl_kinds.goal_kind ;
   compute_guard :  lemma_possible_guards;
-  hook : Univ.universe_full_subst Univ.in_universe_context -> unit Tacexpr.declaration_hook ;
+  hook : Universes.universe_opt_subst Univ.in_universe_context -> unit Tacexpr.declaration_hook ;
   mode : proof_mode
 }
 
@@ -275,7 +275,8 @@ let close_proof () =
                       const_entry_type = Some t;
 		      const_entry_polymorphic = Util.pi2 str;
 		      const_entry_universes = ctx;
-		      const_entry_opaque = true })
+		      const_entry_opaque = true;
+		      const_entry_inline_code = false })
       proofs_and_types
     in
     (id, (entries,cg,str,hook (subst, ctx)))

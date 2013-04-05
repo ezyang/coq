@@ -6,6 +6,7 @@
 (*         *       GNU Lesser General Public License Version 2.1        *)
 (************************************************************************)
 
+open Pp
 open Errors
 open Util
 open Term
@@ -21,7 +22,7 @@ open Arguments_renaming
 let meta_type evd mv =
   let ty =
     try Evd.meta_ftype evd mv
-    with Not_found -> anomaly ("unknown meta ?"^Nameops.string_of_meta mv) in
+    with Not_found -> anomaly (str "unknown meta ?" ++ str (Nameops.string_of_meta mv)) in
   meta_instance evd ty
 
 let constant_type_knowing_parameters env cst jl =
@@ -205,12 +206,12 @@ let rec execute env evdref cstr =
 		(* Sort-polymorphism of inductive types *)
 		make_judge f
 		  (inductive_type_knowing_parameters env ind
-		    (jv_nf_evar !evdref jl))
+		    (Evarutil.jv_nf_evar !evdref jl))
 	    | Const cst ->
 		(* Sort-polymorphism of inductive types *)
 		make_judge f
 		  (constant_type_knowing_parameters env cst
-		    (jv_nf_evar !evdref jl))
+		    (Evarutil.jv_nf_evar !evdref jl))
 	    | _ ->
 		execute env evdref f
 	in
@@ -285,10 +286,9 @@ let e_type_of env evd c =
   (* side-effect on evdref *)
   !evdref, j.uj_type
 
-let solve_evars env evd c =
-  let evdref = ref evd in
+let solve_evars env evdref c =
   let c = (execute env evdref c).uj_val in
   (* side-effect on evdref *)
-  !evdref, nf_evar !evdref c
+  nf_evar !evdref c
 
 let _ = Evarconv.set_solve_evars solve_evars

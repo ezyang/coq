@@ -330,7 +330,7 @@ Corollary FunChoice_Equiv_RelChoice_and_ParamDefinDescr :
   forall A B : Type, FunctionalChoice_on A B <->
     RelationalChoice_on A B /\ FunctionalRelReification_on A B.
 Proof.
-  intros A B; split.
+  intros A B. split.
   intro H; split;
     [ exact (funct_choice_imp_rel_choice H)
       | exact (funct_choice_imp_description H) ].
@@ -808,6 +808,7 @@ Proof.
   intros Descr EM P.
   pose (select := fun b:bool => if b then P else ~P).
   assert { b:bool | select b } as ([|],HP).
+  red in Descr.
   apply Descr.
   rewrite <- unique_existence; split.
   destruct (EM P).
@@ -823,7 +824,7 @@ Corollary fun_reification_descr_computational_excluded_middle_in_prop_context :
   (forall P:Prop, P \/ ~ P) ->
   forall C:Prop, ((forall P:Prop, {P} + {~ P}) -> C) -> C.
 Proof.
-  intros FunReify EM C; intuition auto using
+  intros FunReify EM C H. intuition auto using
     constructive_definite_descr_excluded_middle,
     (relative_non_contradiction_of_definite_descr (C:=C)).
 Qed.

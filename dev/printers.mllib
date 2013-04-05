@@ -1,6 +1,10 @@
 Coq_config
 
 Int
+Option
+Store
+Exninfo
+Backtrace
 Pp_control
 Loc
 Compat
@@ -22,7 +26,6 @@ Dyn
 CUnix
 System
 Envars
-Store
 Gmap
 Fset
 Fmap
@@ -32,7 +35,6 @@ Explore
 Predicate
 Rtree
 Heap
-Option
 Dnet
 
 Names
@@ -44,14 +46,20 @@ Sign
 Cbytecodes
 Copcodes
 Cemitcodes
-Declarations
+Nativevalues
+Lazyconstr
+Declareops
 Retroknowledge
 Pre_env
+Nativelambda
+Nativecode
+Nativelib
 Cbytegen
 Environ
 Conv_oracle
 Closure
 Reduction
+Nativeconv
 Type_errors
 Modops
 Inductive
@@ -61,6 +69,7 @@ Cooking
 Term_typing
 Subtyping
 Mod_typing
+Nativelibrary
 Safe_typing
 Unionfind
 
@@ -90,6 +99,7 @@ Retyping
 Cbv
 Pretype_errors
 Evarutil
+Evarsolve
 Term_dnet
 Recordops
 Evarconv

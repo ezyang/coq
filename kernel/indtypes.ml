@@ -12,6 +12,7 @@ open Names
 open Univ
 open Term
 open Declarations
+open Declareops
 open Inductive
 open Environ
 open Reduction
@@ -124,11 +125,11 @@ let infos_and_sort env ctx t =
       | Prod (name,c1,c2) ->
         let varj, _ (* Forget universe context *) = infer_type env c1 in
 	let env1 = Environ.push_rel (name,None,varj.utj_val) env in
-	let max = sup max (univ_of_sort varj.utj_type) in
+	let max = Universe.sup max (univ_of_sort varj.utj_type) in
 	  aux env1 ctx c2 max
     | _ when is_constructor_head t -> max
     | _ -> (* don't fail if not positive, it is tested later *) max
-  in aux env ctx t type0m_univ
+  in aux env ctx t Universe.type0m
 
 (* Computing the levels of polymorphic inductive types
 
@@ -165,7 +166,7 @@ let inductive_levels arities inds =
    arity or type constructor; we do not to recompute universes constraints *)
 
 let context_set_list_union =
-  List.fold_left union_universe_context_set empty_universe_context_set
+  List.fold_left ContextSet.union ContextSet.empty
 
 let infer_constructor_packet env_ar_par ctx params lc =
   (* type-check the constructors *)
@@ -176,7 +177,7 @@ let infer_constructor_packet env_ar_par ctx params lc =
   let lc'' = Array.map (fun j -> it_mkProd_or_LetIn j.utj_val params) jlc in
   (* compute the max of the sorts of the products of the constructors types *)
   let levels = List.map (infos_and_sort env_ar_par ctx) lc in
-  let level = List.fold_left (fun max l -> sup max l) type0m_univ levels in
+  let level = List.fold_left (fun max l -> Universe.sup max l) Universe.type0m levels in
   (lc'',(is_unit levels,level),univs)
 
 (* If indices matter *)
@@ -185,8 +186,8 @@ let cumulate_arity_large_levels env sign =
     (fun (_,_,t as d) (lev,env) ->
       let tj, _ = infer_type env t in
       let u = univ_of_sort tj.utj_type in
-	(sup u lev, push_rel d env))
-    sign (type0m_univ,env))
+	(Universe.sup u lev, push_rel d env))
+    sign (Universe.type0m,env))
 
 let is_impredicative env u =
   is_type0m_univ u || (is_type0_univ u && engagement env = Some ImpredicativeSet)
@@ -198,13 +199,13 @@ let is_impredicative env u =
 *)
 let typecheck_inductive env ctx mie =
   let () = match mie.mind_entry_inds with
-  | [] -> anomaly "empty inductive types declaration"
+  | [] -> anomaly (Pp.str "empty inductive types declaration")
   | _ -> ()
   in
   (* Check unicity of names *)
   mind_check_names mie;
   (* Params are typed-checked here *)
-  let env' = push_constraints_to_env ctx env in
+  let env' = add_constraints (Context.constraints ctx) env in
   let (env_params, params), univs = infer_local_decls env' mie.mind_entry_params in
   (* We first type arity of each inductive definition *)
   (* This allows to build the environment of arities and to share *)
@@ -247,7 +248,7 @@ let typecheck_inductive env ctx mie =
 	 let env_ar' =
            push_rel (Name id, None, full_arity) env_ar in
              (* (add_constraints cst2 env_ar) in *)
-	   (env_ar',union_universe_context_set ctx ctx',(id,full_arity,sign @ params,deflev,inflev)::l))
+	   (env_ar', ContextSet.union ctx ctx',(id,full_arity,sign @ params,deflev,inflev)::l))
       (env',univs,[])
       mie.mind_entry_inds in
 
@@ -261,11 +262,11 @@ let typecheck_inductive env ctx mie =
     List.fold_right2
       (fun ind arity_data (inds,univs) ->
 	 let (lc',cstrs_univ,univs') =
-	   infer_constructor_packet env_ar_par empty_universe_context_set
+	   infer_constructor_packet env_ar_par ContextSet.empty
 	     params ind.mind_entry_lc in
 	 let consnames = ind.mind_entry_consnames in
 	 let ind' = (arity_data,consnames,lc',cstrs_univ) in
-	 (ind'::inds, union_universe_context_set univs univs'))
+	 (ind'::inds, ContextSet.union univs univs'))
       mie.mind_entry_inds
       arity_list
     ([],univs) in
@@ -279,7 +280,7 @@ let typecheck_inductive env ctx mie =
       let infu = 
 	(** Inferred level, with parameters and constructors. *)
 	match inf_level with
-	| Some alev -> sup clev alev
+	| Some alev -> Universe.sup clev alev
 	| None -> clev
       in
       let is_natural =
@@ -292,15 +293,16 @@ let typecheck_inductive env ctx mie =
 	else (** Predicative case: the inferred level must be lower or equal to the
 		 declared level. *)
 	  if not is_natural then
-	    anomalylabstrm "check_inductive" 
+	    anomaly ~label:"check_inductive" 
 	    (Pp.str"Incorrect universe " ++
 	     Universe.pr defu ++ Pp.str " declared for inductive type, inferred level is "
 	     ++ Universe.pr infu)
       in
 	(id,cn,lc,(sign,(not is_natural,full_arity,defu))),cst)
-    inds (snd ctx)
+    inds (Context.constraints ctx)
   in
-  let univs = (fst univs, cst) in
+  let univs = 
+    ContextSet.add_constraints (ContextSet.of_set (ContextSet.levels univs)) cst in
   (env_arities, params, inds, univs)
 
 (************************************************************************)
@@ -344,11 +346,11 @@ let failwith_non_pos n ntypes c =
 
 let failwith_non_pos_vect n ntypes v =
   Array.iter (failwith_non_pos n ntypes) v;
-  anomaly "failwith_non_pos_vect: some k in [n;n+ntypes-1] should occur"
+  anomaly ~label:"failwith_non_pos_vect" (Pp.str "some k in [n;n+ntypes-1] should occur")
 
 let failwith_non_pos_list n ntypes l =
   List.iter (failwith_non_pos n ntypes) l;
-  anomaly "failwith_non_pos_list: some k in [n;n+ntypes-1] should occur"
+  anomaly ~label:"failwith_non_pos_list" (Pp.str "some k in [n;n+ntypes-1] should occur")
 
 (* Check the inductive type is called with the expected parameters *)
 let check_correct_par (env,n,ntypes,_) hyps l largs =
@@ -390,7 +392,7 @@ if Int.equal nmr 0 then 0 else
   in find 0 (n-1) (lpar,List.rev hyps)
 
 let lambda_implicit_lift n a =
-  let level = Level.make (Dir_path.make [Id.of_string "implicit"]) 0 in
+  let level = Level.make (DirPath.make [Id.of_string "implicit"]) 0 in
   let implicit_sort = mkType (Universe.make level) in
   let lambda_implicit a = mkLambda (Anonymous, implicit_sort, a) in
   iterate lambda_implicit n (lift n a)
@@ -402,8 +404,8 @@ let abstract_mind_lc env ntyps npars lc =
     lc
   else
     let make_abs =
-      List.tabulate
-	(function i -> lambda_implicit_lift npars (mkRel (i+1))) ntyps
+      List.init ntyps
+	(function i -> lambda_implicit_lift npars (mkRel (i+1)))
     in
     Array.map (substl make_abs) lc
 
@@ -416,7 +418,7 @@ let abstract_mind_lc env ntyps npars lc =
 let ienv_push_var (env, n, ntypes, lra) (x,a,ra) =
  (push_rel (x,None,a) env, n+1, ntypes, (Norec,ra)::lra)
 
-let ienv_push_inductive (env, n, ntypes, ra_env) ((mi,(u : universe_list)),lpar) =
+let ienv_push_inductive (env, n, ntypes, ra_env) ((mi,u),lpar) =
   let auxntyp = 1 in
   let specif = (lookup_mind_specif env mi, u) in
   let ty = type_of_inductive env specif in
@@ -569,7 +571,7 @@ let check_positivity kn env_ar params inds =
   let nmr = rel_context_nhyps params in
   let check_one i (_,lcnames,lc,(sign,_)) =
     let ra_env =
-      List.tabulate (fun _ -> (Norec,mk_norec)) lparams @ lra_ind in
+      List.init lparams (fun _ -> (Norec,mk_norec)) @ lra_ind in
     let ienv = (env_ar, 1+lparams, ntypes, ra_env) in
     let nargs = rel_context_nhyps sign - nmr in
     check_positivity_one ienv params (kn,i) nargs lcnames lc
@@ -688,7 +690,8 @@ let build_inductive env p prv ctx env_ar params isrecord isfinite inds nmr recar
       mind_packets = packets;
       mind_polymorphic = p;
       mind_private = ref prv;
-      mind_universes = ctx
+      mind_universes = ctx;
+      mind_native_name = ref NotLinked
     }
 
 (************************************************************************)
