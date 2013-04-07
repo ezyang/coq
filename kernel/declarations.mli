@@ -131,13 +131,9 @@ type mutual_inductive_body = {
 
     mind_polymorphic : bool; (** Is it polymorphic or not *)
 
-<<<<<<< HEAD
     mind_private : bool option ref; (** allow pattern-matching Some true ok, Some false blocked *)
 
-    mind_universes : universe_context; (** Local universe variables and constraints *)
-=======
     mind_universes : Univ.universe_context; (** Local universe variables and constraints *)
->>>>>>> 679f3a313dba143a29cb5af76e7cfe43c6b3191e
 
 (** {8 Data for native compilation } *)
 
