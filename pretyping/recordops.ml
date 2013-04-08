@@ -341,7 +341,7 @@ let check_and_decompose_canonical_structure ref =
 let declare_canonical_structure ref =
   add_canonical_structure (check_and_decompose_canonical_structure ref)
 
-let lookup_canonical_conversion ((proj,u),pat) =
+let lookup_canonical_conversion (proj,pat) =
   List.assoc pat (Refmap.find proj !object_table)
 
   (* let cst, u' = destConst cs.o_DEF in *)
