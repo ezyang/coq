@@ -93,7 +93,7 @@ let position_problem l2r = function
 
 let check_conv_record (t1,sk1) (t2,sk2) =
   try
-    let proji = Universes.global_of_constr t1 in
+    let proji, u = Universes.global_of_constr t1 in
     let canon_s,sk2_effective =
       try
 	match kind_of_term t2 with
