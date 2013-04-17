@@ -193,10 +193,10 @@ val section_segment_of_mutual_inductive: Names.mutual_inductive -> variable_cont
 val section_instance : Globnames.global_reference -> Univ.universe_instance * Names.Id.t array
 val is_in_section : Globnames.global_reference -> bool
 
-val add_section_variable : Names.Id.t -> Decl_kinds.binding_kind -> Univ.universe_context_set -> unit
+val add_section_variable : Names.Id.t -> Decl_kinds.binding_kind -> Decl_kinds.polymorphic -> Univ.universe_context_set -> unit
 
-val add_section_constant : Decl_kinds.polymorphic -> Names.constant -> Sign.named_context -> unit
-val add_section_kn : Decl_kinds.polymorphic -> Names.mutual_inductive -> Sign.named_context -> unit
+val add_section_constant : Names.constant -> Sign.named_context -> unit
+val add_section_kn : Names.mutual_inductive -> Sign.named_context -> unit
 val replacement_context : unit -> Cooking.work_list
 
 (** {6 Discharge: decrease the section level if in the current section } *)

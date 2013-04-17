@@ -83,11 +83,7 @@ let process_inductive (sechyps,abs_ctx) modlist mib =
       mib.mind_packets in
   let sechyps' = map_named_context (expmod_constr modlist) sechyps in
   let (params',inds') = abstract_inductive sechyps' nparams inds in
-  let univs = 
-    if mib.mind_polymorphic then
-      Univ.Context.union abs_ctx mib.mind_universes
-    else mib.mind_universes
-  in
+  let univs = Univ.Context.union abs_ctx mib.mind_universes in
   { mind_entry_record = mib.mind_record;
     mind_entry_finite = mib.mind_finite;
     mind_entry_params = params';

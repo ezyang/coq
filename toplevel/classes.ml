@@ -370,7 +370,7 @@ let context l =
       | _ -> false
       in
       let impl = List.exists test impls in
-      let decl = (Discharge, true, Definitional) in
+      let decl = (Discharge, (Flags.use_polymorphic_flag ()), Definitional) in
       let nstatus =
         Command.declare_assumption false decl (t, uctx) [] impl
           Vernacexpr.NoInline (Loc.ghost, id)

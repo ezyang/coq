@@ -408,21 +408,22 @@ type abstr_list = variable_context Univ.in_universe_context Names.Cmap.t *
   variable_context Univ.in_universe_context Names.Mindmap.t
 
 let sectab =
-  ref ([] : ((Names.Id.t * Decl_kinds.binding_kind * Univ.universe_context_set) list *
+  ref ([] : ((Names.Id.t * Decl_kinds.binding_kind * 
+		Decl_kinds.polymorphic * Univ.universe_context_set) list *
 		Cooking.work_list * abstr_list) list)
 
 let add_section () =
   sectab := ([],(Names.Cmap.empty,Names.Mindmap.empty),(Names.Cmap.empty,Names.Mindmap.empty)) :: !sectab
 
-let add_section_variable id impl ctx =
+let add_section_variable id impl poly ctx =
   match !sectab with
     | [] -> () (* because (Co-)Fixpoint temporarily uses local vars *)
     | (vars,repl,abs)::sl ->
-	sectab := ((id,impl,ctx)::vars,repl,abs)::sl
+	sectab := ((id,impl,poly,ctx)::vars,repl,abs)::sl
 
-let extract_hyps poly (secs,ohyps) =
+let extract_hyps (secs,ohyps) =
   let rec aux = function
-    | ((id,impl,ctx)::idl,(id',b,t)::hyps) when Names.Id.equal id id' ->
+    | ((id,impl,poly,ctx)::idl,(id',b,t)::hyps) when Names.Id.equal id id' ->
       let l, r = aux (idl,hyps) in 
 	(id',impl,b,t) :: l, if poly then Univ.ContextSet.union r ctx else r
     | (id::idl,hyps) -> aux (idl,hyps)
@@ -438,22 +439,22 @@ let instance_from_variable_context sign =
 
 let named_of_variable_context ctx = List.map (fun (id,_,b,t) -> (id,b,t)) ctx
   
-let add_section_replacement f g poly hyps =
+let add_section_replacement f g hyps =
   match !sectab with
   | [] -> ()
   | (vars,exps,abs)::sl ->
-    let sechyps,ctx = extract_hyps poly (vars,hyps) in
+    let sechyps,ctx = extract_hyps (vars,hyps) in
     let ctx = Univ.ContextSet.to_context ctx in
     let args = instance_from_variable_context (List.rev sechyps) in
     sectab := (vars,f (Univ.Context.instance ctx,args) exps,g (sechyps,ctx) abs)::sl
 
-let add_section_kn poly kn =
+let add_section_kn kn =
   let f x (l1,l2) = (l1,Names.Mindmap.add kn x l2) in
-  add_section_replacement f f poly
+  add_section_replacement f f
 
-let add_section_constant poly kn =
+let add_section_constant kn =
   let f x (l1,l2) = (Names.Cmap.add kn x l1,l2) in
-  add_section_replacement f f poly
+  add_section_replacement f f
 
 let replacement_context () = pi2 (List.hd !sectab)
 
@@ -469,7 +470,8 @@ let rec list_mem_assoc x = function
 
 let section_instance = function
   | VarRef id ->
-      if List.exists (fun (id',_,_) -> Names.id_eq id id') (pi1 (List.hd !sectab)) 
+      if List.exists (fun (id',_,_,_) -> Names.id_eq id id') 
+	(pi1 (List.hd !sectab))
       then Univ.Instance.empty, [||]
       else raise Not_found
   | ConstRef con ->

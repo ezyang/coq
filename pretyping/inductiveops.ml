@@ -262,6 +262,7 @@ let instantiate_context sign args =
 
 let get_arity env ((ind,u),params) =
   let (mib,mip) = Inductive.lookup_mind_specif env ind in
+  let univsubst = make_inductive_subst mib u in
   let parsign =
     (* Dynamically detect if called with an instance of recursively
        uniform parameter only or also of non recursively uniform
@@ -272,9 +273,11 @@ let get_arity env ((ind,u),params) =
       snd (List.chop nnonrecparams mib.mind_params_ctxt)
     else
       parsign in
+  let parsign = Sign.subst_univs_context univsubst parsign in
   let arproperlength = List.length mip.mind_arity_ctxt - List.length parsign in
   let arsign,_ = List.chop arproperlength mip.mind_arity_ctxt in
   let subst = instantiate_context parsign params in
+  let arsign = Sign.subst_univs_context univsubst arsign in
   (substl_rel_context subst arsign, Inductive.inductive_sort_family mip)
 
 (* Functions to build standard types related to inductive *)

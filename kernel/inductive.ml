@@ -61,6 +61,11 @@ let inductive_instance mib =
     Context.instance mib.mind_universes
   else Instance.empty
 
+let inductive_context mib =
+  if mib.mind_polymorphic then 
+    mib.mind_universes 
+  else Univ.Context.empty
+
 let instantiate_inductive_constraints mib subst =
   if mib.mind_polymorphic then
     instantiate_univ_context subst mib.mind_universes
@@ -97,10 +102,12 @@ let instantiate_params full t args sign =
   let () = if not (List.is_empty rem_args) then fail () in
   substl subs ty
 
-let full_inductive_instantiate mib params sign =
+let full_inductive_instantiate mib u params sign =
   let dummy = prop_sort in
   let t = mkArity (sign,dummy) in
-  fst (destArity (instantiate_params true t params mib.mind_params_ctxt))
+  let subst = make_inductive_subst mib u in
+  let ar = fst (destArity (instantiate_params true t params mib.mind_params_ctxt)) in
+    Sign.subst_univs_context subst ar
 
 let full_constructor_instantiate ((mind,_),u,(mib,_),params) =
   let subst = make_inductive_subst mib u in
@@ -256,9 +263,9 @@ let inductive_sort_family mip =
 let mind_arity mip =
   mip.mind_arity_ctxt, inductive_sort_family mip
 
-let get_instantiated_arity (mib,mip) params =
+let get_instantiated_arity (ind,u) (mib,mip) params =
   let sign, s = mind_arity mip in
-  full_inductive_instantiate mib params sign, s
+  full_inductive_instantiate mib u params sign, s
 
 let elim_sorts (_,mip) = mip.mind_kelim
 
@@ -289,7 +296,7 @@ let check_allowed_sort ksort specif =
     raise (LocalArity (Some(ksort,s,error_elim_explain ksort s)))
 
 let is_correct_arity env c pj ind specif params =
-  let arsign,_ = get_instantiated_arity specif params in
+  let arsign,_ = get_instantiated_arity ind specif params in
   let rec srec env pt ar u =
     let pt' = whd_betadeltaiota env pt in
     match kind_of_term pt', ar with

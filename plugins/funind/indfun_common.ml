@@ -157,7 +157,7 @@ let save with_clean id const (locality,p,kind) hook =
     | Discharge when Lib.sections_are_opened () ->
         let k = Kindops.logical_kind_of_goal_kind kind in
 	let ctx = Univ.ContextSet.of_context univs in
-	let c = SectionLocalDef (((pft, tpo), ctx), opacity) in
+	let c = SectionLocalDef (((pft, tpo), ctx), p, opacity) in
 	let _ = declare_variable id (Lib.cwd(), c, k) in
 	(Local, VarRef id)
     | Discharge | Local | Global ->

@@ -155,7 +155,7 @@ let declare_definition ident (local, p, k) ce imps hook =
     let c =
       let bt = (ce.const_entry_body, ce.const_entry_type) in
       let ctx = Univ.ContextSet.of_context ce.const_entry_universes in
-        SectionLocalDef((bt,ctx),false) in
+        SectionLocalDef((bt,ctx),p,false) in
     let _ = declare_variable ident (Lib.cwd(), c, IsDefinition k) in
     let () = definition_message ident in
     let () = if Pfedit.refining () then
@@ -193,7 +193,7 @@ let do_definition ident k bl red_option c ctypopt hook =
 
 let declare_assumption is_coe (local,p,kind) (c,ctx) imps impl nl (_,ident) = match local with
 | Discharge when Lib.sections_are_opened () ->
-  let decl = (Lib.cwd(), SectionLocalAssum ((c,ctx),impl), IsAssumption kind) in
+  let decl = (Lib.cwd(), SectionLocalAssum ((c,ctx),p,impl), IsAssumption kind) in
   let _ = declare_variable ident decl in
   let () = assumption_message ident in
   let () =
