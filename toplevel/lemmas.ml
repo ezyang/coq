@@ -169,7 +169,7 @@ let save id const do_guard (locality,poly,kind) hook =
   let l,r = match locality with
     | Discharge when Lib.sections_are_opened () ->
         let ctx = Univ.ContextSet.of_context univs in
-	let c = SectionLocalDef (((pft, tpo), ctx), opacity) in
+	let c = SectionLocalDef (((pft, tpo), ctx), poly, opacity) in
 	let _ = declare_variable id (Lib.cwd(), c, k) in
 	(Local, VarRef id)
     | Local | Global | Discharge ->
@@ -204,7 +204,7 @@ let save_remaining_recthms (locality,p,kind) body opaq i (id,((t_i,ctx_i),(_,imp
       | Discharge ->
           let impl = false in (* copy values from Vernacentries *)
           let k = IsAssumption Conjectural in
-          let c = SectionLocalAssum ((t_i,ctx_i),impl) in
+          let c = SectionLocalAssum ((t_i,ctx_i),p,impl) in
 	  let _ = declare_variable id (Lib.cwd(),c,k) in
           (Discharge, VarRef id,imps)
       | Local | Global ->
@@ -226,7 +226,7 @@ let save_remaining_recthms (locality,p,kind) body opaq i (id,((t_i,ctx_i),(_,imp
         | _ -> anomaly (Pp.str "Not a proof by induction") in
       match locality with
       | Discharge ->
-	  let c = SectionLocalDef (((body_i, Some t_i), ctx_i), opaq) in
+	  let c = SectionLocalDef (((body_i, Some t_i), ctx_i), p, opaq) in
 	  let _ = declare_variable id (Lib.cwd(), c, k) in
           (Discharge,VarRef id,imps)
       | Local | Global ->

@@ -56,12 +56,13 @@ let optimize_non_type_induction_scheme kind dep sort ind =
 
 let build_induction_scheme_in_type dep sort ind =
   let env = Global.env () in
-  let u = 
+  let ctx = 
     let mib,mip = Inductive.lookup_mind_specif env ind in
-      Inductive.inductive_instance mib
+      Inductive.inductive_context mib
   in
-  let ctx = Univ.ContextSet.of_instance u in
-  let sigma, c = build_induction_scheme env (Evd.from_env ~ctx env) (ind,u) dep sort in
+  let u = Univ.Context.instance ctx in
+  let ctxset = Univ.ContextSet.of_context ctx in
+  let sigma, c = build_induction_scheme env (Evd.from_env ~ctx:ctxset env) (ind,u) dep sort in
     c, Evd.evar_universe_context sigma
  
 let rect_scheme_kind_from_type =

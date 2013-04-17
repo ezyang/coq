@@ -29,8 +29,8 @@ open Nametab
 (** Declaration of local constructions (Variable/Hypothesis/Local) *)
 
 type section_variable_entry =
-  | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * bool (** opacity *)
-  | SectionLocalAssum of types Univ.in_universe_context_set * bool (** Implicit status *)
+  | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * polymorphic * bool (** opacity *)
+  | SectionLocalAssum of types Univ.in_universe_context_set * polymorphic * bool (** Implicit status *)
 
 type variable_declaration = DirPath.t * section_variable_entry * logical_kind
 

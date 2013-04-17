@@ -50,37 +50,39 @@ let add_cache_hook f = cache_hook := f
 (** Declaration of section variables and local definitions *)
 
 type section_variable_entry =
-  | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * bool (** opacity *)
-  | SectionLocalAssum of types Univ.in_universe_context_set * bool (** Implicit status *)
+  | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * polymorphic * bool (** opacity *)
+  | SectionLocalAssum of types Univ.in_universe_context_set * polymorphic * bool (** Implicit status *)
 
 type variable_declaration = DirPath.t * section_variable_entry * logical_kind
 
 let cache_variable ((sp,_),o) =
   match o with
-  | Inl cst -> Global.add_constraints cst
+  | Inl ctx -> Global.push_context_set ctx
   | Inr (id,(p,d,mk)) ->
   (* Constr raisonne sur les noms courts *)
   if variable_exists id then
     alreadydeclared (pr_id id ++ str " already exists");
-  let impl,opaq,ctx,cst = match d with (* Fails if not well-typed *)
-    | SectionLocalAssum ((ty,ctx), impl) ->
-        let cst = Global.push_named_assum (id,ty) in
+  let impl,opaq,poly,ctx = match d with (* Fails if not well-typed *)
+    | SectionLocalAssum ((ty,ctx),poly,impl) ->
+        let _cst = Global.push_named_assum (id,ty) in
 	let impl = if impl then Implicit else Explicit in
-	impl, true, ctx, cst
-    | SectionLocalDef (((c,t),ctx),opaq) ->
-        let cst = Global.push_named_def (id,c,t) in
-        Explicit, opaq, ctx, cst in
+	impl, true, poly, ctx
+    | SectionLocalDef (((c,t),ctx),poly,opaq) ->
+        let _cst = Global.push_named_def (id,c,t) in
+        Explicit, opaq, poly, ctx in
   Nametab.push (Nametab.Until 1) (restrict_path 0 sp) (VarRef id);
-  add_section_variable id impl ctx;
+  add_section_variable id impl poly ctx;
   Dischargedhypsmap.set_discharged_hyps sp [];
-  add_variable_data id (p,opaq,ctx,cst,mk)
+  add_variable_data id (p,opaq,ctx,poly,mk)
 
 let discharge_variable (_,o) = match o with
-  | Inr (id,_) -> Some (Inl (variable_constraints id))
+  | Inr (id,_) -> 
+    if variable_polymorphic id then None
+    else Some (Inl (variable_context id))
   | Inl _ -> Some o
 
 type variable_obj =
-    (Univ.constraints, Id.t * variable_declaration) union
+    (Univ.ContextSet.t, Id.t * variable_declaration) union
 
 let inVariable : variable_obj -> obj =
   declare_object { (default_object "VARIABLE") with
@@ -141,7 +143,7 @@ let cache_constant ((sp,kn), obj) =
   assert (eq_constant kn' (constant_of_kn kn));
   Nametab.push (Nametab.Until 1) sp (ConstRef (constant_of_kn kn));
   let cst = Global.lookup_constant kn' in
-  add_section_constant cst.const_polymorphic kn' cst.const_hyps;
+  add_section_constant kn' cst.const_hyps;
   Dischargedhypsmap.set_discharged_hyps sp obj.cst_hyps;
   add_constant_kind (constant_of_kn kn) obj.cst_kind;
   !cache_hook sp
@@ -265,7 +267,7 @@ let cache_inductive ((sp,kn),(dhyps,mie)) =
   let kn' = Global.add_mind dir id mie in
   assert (eq_mind kn' (mind_of_kn kn));
   let mind = Global.lookup_mind kn' in
-  add_section_kn mind.mind_polymorphic kn' mind.mind_hyps;
+  add_section_kn kn' mind.mind_hyps;
   Dischargedhypsmap.set_discharged_hyps sp dhyps;
   List.iter (fun (sp, ref) -> Nametab.push (Nametab.Until 1) sp ref) names;
   List.iter (fun (sp,_) -> !cache_hook sp) (inductive_names sp kn mie)

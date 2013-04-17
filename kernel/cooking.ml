@@ -163,10 +163,6 @@ let cook_constant env r =
   let typ = 
     abstract_constant_type (expmod_constr r.d_modlist cb.const_type) hyps 
   in
-  let univs = 
-    if cb.const_polymorphic then
-      Context.union abs_ctx cb.const_universes
-    else cb.const_universes
-  in
+  let univs = Context.union abs_ctx cb.const_universes in
   (body, typ, cb.const_polymorphic, univs, cb.const_inline_code, 
    Some const_hyps)
