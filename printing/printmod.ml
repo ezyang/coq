@@ -37,7 +37,7 @@ let _ =
 
 let get_new_id locals id =
   let rec get_id l id =
-    let dir = Dir_path.make [id] in
+    let dir = DirPath.make [id] in
       if not (Nametab.exists_module dir) then
 	id
       else
@@ -69,12 +69,17 @@ let print_kn locals kn =
 	with
 	    Not_found -> print_modpath locals kn
 
+(** Each time we have to print a non-globally visible structure,
+    we place its elements in a fake fresh namespace. *)
+
+let mk_fake_top =
+  let r = ref 0 in
+  fun () -> incr r; Id.of_string ("FAKETOP"^(string_of_int !r))
+
 let nametab_register_dir mp =
-  let id = Id.of_string "FAKETOP" in
-  let fp = Libnames.make_path Dir_path.empty id in
-  let dir = Dir_path.make [id] in
-  Nametab.push_dir (Nametab.Until 1) dir (DirModule (dir,(mp,Dir_path.empty)));
-  fp
+  let id = mk_fake_top () in
+  let dir = DirPath.make [id] in
+  Nametab.push_dir (Nametab.Until 1) dir (DirModule (dir,(mp,DirPath.empty)))
 
 (** Nota: the [global_reference] we register in the nametab below
     might differ from internal ones, since we cannot recreate here
@@ -82,23 +87,45 @@ let nametab_register_dir mp =
     the user names. This works nonetheless since we search now
     [Nametab.the_globrevtab] modulo user name. *)
 
-let nametab_register_body mp fp (l,body) =
+let nametab_register_body mp dir (l,body) =
   let push id ref =
-    Nametab.push (Nametab.Until 1) (make_path (dirpath fp) id) ref
+    Nametab.push (Nametab.Until (1+List.length (DirPath.repr dir)))
+      (make_path dir id) ref
   in
   match body with
     | SFBmodule _ -> () (* TODO *)
     | SFBmodtype _ -> () (* TODO *)
     | SFBconst _ ->
-      push (Label.to_id l) (ConstRef (make_con mp Dir_path.empty l))
+      push (Label.to_id l) (ConstRef (Constant.make2 mp l))
     | SFBmind mib ->
-      let mind = make_mind mp Dir_path.empty l in
+      let mind = MutInd.make2 mp l in
       Array.iteri
 	(fun i mip ->
 	  push mip.mind_typename (IndRef (mind,i));
 	  Array.iteri (fun j id -> push id (ConstructRef ((mind,i),j+1)))
 	    mip.mind_consnames)
 	mib.mind_packets
+
+let nametab_register_module_body mp struc =
+  (* If [mp] is a globally visible module, we simply import it *)
+  try Declaremods.really_import_module mp
+  with Not_found ->
+    (* Otherwise we try to emulate an import by playing with nametab *)
+    nametab_register_dir mp;
+    List.iter (nametab_register_body mp DirPath.empty) struc
+
+let nametab_register_module_param mbid seb =
+  (* For algebraic seb, we use a Declaremods function that converts into mse *)
+  try Declaremods.process_module_seb_binding mbid seb
+  with e when Errors.noncritical e ->
+    (* Otherwise, for expanded structure, we try to play with the nametab *)
+    match seb with
+      | SEBstruct struc ->
+        let mp = MPbound mbid in
+        let dir = DirPath.make [MBId.to_id mbid] in
+        nametab_register_dir mp;
+        List.iter (nametab_register_body mp dir) struc
+      | _ -> ()
 
 let print_body is_impl env mp (l,body) =
   let name = str (Label.to_string l) in
@@ -119,26 +146,18 @@ let print_body is_impl env mp (l,body) =
 	      | Def l when is_impl ->
 		spc () ++
 		hov 2 (str ":= " ++
-		       Printer.pr_lconstr_env env (Declarations.force l))
+		       Printer.pr_lconstr_env env (Lazyconstr.force l))
 	      | _ -> mt ()) ++
             str ".")
     | SFBmind mib ->
       try
 	let env = Option.get env in
-	Printer.pr_mutual_inductive_body env (make_mind mp Dir_path.empty l) mib
-      with _ ->
+	Printer.pr_mutual_inductive_body env (MutInd.make2 mp l) mib
+      with e when Errors.noncritical e ->
 	(if mib.mind_finite then str "Inductive " else str "CoInductive")
 	++ name)
 
 let print_struct is_impl env mp struc =
-  begin
-    (* If [mp] is a globally visible module, we simply import it *)
-    try Declaremods.really_import_module mp
-    with _ ->
-    (* Otherwise we try to emulate an import by playing with nametab *)
-      let fp = nametab_register_dir mp in
-      List.iter (nametab_register_body mp fp) struc
-  end;
   prlist_with_sep spc (print_body is_impl env mp) struc
 
 let rec flatten_app mexpr l = match mexpr with
@@ -156,7 +175,7 @@ let rec print_modtype env mp locals mty =
       let seb1 = Option.default mtb1.typ_expr mtb1.typ_expr_alg in
       let locals' = (mbid, get_new_id locals (MBId.to_id mbid))::locals
       in
-      (try Declaremods.process_module_seb_binding mbid seb1 with _ -> ());
+      nametab_register_module_param mbid seb1;
       hov 2 (str "Funsig" ++ spc () ++ str "(" ++
 	       pr_id (MBId.to_id mbid) ++ str ":" ++
 	       print_modtype env mp1 locals seb1 ++
@@ -164,6 +183,7 @@ let rec print_modtype env mp locals mty =
   | SEBstruct (sign) ->
       let env' = Option.map
 	(Modops.add_signature mp sign Mod_subst.empty_delta_resolver) env in
+      nametab_register_module_body mp sign;
       hv 2 (str "Sig" ++ spc () ++ print_struct false env' mp sign ++
 	    brk (1,-2) ++ str "End")
   | SEBapply _ ->
@@ -190,24 +210,25 @@ let rec print_modexpr env mp locals mexpr = match mexpr with
 	(Modops.add_module (Modops.module_body_of_type mp' mty)) env in
       let typ = Option.default mty.typ_expr mty.typ_expr_alg in
       let locals' = (mbid, get_new_id locals (MBId.to_id mbid))::locals in
-      (try Declaremods.process_module_seb_binding mbid typ with _ -> ());
+      nametab_register_module_param mbid typ;
       hov 2 (str "Functor" ++ spc() ++ str"(" ++ pr_id(MBId.to_id mbid) ++
 	     str ":" ++ print_modtype env mp' locals typ ++
       str ")" ++ spc () ++ print_modexpr env' mp locals' mexpr)
   | SEBstruct struc ->
       let env' = Option.map
 	(Modops.add_signature mp struc Mod_subst.empty_delta_resolver) env in
+      nametab_register_module_body mp struc;
       hv 2 (str "Struct" ++ spc () ++ print_struct true env' mp struc ++
 	    brk (1,-2) ++ str "End")
   | SEBapply _ ->
       let lapp = flatten_app mexpr [] in
       hov 3 (str"(" ++ prlist_with_sep spc (print_modpath locals) lapp ++ str")")
-  | SEBwith (_,_)-> anomaly "Not available yet"
+  | SEBwith (_,_)-> anomaly (Pp.str "Not available yet")
 
 
 let rec printable_body dir =
   let dir = pop_dirpath dir in
-    dir = Dir_path.empty ||
+    DirPath.is_empty dir ||
     try
       match Nametab.locate_dir (qualid_of_dirpath dir) with
 	  DirOpenModtype _ -> false
@@ -220,9 +241,12 @@ let rec printable_body dir =
     state after the printing *)
 
 let print_modexpr' env mp mexpr =
-  States.with_state_protection (fun e -> eval_ppcmds (print_modexpr env mp [] e)) mexpr
+  States.with_state_protection
+    (fun e -> eval_ppcmds (print_modexpr env mp [] e)) mexpr
+
 let print_modtype' env mp mty =
-  States.with_state_protection (fun e -> eval_ppcmds (print_modtype env mp [] e)) mty
+  States.with_state_protection
+    (fun e -> eval_ppcmds (print_modtype env mp [] e)) mty
 
 let print_module' env mp with_body mb =
   let name = print_modpath [] mp in
@@ -243,7 +267,7 @@ let print_module with_body mp =
   try
     if !short then raise ShortPrinting;
     print_module' (Some (Global.env ())) mp with_body me ++ fnl ()
-  with _ ->
+  with e when Errors.noncritical e ->
     print_module' None mp with_body me ++ fnl ()
 
 let print_modtype kn =
@@ -254,5 +278,5 @@ let print_modtype kn =
      (try
 	if !short then raise ShortPrinting;
 	print_modtype' (Some (Global.env ())) kn mtb.typ_expr
-      with _ ->
+      with e when Errors.noncritical e ->
 	print_modtype' None kn mtb.typ_expr))

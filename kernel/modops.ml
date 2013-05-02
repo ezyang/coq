@@ -20,6 +20,7 @@ open Util
 open Names
 open Term
 open Declarations
+open Declareops
 open Environ
 open Entries
 open Mod_subst
@@ -32,7 +33,7 @@ type signature_mismatch_error =
   | NotConvertibleInductiveField of Id.t
   | NotConvertibleConstructorField of Id.t
   | NotConvertibleBodyField
-  | NotConvertibleTypeField
+  | NotConvertibleTypeField of env * types * types
   | NotSameConstructorNamesField
   | NotSameInductiveNameInBlockField
   | FiniteInductiveFieldExpected of bool
@@ -174,7 +175,7 @@ and subst_structure sub do_delta sign =
       SFBconst cb -> 
 	SFBconst (subst_const_body sub cb)
     | SFBmind mib -> 
-	SFBmind (subst_mind_body sub mib)
+	SFBmind (Declareops.subst_mind sub mib)
     | SFBmodule mb -> 
 	SFBmodule (subst_module sub do_delta mb)
     | SFBmodtype mtb -> 
@@ -244,7 +245,7 @@ let add_retroknowledge mp =
 	  (match e with 
 	    | Const kn -> kind_of_term (mkConstU kn)
 	    | Ind ind -> kind_of_term (mkIndU ind)
-	    | _ -> anomaly "Modops.add_retroknowledge: had to import an unsupported kind of term")
+	    | _ -> anomaly ~label:"Modops.add_retroknowledge" (Pp.str "had to import an unsupported kind of term"))
   in
   fun lclrk env ->
   (* The order of the declaration matters, for instance (and it's at the
@@ -259,7 +260,7 @@ let add_retroknowledge mp =
 
 let rec add_signature mp sign resolver env = 
   let add_one env (l,elem) =
-    let kn = make_kn mp Dir_path.empty l in
+    let kn = KerName.make2 mp l in
     match elem with
       | SFBconst cb ->
 	Environ.add_constant (constant_of_delta_kn resolver kn) cb env
@@ -278,16 +279,16 @@ and add_module mb env =
 	  add_retroknowledge mp mb.mod_retroknowledge 
 	    (add_signature mp sign mb.mod_delta env)
       | SEBfunctor _ -> env
-      | _ -> anomaly "Modops:the evaluation of the structure failed "
+      | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 
 let strengthen_const mp_from l cb resolver =
   match cb.const_body with
     | Def _ -> cb
     | _ ->
-      let kn = make_kn mp_from Dir_path.empty l in
+      let kn = KerName.make2 mp_from l in
       let con = constant_of_delta_kn resolver kn in
       { cb with
-	const_body = Def (Declarations.from_val (mkConst con));
+	const_body = Def (Lazyconstr.from_val (mkConst con));
 	const_body_code = Cemitcodes.from_val (Cbytegen.compile_alias con)
       }
 
@@ -308,7 +309,7 @@ let rec strengthen_mod mp_from mp_to mb =
 	       (add_delta_resolver mb.mod_delta resolve_out);
 	       mod_retroknowledge = mb.mod_retroknowledge}
      | SEBfunctor _ -> mb
-     | _ -> anomaly "Modops:the evaluation of the structure failed "
+     | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 
 and strengthen_sig mp_from sign mp_to resolver =
   match sign with
@@ -345,7 +346,7 @@ let strengthen mtb mp =
 	       typ_delta = add_delta_resolver mtb.typ_delta
 		(add_mp_delta_resolver mtb.typ_mp mp resolve_out)}
       | SEBfunctor _ -> mtb
-      | _ -> anomaly "Modops:the evaluation of the structure failed "
+      | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 
 let module_type_of_module mp mb =
   match mp with
@@ -377,7 +378,7 @@ let inline_delta_resolver env inl mp mbid mtb delta =
 	  match constant.const_body with
 	    | Undef _ | OpaqueDef _ -> l
 	    | Def body ->
-	      let constr = Declarations.force body in
+	      let constr = Lazyconstr.force body in
 	      add_inline_delta_resolver kn (lev, Some constr) l
 	with Not_found ->
 	  error_no_such_label_sub (con_label con)
@@ -408,7 +409,7 @@ let rec strengthen_and_subst_mod
 	   subst_module subst 
 	     (fun resolver subst-> subst_dom_codom_delta_resolver subst resolver) mb  
 	
-       | _ -> anomaly "Modops:the evaluation of the structure failed "
+       | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 	   
 and strengthen_and_subst_struct 
     str subst mp_alias mp_from mp_to alias incl resolver =
@@ -429,8 +430,8 @@ and strengthen_and_subst_struct
 	    (* If we are performing an inclusion we need to add
 	       the fact that the constant mp_to.l is \Delta-equivalent
 	       to resolver(mp_from.l) *)
-	  let kn_from = make_kn mp_from Dir_path.empty l in
-	  let kn_to = make_kn mp_to Dir_path.empty l in
+	  let kn_from = KerName.make2 mp_from l in
+	  let kn_to = KerName.make2 mp_to l in
 	  let old_name = kn_of_delta resolver kn_from in
 	  (add_kn_delta_resolver kn_to old_name resolve_out),
 	  item'::rest'
@@ -441,13 +442,13 @@ and strengthen_and_subst_struct
 	  resolve_out,item'::rest'
     | (l,SFBmind mib) :: rest ->
 	(*Same as constant*)
-	let item' = l,SFBmind (subst_mind_body subst mib) in
+	let item' = l,SFBmind (Declareops.subst_mind subst mib) in
 	let resolve_out,rest' =
 	  strengthen_and_subst_struct rest subst
 	    mp_alias mp_from mp_to alias incl resolver in
 	if incl then
-	  let kn_from = make_kn mp_from Dir_path.empty l in
-	  let kn_to = make_kn mp_to Dir_path.empty l in
+	  let kn_from = KerName.make2 mp_from l in
+	  let kn_to = KerName.make2 mp_to l in
 	  let old_name = kn_of_delta resolver kn_from in
 	  (add_kn_delta_resolver kn_to old_name resolve_out),
 	  item'::rest'
@@ -518,7 +519,7 @@ let strengthen_and_subst_mb mb mp include_b =
 	  let subst = map_mp mb.mod_mp mp empty_delta_resolver in
 	  subst_module subst 
 	    (fun resolver subst -> subst_dom_codom_delta_resolver subst resolver) mb 
-      | _ -> anomaly "Modops:the evaluation of the structure failed "
+      | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 
 
 let subst_modtype_and_resolver mtb mp =
@@ -572,7 +573,7 @@ let rec collect_mbid l = function
   | SEBstruct str as s->
       let str_clean = Util.List.smartmap (clean_struct l) str in 
 	if  str_clean == str then s else SEBstruct(str_clean)
-  |  _ -> anomaly "Modops:the evaluation of the structure failed "
+  |  _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
        
        
 let clean_bounded_mod_expr = function

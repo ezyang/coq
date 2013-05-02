@@ -8,6 +8,7 @@ open Libnames
 open Globnames
 open Glob_term
 open Declarations
+open Declareops
 open Misctypes
 open Decl_kinds
 
@@ -84,10 +85,7 @@ let functional_induction with_clean c princl pat =
     let princ' = Some (princ,bindings) in
     let princ_vars =
       List.fold_right
-	(fun a acc ->
-	  try Id.Set.add (destVar a) acc
-	  with _ -> acc
-	)
+	(fun a acc -> try Id.Set.add (destVar a) acc with DestKO -> acc)
 	args
 	Id.Set.empty
     in
@@ -166,8 +164,8 @@ let build_newrecursive
 	       sigma rec_sign rec_impls def
 	  )
           lnameargsardef
-	with e ->
-	States.unfreeze fs; raise e in
+	with reraise ->
+	States.unfreeze fs; raise reraise in
     States.unfreeze fs; def
   in
   recdef,rec_impls
@@ -251,12 +249,12 @@ let derive_inversion fix_names =
 	   (fun id -> fst (destInd (Constrintern.global_reference (mk_rel_id id))))
 	   fix_names
 	)
-    with e ->
+    with e when Errors.noncritical e ->
       let e' = Cerrors.process_vernac_interp_error e in
       msg_warning
 	(str "Cannot build inversion information" ++
 	   if do_observe () then (fnl() ++ Errors.print e') else mt ())
-  with _ -> ()
+  with e when Errors.noncritical e -> ()
 
 let warning_error names e =
   let e = Cerrors.process_vernac_interp_error e in
@@ -352,7 +350,7 @@ let generate_principle  on_error
 	Array.iter (add_Function is_general) funs_kn;
 	()
       end
-  with e ->
+  with e when Errors.noncritical e ->
     on_error names e
 
 let register_struct is_rec (fixpoint_exprl:(Vernacexpr.fixpoint_expr * Vernacexpr.decl_notation list) list) =
@@ -362,7 +360,7 @@ let register_struct is_rec (fixpoint_exprl:(Vernacexpr.fixpoint_expr * Vernacexp
 	Command.do_definition fname (Decl_kinds.Global,(*FIXME*)false,Decl_kinds.Definition)
 	  bl None body (Some ret_type) (fun _ _ -> ())
     | _ ->
-	Command.do_fixpoint fixpoint_exprl
+	Command.do_fixpoint Global fixpoint_exprl
 
 let generate_correction_proof_wf f_ref tcc_lemma_ref
     is_mes functional_ref eq_ref rec_arg_num rec_arg_type nb_args relation
@@ -415,7 +413,7 @@ let register_wf ?(is_mes=false) fname rec_impls wf_rel_expr wf_arg using_lemmas 
 	   functional_ref eq_ref rec_arg_num rec_arg_type nb_args relation
 	);
       derive_inversion [fname]
-    with e ->
+    with e when Errors.noncritical e ->
       (* No proof done *)
       ()
   in
@@ -459,7 +457,7 @@ let register_mes fname rec_impls wf_mes_expr wf_rel_expr_opt wf_arg using_lemmas
     match wf_rel_expr_opt with 
       | None ->
 	  let ltof =
-	    let make_dir l = Dir_path.make (List.map Id.of_string (List.rev l)) in
+	    let make_dir l = DirPath.make (List.rev_map Id.of_string l) in
 	    Libnames.Qualid (Loc.ghost,Libnames.qualid_of_path
 			       (Libnames.make_path (make_dir ["Arith";"Wf_nat"]) (Id.of_string "ltof")))
 	  in
@@ -640,7 +638,7 @@ let rec add_args id new_args b =
 	    CAppExpl(Loc.ghost,(None,r,None),new_args)
 	| _ -> b
       end
-  | CFix  _  | CCoFix _ -> anomaly "add_args : todo"
+  | CFix  _  | CCoFix _ -> anomaly ~label:"add_args " (Pp.str "todo")
   | CProdN(loc,nal,b1) ->
       CProdN(loc,
 	     List.map (fun (nal,k,b2) -> (nal,k,add_args id new_args b2)) nal,
@@ -691,10 +689,10 @@ let rec add_args id new_args b =
       CRecord (loc,
 	       (match w with Some w -> Some (add_args id new_args w) | _ -> None),
 	       List.map (fun (e,o) -> e, add_args id new_args o) pars)
-  | CNotation _ -> anomaly "add_args : CNotation"
-  | CGeneralization _ -> anomaly "add_args : CGeneralization"
+  | CNotation _ -> anomaly ~label:"add_args " (Pp.str "CNotation")
+  | CGeneralization _ -> anomaly ~label:"add_args " (Pp.str "CGeneralization")
   | CPrim _ -> b
-  | CDelimiters _ -> anomaly "add_args : CDelimiters"
+  | CDelimiters _ -> anomaly ~label:"add_args " (Pp.str "CDelimiters")
 exception Stop of  Constrexpr.constr_expr
 
 
@@ -735,7 +733,7 @@ let rec chop_n_arrow n t =
 	      chop_n_arrow new_n t'
 	    with Stop t -> t
 	  end
-      | _ -> anomaly "Not enough products"
+      | _ -> anomaly (Pp.str "Not enough products")
 
 
 let rec get_args b t : Constrexpr.local_binder list *
@@ -767,9 +765,8 @@ let make_graph (f_ref:global_reference) =
   Dumpglob.pause ();
   (match body_of_constant c_body with
      | None -> error "Cannot build a graph over an axiom !"
-     | Some b ->
+     | Some body ->
 	 let env = Global.env () in
-	 let body = (force b) in
 	 let extern_body,extern_type =
 	   with_full_print (fun () ->
 		(Constrextern.extern_constr false env body,

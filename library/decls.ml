@@ -18,7 +18,7 @@ open Libnames
 (** Datas associated to section variables and local definitions *)
 
 type variable_data =
-  Dir_path.t * bool (* opacity *) * Univ.universe_context_set * Univ.constraints * logical_kind
+  DirPath.t * bool (* opacity *) * Univ.universe_context_set * polymorphic * logical_kind
 
 let vartab = ref (Id.Map.empty : variable_data Id.Map.t)
 
@@ -33,7 +33,7 @@ let variable_path id = let (p,_,_,_,_) = Id.Map.find id !vartab in p
 let variable_opacity id = let (_,opaq,_,_,_) = Id.Map.find id !vartab in opaq
 let variable_kind id = let (_,_,_,_,k) = Id.Map.find id !vartab in k
 let variable_context id = let (_,_,ctx,_,_) = Id.Map.find id !vartab in ctx
-let variable_constraints id = let (_,_,_,cst,_) = Id.Map.find id !vartab in cst
+let variable_polymorphic id = let (_,_,_,p,_) = Id.Map.find id !vartab in p
 
 let variable_secpath id =
   let dir = drop_dirpath_prefix (Lib.library_dp()) (variable_path id) in
@@ -66,7 +66,7 @@ let initialize_named_context_for_proof () =
 let last_section_hyps dir =
   fold_named_context
     (fun (id,_,_) sec_ids ->
-      try if Dir_path.equal dir (variable_path id) then id::sec_ids else sec_ids
+      try if DirPath.equal dir (variable_path id) then id::sec_ids else sec_ids
       with Not_found -> sec_ids)
     (Environ.named_context (Global.env()))
     ~init:[]

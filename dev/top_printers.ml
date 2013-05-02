@@ -53,7 +53,7 @@ let ppconstr x = pp (Termops.print_constr x)
 let ppconstr_expr x = pp (Ppconstr.pr_constr_expr x)
 let ppconstrdb x = pp(Flags.with_option rawdebug Termops.print_constr x)
 let ppterm = ppconstr
-let ppsconstr x = ppconstr (Declarations.force x)
+let ppsconstr x = ppconstr (Lazyconstr.force x)
 let ppconstr_univ x = Constrextern.with_universes ppconstr x
 let ppglob_constr = (fun x -> pp(pr_lglob_constr x))
 let pppattern = (fun x -> pp(pr_constr_pattern x))
@@ -119,6 +119,8 @@ let ppexistentialset evars =
 let ppclenv clenv = pp(pr_clenv clenv)
 let ppgoalgoal gl = pp(Goal.pr_goal gl)
 let ppgoal g = pp(Printer.pr_goal g)
+let ppgoalsigma g = pp(Printer.pr_goal g ++ pr_evar_map None (Refiner.project g))
+
 let ppopenconstr (x : Evd.open_constr) =
   let (evd,c) = x in pp (pr_evar_map (Some 2) evd ++ pr_constr c)
 (* spiwack: deactivated until a replacement is found
@@ -143,15 +145,17 @@ let ppuni_level u = pp (Level.pr u)
 let ppuniverses u = pp (str"[" ++ Universe.pr u ++ str"]")
 
 let ppuniverse_set l = pp (LSet.pr l)
+let ppuniverse_instance l = pp (Instance.pr l)
 let ppuniverse_list l = pp (pr_universe_list l)
 let ppuniverse_context l = pp (pr_universe_context l)
 let ppuniverse_context_set l = pp (pr_universe_context_set l)
 let ppuniverse_subst l = pp (Univ.pr_universe_subst l)
 let ppuniverse_opt_subst l = pp (Universes.pr_universe_opt_subst l)
-let ppuniverse_full_subst l = pp (Univ.pr_universe_full_subst l)
+let ppuniverse_level_subst l = pp (Univ.pr_universe_level_subst l)
 let ppevar_universe_context l = pp (Evd.pr_evar_universe_context l)
 
 let ppconstraints c = pp (pr_constraints c)
+let ppuniverseconstraints c = pp (UniverseConstraints.pr c)
 
 let ppenv e = pp
   (str "[" ++ pr_named_context_of e ++ str "]" ++ spc() ++
@@ -170,6 +174,7 @@ let cast_kind_display k =
   | VMcast -> "VMcast"
   | DEFAULTcast -> "DEFAULTcast"
   | REVERTcast -> "REVERTcast"
+  | NATIVEcast -> "NATIVEcast"
 
 let constr_display csr =
   let rec term_display c = match kind_of_term c with
@@ -218,11 +223,11 @@ let constr_display csr =
        v "")^"|]"
 
   and univ_display u =
-    incr cnt; pp (str "with " ++ int !cnt ++ pr_uni u ++ fnl ())
+    incr cnt; pp (str "with " ++ int !cnt ++ str" " ++ pr_uni u ++ fnl ())
 
-  and univ_level_display u =
-    incr cnt; pp (str "with " ++ int !cnt ++ Level.pr u ++ fnl ())
-  
+  and level_display u =
+    incr cnt; pp (str "with " ++ int !cnt ++ str" " ++ Level.pr u ++ fnl ())
+
   and sort_display = function
     | Prop(Pos) -> "Prop(Pos)"
     | Prop(Null) -> "Prop(Null)"
@@ -230,8 +235,8 @@ let constr_display csr =
 	"Type("^(string_of_int !cnt)^")"
 
   and universes_display l = 
-    List.fold_right (fun x i -> univ_level_display x; (string_of_int !cnt)^(if not(i="")
-        then (" "^i) else "")) l ""
+    Array.fold_right (fun x i -> level_display x; (string_of_int !cnt)^(if not(i="")
+        then (" "^i) else "")) (Instance.to_array l) ""
 
   and name_display = function
     | Name id -> "Name("^(Id.to_string id)^")"
@@ -336,7 +341,7 @@ let print_pure_constr csr =
   and box_display c = open_hovbox 1; term_display c; close_box()
 
   and universes_display u =
-    List.iter (fun u -> print_space (); pp (Level.pr u)) u
+    Array.iter (fun u -> print_space (); pp (Level.pr u)) (Instance.to_array u)
 
   and sort_display = function
     | Prop(Pos) -> print_string "Set"
@@ -351,7 +356,7 @@ let print_pure_constr csr =
   and sp_display sp =
 (*    let dir,l = decode_kn sp in
     let ls =
-      match List.rev (List.map Id.to_string (Dir_path.repr dir)) with
+      match List.rev_map Id.to_string (DirPath.repr dir) with
           ("Top"::l)-> l
 	| ("Coq"::_::l) -> l
 	| l             -> l
@@ -360,7 +365,7 @@ let print_pure_constr csr =
   and sp_con_display sp =
 (*    let dir,l = decode_kn sp in
     let ls =
-      match List.rev (List.map Id.to_string (Dir_path.repr dir)) with
+      match List.rev_map Id.to_string (DirPath.repr dir) with
           ("Top"::l)-> l
 	| ("Coq"::_::l) -> l
 	| l             -> l
@@ -478,12 +483,12 @@ let encode_path loc prefix mpdir suffix id =
   let dir = match mpdir with
     | None -> []
     | Some (mp,dir) ->
-	(Dir_path.repr (dirpath_of_string (string_of_mp mp))@
-	Dir_path.repr dir) in
+	(DirPath.repr (dirpath_of_string (string_of_mp mp))@
+	DirPath.repr dir) in
   Qualid (loc, make_qualid
-    (Dir_path.make (List.rev (Id.of_string prefix::dir@suffix))) id)
+    (DirPath.make (List.rev (Id.of_string prefix::dir@suffix))) id)
 
-let raw_string_of_ref loc = function
+let raw_string_of_ref loc _ = function
   | ConstRef cst ->
       let (mp,dir,id) = repr_con cst in
       encode_path loc "CST" (Some (mp,dir)) [] (Label.to_id id)
@@ -499,7 +504,7 @@ let raw_string_of_ref loc = function
   | VarRef id ->
       encode_path loc "SECVAR" None [] id
 
-let short_string_of_ref loc = function
+let short_string_of_ref loc _ = function
   | VarRef id -> Ident (loc,id)
   | ConstRef cst -> Ident (loc,Label.to_id (pi3 (repr_con cst)))
   | IndRef (kn,0) -> Ident (loc,Label.to_id (pi3 (repr_mind kn)))
@@ -515,5 +520,5 @@ let short_string_of_ref loc = function
    pretty-printer should not make calls to the global env since ocamldebug
    runs in a different process and does not have the proper env at hand *)
 let _ = Constrextern.in_debugger := true
-let _ = Constrextern.set_debug_global_reference_printer
+let _ = Constrextern.set_extern_reference
   (if !rawdebug then raw_string_of_ref else short_string_of_ref)

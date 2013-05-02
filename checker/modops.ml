@@ -67,9 +67,9 @@ let module_body_of_type mp mtb =
 
 let rec add_signature mp sign resolver env = 
   let add_one env (l,elem) =
-    let kn = make_kn mp Dir_path.empty l in
-    let con = constant_of_kn kn in
-    let mind = mind_of_delta resolver (mind_of_kn kn) in
+    let kn = KerName.make2 mp l in
+    let con = Constant.make1 kn in
+    let mind = mind_of_delta resolver (MutInd.make1 kn) in
       match elem with
 	| SFBconst cb -> 
 	   (* let con =  constant_of_delta resolver con in*)
@@ -90,14 +90,14 @@ and add_module mb env =
       | SEBstruct (sign) -> 
 	    add_signature mp sign mb.mod_delta env
       | SEBfunctor _ -> env
-      | _ -> anomaly "Modops:the evaluation of the structure failed "
+      | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 
 
 let strengthen_const mp_from l cb resolver =
   match cb.const_body with
     | Def _ -> cb
     | _ ->
-      let con = make_con mp_from Dir_path.empty l in
+      let con = Constant.make2 mp_from l in
       (* let con =  constant_of_delta resolver con in*)
       { cb with const_body = Def (Declarations.from_val (Const con)) }
 
@@ -118,7 +118,7 @@ let rec strengthen_mod mp_from mp_to mb =
 	       (add_delta_resolver mb.mod_delta resolve_out)*);
 	       mod_retroknowledge = mb.mod_retroknowledge}
      | SEBfunctor _ -> mb
-     | _ -> anomaly "Modops:the evaluation of the structure failed "
+     | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 	 
 and strengthen_sig mp_from sign mp_to resolver =
   match sign with
@@ -152,7 +152,7 @@ let strengthen mtb mp =
 	       typ_delta = resolve_out(*add_delta_resolver mtb.typ_delta
 		(add_mp_delta_resolver mtb.typ_mp mp resolve_out)*)}
       | SEBfunctor _ -> mtb
-      | _ -> anomaly "Modops:the evaluation of the structure failed "
+      | _ -> anomaly ~label:"Modops" (Pp.str "the evaluation of the structure failed ")
 
 let subst_and_strengthen mb mp =
   strengthen_mod mb.mod_mp mp (subst_module (map_mp mb.mod_mp mp) mb)

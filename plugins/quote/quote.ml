@@ -220,7 +220,7 @@ let compute_rhs bodyi index_of_f =
 (*s Now the function [compute_ivs] itself *)
 
 let compute_ivs gl f cs =
-  let cst = try destConst f with _ -> i_can't_do_that () in
+  let cst = try destConst f with DestKO -> i_can't_do_that () in
   let body = Environ.constant_value_in (Global.env()) cst in
   match decomp_term body with
     | Fix(([| len |], 0), ([| name |], [| typ |], [| body2 |])) ->
@@ -410,7 +410,7 @@ let quote_terms ivs lc gl =
                | None ->
                    begin match ivs.constant_lhs with
                      | Some c_lhs -> Termops.subst_meta [1, c] c_lhs
-                     | None -> anomaly "invalid inversion scheme for quote"
+                     | None -> anomaly (Pp.str "invalid inversion scheme for quote")
                    end
                | Some var_lhs ->
                    begin match ivs.constant_lhs with

@@ -68,8 +68,9 @@ let search_guard loc env possible_indexes fixdefs =
   if List.for_all is_singleton possible_indexes then
     let indexes = Array.of_list (List.map List.hd possible_indexes) in
     let fix = ((indexes, 0),fixdefs) in
-    (try check_fix env fix with
-       | e -> Loc.raise loc e);
+    (try check_fix env fix
+     with reraise ->
+       let e = Errors.push reraise in Loc.raise loc e);
     indexes
   else
     (* we now search recursively amoungst all combinations *)
@@ -112,9 +113,11 @@ let resolve_evars env evdref fail_evar resolve_classes =
        ~filter:Typeclasses.all_evars ~split:true ~fail:false env !evdref;     
     );
   (* Resolve eagerly, potentially making wrong choices *)
-  evdref := (try consider_remaining_unif_problems
-	       ~ts:(Typeclasses.classes_transparent_state ()) env !evdref
-	     with e -> if fail_evar then raise e else !evdref)
+  evdref :=
+    (try consider_remaining_unif_problems
+	   ~ts:(Typeclasses.classes_transparent_state ()) env !evdref
+     with e when Errors.noncritical e ->
+       let e = Errors.push e in if fail_evar then raise e else !evdref)
 
 let solve_remaining_evars fail_evar use_classes hook env initial_sigma (evd,c) =
   let evdref = ref evd in
@@ -178,9 +181,11 @@ let invert_ltac_bound_name env id0 id =
 		       str " which is not bound in current context.")
 
 let protected_get_type_of env sigma c =
-  try Retyping.get_type_of env sigma c
-  with Anomaly _ ->
-    errorlabstrm "" (str "Cannot reinterpret " ++ quote (print_constr c) ++ str " in the current environment.")
+  try Retyping.get_type_of ~lax:true env sigma c
+  with Retyping.RetypeError _ ->
+    errorlabstrm ""
+      (str "Cannot reinterpret " ++ quote (print_constr c) ++
+       str " in the current environment.")
 
 let pretype_id loc env evdref (lvar,unbndltacvars) id =
   let sigma = !evdref in
@@ -364,9 +369,12 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 		make_judge (mkFix ((indexes,i),fixdecls)) ftys.(i)
 	  | GCoFix i ->
 	      let cofix = (i,(names,ftys,fdefs)) in
-		(try check_cofix env cofix with e -> Loc.raise loc e);
-		make_judge (mkCoFix cofix) ftys.(i) in
-	  inh_conv_coerce_to_tycon loc env evdref fixj tycon
+	      (try check_cofix env cofix
+               with reraise ->
+                 let e = Errors.push reraise in Loc.raise loc e);
+	      make_judge (mkCoFix cofix) ftys.(i)
+        in
+	inh_conv_coerce_to_tycon loc env evdref fixj tycon
 
   | GSort (loc,s) ->
       let j = pretype_sort evdref s in
@@ -461,7 +469,7 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
       in
       let resj =
 	try judge_of_product env name j j'
-	with TypeError _ as e -> Loc.raise loc e in
+	with TypeError _ as e -> let e = Errors.push e in Loc.raise loc e in
 	inh_conv_coerce_to_tycon loc env evdref resj tycon
 
   | GLetIn(loc,name,c1,c2)      ->
@@ -625,8 +633,8 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 	| CastCoerce ->
 	  let cj = pretype empty_tycon env evdref lvar c in
 	    evd_comb1 (Coercion.inh_coerce_to_base loc env) evdref cj
-	| CastConv t | CastVM t ->
-	  let k = (match k with CastVM _ -> VMcast | _ -> DEFAULTcast) in
+	| CastConv t | CastVM t | CastNative t ->
+	  let k = (match k with CastVM _ -> VMcast | CastNative _ -> NATIVEcast | _ -> DEFAULTcast) in
 	  let tj = pretype_type empty_valcon env evdref lvar t in
 	  let tval = nf_evar !evdref tj.utj_val in
 	  let cj = match k with
@@ -638,10 +646,25 @@ let rec pretype (tycon : type_constraint) env evdref lvar = function
 		    try 
 		      ignore (Reduction.vm_conv Reduction.CUMUL env cty tval); cj
 		    with Reduction.NotConvertible -> 
-		    error_actual_type_loc loc env !evdref cj tval 
+		      error_actual_type_loc loc env !evdref cj tval 
+                        (ConversionFailed (env,cty,tval))
 		  end
 		else user_err_loc (loc,"",str "Cannot check cast with vm: " ++
 				   str "unresolved arguments remain.")
+	    | NATIVEcast ->
+ 	      let cj = pretype empty_tycon env evdref lvar c in
+	      let cty = nf_evar !evdref cj.uj_type and tval = nf_evar !evdref tj.utj_val in
+		if not (occur_existential cty || occur_existential tval) then
+		  begin 
+		    try 
+		      ignore (Nativeconv.native_conv Reduction.CUMUL env cty tval); cj
+		    with Reduction.NotConvertible -> 
+		      error_actual_type_loc loc env !evdref cj tval 
+                        (ConversionFailed (env,cty,tval))
+		  end
+		else user_err_loc (loc,"",str "Cannot check cast with native compiler: " ++
+				   str "unresolved arguments remain.")
+
 	    | _ -> 
  	      pretype (mk_tycon tval) env evdref lvar c
 	  in
@@ -661,7 +684,7 @@ and pretype_type valcon env evdref lvar = function
                | Sort s -> s
                | Evar ev when is_Type (existential_type sigma ev) ->
 		   evd_comb1 (define_evar_as_sort) evdref ev
-               | _ -> anomaly "Found a type constraint which is not a type"
+               | _ -> anomaly (Pp.str "Found a type constraint which is not a type")
            in
 	     { utj_val = v;
 	       utj_type = s }

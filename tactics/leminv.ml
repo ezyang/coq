@@ -225,17 +225,18 @@ let inversion_scheme env sigma t sort dep_option inv_op =
 
 let add_inversion_lemma name env sigma t sort dep inv_op =
   let invProof = inversion_scheme env sigma t sort dep inv_op in
-  let _ =
-    declare_constant name
-    (DefinitionEntry
-       { const_entry_body = invProof;
-         const_entry_secctx = None;
-         const_entry_type = None;
-	 const_entry_polymorphic = true;
-	 const_entry_universes = Univ.empty_universe_context (*FIXME *);
-         const_entry_opaque = false },
-     IsProof Lemma)
-  in ()
+  let entry = {
+    const_entry_body = invProof;
+    const_entry_secctx = None;
+    const_entry_type = None;
+    const_entry_polymorphic = true;
+    const_entry_universes = Univ.Context.empty (*FIXME *);
+    const_entry_opaque = false;
+    const_entry_inline_code = false	   
+  }
+  in
+  let _ = declare_constant name (DefinitionEntry entry, IsProof Lemma) in
+  ()
 
 (* inv_op = Inv (derives de complete inv. lemma)
  * inv_op = InvNoThining (derives de semi inversion lemma) *)

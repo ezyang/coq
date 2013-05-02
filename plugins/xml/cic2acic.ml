@@ -12,6 +12,8 @@
 (*                       http://helm.cs.unibo.it                        *)
 (************************************************************************)
 
+open Pp
+
 (* Utility Functions *)
 
 exception TwoModulesWhoseDirPathIsOneAPrefixOfTheOther;;
@@ -36,7 +38,7 @@ let get_module_path_of_full_path path =
 let remove_module_dirpath_from_dirpath ~basedir dir =
  let module Ln = Libnames in
   if Ln.is_dirpath_prefix_of basedir dir then
-   let ids = Names.Dir_path.repr dir in
+   let ids = Names.DirPath.repr dir in
    let rec remove_firsts n l =
     match n,l with
        (0,l) -> l
@@ -46,11 +48,11 @@ let remove_module_dirpath_from_dirpath ~basedir dir =
     let ids' =
      List.rev
       (remove_firsts
-        (List.length (Names.Dir_path.repr basedir))
+        (List.length (Names.DirPath.repr basedir))
         (List.rev ids))
     in
      ids'
-  else Names.Dir_path.repr dir
+  else Names.DirPath.repr dir
 ;;
 
 
@@ -61,7 +63,7 @@ let get_uri_of_var v pvars =
    function
       [] -> Errors.error ("Variable "^v^" not found")
     | he::tl as modules ->
-       let dirpath = N.Dir_path.make modules in
+       let dirpath = N.DirPath.make modules in
         if List.mem (N.Id.of_string v) (D.last_section_hyps dirpath) then
          modules
         else
@@ -71,7 +73,7 @@ let get_uri_of_var v pvars =
     if List.mem v pvars then
       []
     else
-      search_in_open_sections (N.Dir_path.repr (Lib.cwd ()))
+      search_in_open_sections (N.DirPath.repr (Lib.cwd ()))
    in
     "cic:" ^
      List.fold_left
@@ -106,21 +108,21 @@ let ext_of_tag =
 exception FunctorsXMLExportationNotImplementedYet;;
 
 let subtract l1 l2 =
- let l1' = List.rev (Names.Dir_path.repr l1) in
- let l2' = List.rev (Names.Dir_path.repr l2) in
+ let l1' = List.rev (Names.DirPath.repr l1) in
+ let l2' = List.rev (Names.DirPath.repr l2) in
   let rec aux =
    function
       he::tl when tl = l2' -> [he]
     | he::tl -> he::(aux tl)
     | [] -> assert (l2' = []) ; []
   in
-   Names.Dir_path.make (List.rev (aux l1'))
+   Names.DirPath.make (List.rev (aux l1'))
 ;;
 
 let token_list_of_path dir id tag =
  let module N = Names in
   let token_list_of_dirpath dirpath =
-   List.rev_map N.Id.to_string (N.Dir_path.repr dirpath) in
+   List.rev_map N.Id.to_string (N.DirPath.repr dirpath) in
   token_list_of_dirpath dir @ [N.Id.to_string id ^ "." ^ (ext_of_tag tag)]
 
 let token_list_of_kernel_name tag =
@@ -162,7 +164,7 @@ let family_of_term ty =
  match Term.kind_of_term ty with
     Term.Sort s -> Coq_sort (Term.family_of_sort s)
   | Term.Const _ -> CProp  (* I could check that the constant is CProp *)
-  | _ -> Errors.anomaly "family_of_term"
+  | _ -> Errors.anomaly (Pp.str "family_of_term")
 ;;
 
 module CPropRetyping =
@@ -177,7 +179,7 @@ module CPropRetyping =
   | h::rest ->
       match T.kind_of_term (DoubleTypeInference.whd_betadeltaiotacprop env sigma typ) with
         | T.Prod (na,c1,c2) -> subst_type env sigma (T.subst1 h c2) rest
-        | _ -> Errors.anomaly "Non-functional construction"
+        | _ -> Errors.anomaly (Pp.str "Non-functional construction")
 
 
   let sort_of_atomic_type env sigma ft args =
@@ -193,7 +195,7 @@ let typeur sigma metamap =
     match Term.kind_of_term cstr with
     | T.Meta n ->
           (try T.strip_outer_cast (List.assoc n metamap)
-           with Not_found -> Errors.anomaly "type_of: this is not a well-typed term")
+           with Not_found -> Errors.anomaly ~label:"type_of" (Pp.str "this is not a well-typed term"))
     | T.Rel n ->
         let (_,_,ty) = Environ.lookup_rel n env in
         T.lift n ty
@@ -202,7 +204,7 @@ let typeur sigma metamap =
           let (_,_,ty) = Environ.lookup_named id env in
           ty
         with Not_found ->
-          Errors.anomaly ("type_of: variable "^(Names.Id.to_string id)^" unbound"))
+          Errors.anomaly ~label:"type_of" (str "variable " ++ Names.Id.print id ++ str " unbound"))
     | T.Const c -> Typeops.type_of_constant_in env c
     | T.Evar ev -> Evd.existential_type sigma ev
     | T.Ind ind -> Inductiveops.type_of_inductive env ind
@@ -210,7 +212,7 @@ let typeur sigma metamap =
     | T.Case (_,p,c,lf) ->
         let Inductiveops.IndType(_,realargs) =
           try Inductiveops.find_rectype env sigma (type_of env c)
-          with Not_found -> Errors.anomaly "type_of: Bad recursive type" in
+          with Not_found -> Errors.anomaly ~label:"type_of" (Pp.str "Bad recursive type") in
         let t = Reductionops.whd_beta sigma (T.applist (p, realargs)) in
         (match Term.kind_of_term (DoubleTypeInference.whd_betadeltaiotacprop env sigma (type_of env t)) with
           | T.Prod _ -> Reductionops.whd_beta sigma (T.applist (t, [c]))
@@ -251,7 +253,7 @@ let typeur sigma metamap =
           | _, (CProp as s) -> s)
     | T.App(f,args) -> sort_of_atomic_type env sigma (type_of env f) args
     | T.Lambda _ | T.Fix _ | T.Construct _ ->
-        Errors.anomaly "sort_of: Not a type (1)"
+        Errors.anomaly ~label:"sort_of" (Pp.str "Not a type (1)")
     | _ -> outsort env sigma (type_of env t)
 
   and sort_family_of env t =
@@ -263,7 +265,7 @@ let typeur sigma metamap =
     | T.App(f,args) ->
        sort_of_atomic_type env sigma (type_of env f) args
     | T.Lambda _ | T.Fix _ | T.Construct _ ->
-        Errors.anomaly "sort_of: Not a type (1)"
+        Errors.anomaly ~label:"sort_of" (Pp.str "Not a type (1)")
     | _ -> outsort env sigma (type_of env t)
 
   in type_of, sort_of, sort_family_of
@@ -347,7 +349,7 @@ let acic_of_cic_context' computeinnertypes seed ids_to_terms constr_to_ids
          if computeinnertypes then
 try
           Acic.CicHash.find terms_to_types tt
-with _ ->
+with e when Errors.noncritical e ->
 (*CSC: Warning: it really happens, for example in Ring_theory!!! *)
 Pp.msg_debug (Pp.(++) (Pp.str "BUG: this subterm was not visited during the double-type-inference: ") (Printer.pr_lconstr tt)) ; assert false
          else
@@ -453,7 +455,7 @@ print_endline "PASSATO" ; flush stdout ;
                 let he1' = remove_module_dirpath_from_dirpath ~basedir he1_sp in
                 let he1'' =
                  String.concat "/"
-                  (List.map Names.Id.to_string (List.rev he1')) ^ "/"
+                  (List.rev_map Names.Id.to_string he1') ^ "/"
                  ^ (Names.Id.to_string he1_id) ^ ".var"
                 in
                  (he1'',he2)::subst, extra_args, uninst
@@ -512,7 +514,7 @@ print_endline "PASSATO" ; flush stdout ;
                add_inner_type fresh_id'' ;
               A.AEvar
                (fresh_id'', n, Array.to_list (Array.map (aux' env idrefs) l))
-           | T.Meta _ -> Errors.anomaly "Meta met during exporting to XML"
+           | T.Meta _ -> Errors.anomaly (Pp.str "Meta met during exporting to XML")
            | T.Sort s -> A.ASort (fresh_id'', s)
            | T.Cast (v,_, t) ->
               Hashtbl.add ids_to_inner_sorts fresh_id'' innersort ;

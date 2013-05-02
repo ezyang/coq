@@ -25,10 +25,10 @@ val new_Type_sort : Names.dir_path -> sorts
     the instantiated constraints. *)
 
 val fresh_instance_from_context : universe_context -> 
-  (universe_list * universe_subst) constrained
+  (universe_instance * universe_subst) constrained
 
 val fresh_instance_from : universe_context -> 
-  (universe_list * universe_subst) in_universe_context_set
+  (universe_instance * universe_subst) in_universe_context_set
 
 val new_global_univ : unit -> universe in_universe_context_set
 val new_sort_in_family : sorts_family -> sorts
@@ -67,27 +67,63 @@ val extend_context : 'a in_universe_context_set -> universe_context_set ->
 
 module UF : Unionfind.PartitionSig with type elt = universe_level
 
-val instantiate_univ_variables : 
-  (Univ.constraint_type * Univ.universe_level) list
-  Univ.LMap.t ->
-  (Univ.constraint_type * Univ.universe_level) list
-  Univ.LMap.t ->
-  universe_level ->
-  (UF.elt * Univ.universe) list * Univ.constraints ->
-  (UF.elt * Univ.universe) list * Univ.constraints
+type universe_opt_subst = universe option universe_map
 
-val choose_canonical : universe_set -> universe_set -> universe_set -> 
+val make_opt_subst : universe_opt_subst -> universe_subst_fn
+
+val subst_opt_univs_constr : universe_opt_subst -> constr -> constr
+
+val choose_canonical : universe_set -> universe_opt_subst -> universe_set -> universe_set -> 
   universe_level * (universe_set * universe_set * universe_set)
+
+val instantiate_with_lbound : 
+  Univ.LMap.key ->
+  Univ.universe ->
+  bool ->
+  bool ->
+  Univ.LSet.t * Univ.universe option Univ.LMap.t *
+    (bool * bool * Univ.universe) Univ.LMap.t * Univ.constraints ->
+  (Univ.LSet.t * Univ.universe option Univ.LMap.t *
+     (bool * bool * Univ.universe) Univ.LMap.t * Univ.constraints) *
+    (bool * bool * Univ.universe)
+    
+val compute_lbound : (constraint_type * Univ.universe) list -> universe option
+
+val minimize_univ_variables : 
+           Univ.LSet.t ->
+           Univ.universe option Univ.LMap.t ->
+           Univ.LSet.t ->
+           (Univ.constraint_type * Univ.LMap.key) list Univ.LMap.t ->
+           (Univ.constraint_type * Univ.LMap.key) list Univ.LMap.t ->
+           Univ.constraints ->
+           Univ.LSet.t * Univ.universe option Univ.LMap.t *
+           (bool * bool * Univ.universe) Univ.LMap.t * Univ.constraints
 
 
 val normalize_context_set : universe_context_set -> 
-  universe_subst (* Substitution for the defined variables *) ->
-  universe_set (* univ variables *) ->
+  universe_opt_subst (* The defined and undefined variables *) ->
   universe_set (* univ variables that can be substituted by algebraics *) -> 
-  universe_full_subst in_universe_context_set
+  universe_opt_subst in_universe_context_set
 
-val normalize_univ_variables : universe_level option universe_map -> 
-  universe_level option universe_map * universe_set * universe_set * universe_subst
+val normalize_univ_variables : universe_opt_subst -> 
+  universe_opt_subst * universe_set * universe_set * universe_subst
+
+val normalize_univ_variable : 
+  find:(universe_level -> universe) ->
+  update:(universe_level -> universe -> universe) ->
+  universe_level -> universe
+
+val normalize_univ_variable_opt_subst : universe_opt_subst ref ->
+  (universe_level -> universe)
+
+val normalize_univ_variable_subst : universe_subst ref ->
+  (universe_level -> universe)
+
+val normalize_universe_opt_subst : universe_opt_subst ref ->
+  (universe -> universe)
+
+val normalize_universe_subst : universe_subst ref ->
+  (universe -> universe)
 
 (** Create a fresh global in the global environment, shouldn't be done while
     building polymorphic values as the constraints are added to the global
@@ -99,20 +135,23 @@ val type_of_global : Globnames.global_reference -> types in_universe_context_set
 
 (** Full universes substitutions into terms *)
 
-val nf_evars_and_universes_local : (existential -> constr option) -> universe_subst -> 
+val nf_evars_and_universes_local : (existential -> constr option) -> universe_level_subst -> 
   constr -> constr
 
-val nf_evars_and_full_universes_local : (existential -> constr option) -> 
-  universe_full_subst -> constr -> constr
+val nf_evars_and_universes_subst : (existential -> constr option) -> 
+  universe_subst -> constr -> constr
 
-val subst_univs_full_puniverses : universe_full_subst -> 'a puniverses -> 'a puniverses
-val subst_univs_full_constr : universe_full_subst -> constr -> constr
+val nf_evars_and_universes_opt_subst : (existential -> constr option) -> 
+  universe_opt_subst -> constr -> constr
 
 (** Get fresh variables for the universe context.
     Useful to make tactics that manipulate constrs in universe contexts polymorphic. *)
 val fresh_universe_context_set_instance : universe_context_set -> 
-  universe_subst * universe_context_set
-
-type universe_opt_subst = universe_level option universe_map
+  universe_level_subst * universe_context_set
 
 val pr_universe_opt_subst : universe_opt_subst -> Pp.std_ppcmds
+
+(** Shrink a universe context to a restricted set of variables *)
+
+val universes_of_constr : constr -> universe_set
+val shrink_universe_context : universe_context_set -> universe_set -> universe_context_set

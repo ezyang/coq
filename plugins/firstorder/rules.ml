@@ -32,7 +32,7 @@ let wrap n b continue seq gls=
   let rec aux i nc ctx=
     if i<=0 then seq else
       match nc with
-	  []->anomaly "Not the expected number of hyps"
+	  []->anomaly (Pp.str "Not the expected number of hyps")
 	| ((id,_,typ) as nd)::q->
 	    if occur_var env id (pf_concl gls) ||
 	      List.exists (occur_var_in_decl env id) ctx then
@@ -129,7 +129,7 @@ let ll_ind_tac (ind,u as indu) largs backtrack id continue seq gl=
        let head=mkApp ((lift p (constr_of_global id)),[|capply|]) in
 	 it_mkLambda_or_LetIn head rc in
        let lp=Array.length rcs in
-       let newhyps=List.tabulate myterm lp in
+       let newhyps=List.init lp myterm in
 	 tclIFTHENELSE
 	   (tclTHENLIST
 	      [generalize newhyps;

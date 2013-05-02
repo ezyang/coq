@@ -140,20 +140,21 @@ let insert_pat_alias loc p = function
 let extern_evar loc n l =
   if !print_evar_arguments then CEvar (loc,n,l) else CEvar (loc,n,None)
 
-let debug_global_reference_printer =
-  ref (fun _ -> failwith "Cannot print a global reference")
+(** We allow customization of the global_reference printer.
+    For instance, in the debugger the tables of global references
+    may be inaccurate *)
+
+let default_extern_reference loc vars r =
+  Qualid (loc,shortest_qualid_of_global vars r)
+
+let my_extern_reference = ref default_extern_reference
+
+let set_extern_reference f = my_extern_reference := f
+let get_extern_reference () = !my_extern_reference
+
+let extern_reference loc vars l = !my_extern_reference loc vars l
 
 let in_debugger = ref false
-
-let set_debug_global_reference_printer f =
-  debug_global_reference_printer := f
-
-let extern_reference loc vars r =
-  if !in_debugger then
-    (* Debugger does not have the tables of global reference at hand *)
-    !debug_global_reference_printer loc r
-  else
-    Qualid (loc,shortest_qualid_of_global vars r)
 
 (**********************************************************************)
 (* mapping patterns to cases_pattern_expr                                *)
@@ -228,10 +229,10 @@ let make_notation_gen loc ntn mknot mkprim destprim l =
 	match decompose_notation_key ntn, l with
 	| [Terminal "-"; Terminal x], [] ->
 	    (try mkprim (loc, Numeral (Bigint.neg (Bigint.of_string x)))
-	     with _ -> mknot (loc,ntn,[]))
+	     with Failure _ -> mknot (loc,ntn,[]))
 	| [Terminal x], [] ->
 	    (try mkprim (loc, Numeral (Bigint.of_string x))
-	     with _ -> mknot (loc,ntn,[]))
+	     with Failure _ -> mknot (loc,ntn,[]))
 	| _ ->
 	    mknot (loc,ntn,l)
 
@@ -633,7 +634,7 @@ let rec extern inctx scopes vars r =
 		     | None :: q -> raise No_match
 		     | Some c :: q ->
 		         match locs with
-			   | [] -> anomaly "projections corruption [Constrextern.extern]"
+			   | [] -> anomaly (Pp.str "projections corruption [Constrextern.extern]")
 			   | (_, false) :: locs' ->
 			       (* we don't want to print locals *)
 			       ip q locs' args acc
@@ -814,12 +815,13 @@ and extern_symbol (tmp_scope,scopes as allscopes) vars t = function
                 match f with
                 | GRef (_,ref,us) ->
 	          let subscopes =
-		    try List.skipn n (find_arguments_scope ref) with _ -> [] in
+		    try List.skipn n (find_arguments_scope ref)
+                    with Failure _ -> [] in
 	          let impls =
 		    let impls =
 		      select_impargs_size
 		        (List.length args) (implicits_of_global ref) in
-		    try List.skipn n impls with _ -> [] in
+		    try List.skipn n impls with Failure _ -> [] in
                   subscopes,impls
                 | _ ->
                   [], [] in
@@ -936,7 +938,7 @@ let rec glob_of_pat env = function
       let id = try match lookup_name_of_rel n env with
 	| Name id   -> id
 	| Anonymous ->
-	    anomaly "glob_constr_of_pattern: index to an anonymous variable"
+	    anomaly ~label:"glob_constr_of_pattern" (Pp.str "index to an anonymous variable")
       with Not_found -> Id.of_string ("_UNBOUND_REL_"^(string_of_int n)) in
       GVar (loc,id)
   | PMeta None -> GHole (loc,Evar_kinds.InternalHole)
@@ -964,7 +966,7 @@ let rec glob_of_pat env = function
 	| _, Some ind ->
 	  let bl' = List.map (fun (i,n,c) -> (i,n,glob_of_pat env c)) bl in
 	  simple_cases_matrix_of_branches ind bl'
-	| _, None -> anomaly "PCase with some branches but unknown inductive"
+	| _, None -> anomaly (Pp.str "PCase with some branches but unknown inductive")
       in
       let mat = if info.cip_extensible then mat @ [any_any_branch] else mat
       in
@@ -972,7 +974,7 @@ let rec glob_of_pat env = function
 	| PMeta None, _, _ -> (Anonymous,None),None
 	| _, Some ind, Some nargs ->
 	  return_type_of_predicate ind nargs (glob_of_pat env p)
-	| _ -> anomaly "PCase with non-trivial predicate but unknown inductive"
+	| _ -> anomaly (Pp.str "PCase with non-trivial predicate but unknown inductive")
       in
       GCases (loc,RegularStyle,rtn,[glob_of_pat env tm,indnames],mat)
   | PFix f -> Detyping.detype false [] env (mkFix f)

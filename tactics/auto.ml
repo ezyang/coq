@@ -41,10 +41,6 @@ open Misctypes
 open Locus
 open Decl_kinds
 
-let pr_constr_or_ref = function
-  | IsConstr c -> pr_constr c
-  | IsGlobal gr -> pr_global gr
-
 (****************************************************************************)
 (*            The Type of Constructions Autotactic Hints                    *)
 (****************************************************************************)
@@ -68,6 +64,10 @@ type hints_path =
   | PathOr of hints_path * hints_path
   | PathEmpty
   | PathEpsilon
+
+type hint_term =
+  | IsGlobRef of global_reference
+  | IsConstr of constr * Univ.universe_context_set
 
 type 'a gen_auto_tactic = {
   pri  : int;            (* A number lower is higher priority *)
@@ -125,8 +125,8 @@ let empty_se = ([],[],Bounded_net.create ())
 
 let eq_constr_or_reference x y = 
   match x, y with
-  | IsConstr x, IsConstr y -> eq_constr x y
-  | IsGlobal x, IsGlobal y -> eq_gr x y
+  | IsConstr (x,_), IsConstr (y,_) -> eq_constr x y
+  | IsGlobRef x, IsGlobRef y -> eq_gr x y
   | _, _ -> false
 
 let eq_pri_auto_tactic (_, x) (_, y) =
@@ -561,8 +561,13 @@ let make_apply_entry env sigma (eapply,hnf,verbose) pri poly ?(name=PathAny) (c,
    c is a constr
    cty is the type of constr *)
 
+let fresh_global_or_constr env sigma poly cr =
+  match cr with
+  | IsGlobRef gr -> Universes.fresh_global_instance env gr
+  | IsConstr (c, ctx) -> (c, ctx)
+
 let make_resolves env sigma flags pri poly ?name cr =
-  let c, ctx = Universes.fresh_global_or_constr_instance env cr in
+  let c, ctx = fresh_global_or_constr env sigma poly cr in
   let cty = Retyping.get_type_of env sigma c in
   let try_apply f =
     try Some (f (c, cty, ctx)) with Failure _ -> None in
@@ -581,10 +586,10 @@ let make_resolve_hyp env sigma (hname,_,htyp) =
   try
     [make_apply_entry env sigma (true, true, false) None false
        ~name:(PathHints [VarRef hname])
-       (mkVar hname, htyp, Univ.empty_universe_context_set)]
+       (mkVar hname, htyp, Univ.ContextSet.empty)]
   with
     | Failure _ -> []
-    | e when Logic.catchable_exception e -> anomaly "make_resolve_hyp"
+    | e when Logic.catchable_exception e -> anomaly (Pp.str "make_resolve_hyp")
 
 (* REM : in most cases hintname = id *)
 let make_unfold eref =
@@ -606,7 +611,7 @@ let make_extern pri pat tacast =
      code = Extern tacast })  
 
 let make_trivial env sigma poly ?(name=PathAny) r =
-  let c,ctx = Universes.fresh_global_or_constr_instance env r in
+  let c,ctx = fresh_global_or_constr env sigma poly r in
   let t = hnf_constr env sigma (type_of env sigma c) in
   let hd = head_of_constr_reference (fst (head_constr t)) in
   let ce = mk_clenv_from dummy_goal (c,t) in
@@ -710,7 +715,7 @@ let subst_autohint (subst,(local,name,hintlist as obj)) =
       | Give_exact (c,t,ctx) ->
           let c' = subst_mps subst c in
 	  let t' = subst_mps subst t in
-          if c==c' then data.code else Give_exact (c',t',ctx)
+          if c==c' && t'== t then data.code else Give_exact (c',t',ctx)
       | Res_pf_THEN_trivial_fail (c,t,ctx) ->
           let c' = subst_mps subst c in
           let t' = subst_mps subst t in
@@ -836,9 +841,13 @@ let set_extern_intern_tac f = forward_intern_tac := f
 
 type hnf = bool
 
+let pr_hint_term = function
+  | IsConstr (c,_) -> pr_constr c
+  | IsGlobRef gr -> pr_global gr
+
 type hints_entry =
-  | HintsResolveEntry of (int option * polymorphic * hnf * hints_path_atom * global_reference_or_constr) list
-  | HintsImmediateEntry of (hints_path_atom * polymorphic * global_reference_or_constr) list
+  | HintsResolveEntry of (int option * polymorphic * hnf * hints_path_atom * hint_term) list
+  | HintsImmediateEntry of (hints_path_atom * polymorphic * hint_term) list
   | HintsCutEntry of hints_path
   | HintsUnfoldEntry of evaluable_global_reference list
   | HintsTransparencyEntry of evaluable_global_reference list * bool
@@ -849,7 +858,7 @@ let h = Id.of_string "H"
 
 exception Found of constr * types
 
-let prepare_hint env (sigma,c) =
+let prepare_hint check env (sigma,c) =
   let sigma = Typeclasses.resolve_typeclasses ~fail:false env sigma in
   (* We re-abstract over uninstantiated evars.
      It is actually a bit stupid to generalize over evars since the first
@@ -876,15 +885,15 @@ let prepare_hint env (sigma,c) =
       vars := Id.Set.add id !vars;
       subst := (evar,mkVar id)::!subst;
       mkNamedLambda id t (iter (replace_term evar (mkVar id) c)) in
-  iter c
+  let c' = iter c in
+    if check then Evarutil.check_evars (Global.env()) Evd.empty sigma c';
+    IsConstr (c', Evd.get_universe_context_set sigma)
 
 let interp_hints =
   fun h ->
   let f c =
     let evd,c = Constrintern.interp_open_constr Evd.empty (Global.env()) c in
-    let c = prepare_hint (Global.env()) (evd,c) in
-    Evarutil.check_evars (Global.env()) Evd.empty evd c;
-      c in
+      prepare_hint true (Global.env()) (evd,c) in
   let fr r =
     let gr = global_with_alias r in
     let r' = evaluable_of_global_reference (Global.env()) gr in
@@ -894,13 +903,13 @@ let interp_hints =
     match c with
     | HintsReference c ->
       let gr = global_with_alias c in
-	(PathHints [gr], poly, IsGlobal gr)
+	(PathHints [gr], poly, IsGlobRef gr)
     | HintsConstr c -> 
-      if poly then
-	errorlabstrm "Hint" (Ppconstr.pr_constr_expr c ++ spc () ++ 
-			     str" is a term and cannot be made a polymorphic hint," ++
-			     str" only global references can be polymorphic hints.")
-      else (PathAny, poly, IsConstr (f c))
+      (* if poly then *)
+      (* 	errorlabstrm "Hint" (Ppconstr.pr_constr_expr c ++ spc () ++  *)
+      (* 			     str" is a term and cannot be made a polymorphic hint," ++ *)
+      (* 			     str" only global references can be polymorphic hints.") *)
+      (* else *) (PathAny, poly, f c)
   in
   let fres (pri, poly, b, r) =
     let path, poly, gr = fi (poly, r) in
@@ -918,11 +927,12 @@ let interp_hints =
         let ind = global_inductive_with_alias qid in
 	let mib,_ = Global.lookup_inductive ind in
 	Dumpglob.dump_reference (fst (qualid_of_reference qid)) "<>" (string_of_reference qid) "ind";
-        List.tabulate (fun i -> let c = (ind,i+1) in
-				let gr = ConstructRef c in
-				  None, mib.Declarations.mind_polymorphic, true, PathHints [gr], IsGlobal gr)
-	  (nconstructors ind) in
-	HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
+          List.init (nconstructors ind) 
+	    (fun i -> let c = (ind,i+1) in
+		      let gr = ConstructRef c in
+			None, mib.Declarations.mind_polymorphic, true, 
+			PathHints [gr], IsGlobRef gr)
+      in HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
   | HintsExtern (pri, patcom, tacexp) ->
       let pat =	Option.map fp patcom in
       let tacexp = !forward_intern_tac (match pat with None -> [] | Some (l, _) -> l) tacexp in
@@ -1114,7 +1124,7 @@ let exact poly (c,clenv) =
   let c' = 
     if poly then
       let evd', subst = Evd.refresh_undefined_universes clenv.evd in
-	subst_univs_constr subst c 
+	subst_univs_level_constr subst c 
     else c
   in exact_check c'
     
@@ -1124,9 +1134,11 @@ let expand_constructor_hints env lems =
   List.map_append (fun (sigma,lem) ->
     match kind_of_term lem with
     | Ind (ind,u) ->
-	List.tabulate (fun i -> IsConstr (mkConstructU ((ind,i+1),u))) (nconstructors ind)
+	List.init (nconstructors ind) 
+	  (fun i -> IsConstr (mkConstructU ((ind,i+1),u), 
+			      Univ.ContextSet.empty))
     | _ ->
-	[IsConstr (prepare_hint env (sigma,lem))]) lems
+	[prepare_hint false env (sigma,lem)]) lems
 
 (* builds a hint database from a constr signature *)
 (* typically used with (lid, ltyp) = pf_hyps_types <some goal> *)
@@ -1134,7 +1146,7 @@ let expand_constructor_hints env lems =
 let add_hint_lemmas eapply lems hint_db gl =
   let lems = expand_constructor_hints (pf_env gl) lems in
   let hintlist' =
-    List.map_append (pf_apply make_resolves gl (eapply,true,false) None false) lems in
+    List.map_append (pf_apply make_resolves gl (eapply,true,false) None true) lems in
   Hint_db.add_list hintlist' hint_db
 
 let make_local_hint_db ?ts eapply lems gl =
@@ -1236,9 +1248,9 @@ let tclLOG (dbg,depth,trace) pp tac =
 	  let out = tac gl in
 	  msg_debug (str s ++ spc () ++ pp () ++ str ". (*success*)");
 	  out
-	with e ->
+	with reraise ->
 	  msg_debug (str s ++ spc () ++ pp () ++ str ". (*fail*)");
-	  raise e
+	  raise reraise
       end
     | Info ->
       (* For "info (trivial/auto)", we store a log trace *)
@@ -1247,9 +1259,9 @@ let tclLOG (dbg,depth,trace) pp tac =
 	  let out = tac gl in
 	  trace := (depth, Some pp) :: !trace;
 	  out
-	with e ->
+	with reraise ->
 	  trace := (depth, None) :: !trace;
-	  raise e
+	  raise reraise
       end
 
 (** For info, from the linear trace information, we reconstitute the part

@@ -65,7 +65,6 @@ open Declarations
 open Environ
 open Entries
 open Typeops
-open Term_typing
 open Modops
 open Subtyping
 open Mod_typing
@@ -76,7 +75,7 @@ type modvariant =
   | NONE
   | SIG of (* funsig params *) (MBId.t * module_type_body) list
   | STRUCT of (* functor params *) (MBId.t * module_type_body) list
-  | LIBRARY of Dir_path.t
+  | LIBRARY of DirPath.t
 
 type module_info =
     {modpath : module_path;
@@ -90,7 +89,7 @@ let set_engagement_opt oeng env =
       Some eng -> set_engagement eng env
     | _ -> env
 
-type library_info = Dir_path.t * Digest.t
+type library_info = DirPath.t * Digest.t
 
 type safe_environment =
     { old : safe_environment;
@@ -142,7 +141,7 @@ let rec empty_environment =
     modlabels = Label.Set.empty;
     objlabels = Label.Set.empty;
     revstruct = [];
-    univ = Univ.empty_constraint;
+    univ = Univ.Constraint.empty;
     engagement = None;
     imports = [];
     loads = [];
@@ -154,21 +153,22 @@ let env_of_senv = env_of_safe_env
 let add_constraints cst senv =
   { senv with
     env = Environ.add_constraints cst senv.env;
-    univ = Univ.union_constraints cst senv.univ }
+    univ = Univ.Constraint.union cst senv.univ }
+
+let push_context_set ctx = add_constraints (ContextSet.constraints ctx)
+let push_context ctx = add_constraints (Context.constraints ctx)
 
 let globalize_constant_universes cb =
   if cb.const_polymorphic then
-    (Univ.empty_constraint, cb)
+    (Univ.Constraint.empty, cb)
   else
-    let ctx, cstrs = cb.const_universes in
-      (cstrs, cb)
+    (Context.constraints cb.const_universes, cb)
       
 let globalize_mind_universes mb =
   if mb.mind_polymorphic then
-    (Univ.empty_constraint, mb)
+    (Univ.Constraint.empty, mb)
   else
-    let ctx, cstrs = mb.mind_universes in
-      (cstrs, mb)
+    (Context.constraints mb.mind_universes, mb)
 
 let constraints_of_sfb sfb = 
   match sfb with
@@ -266,15 +266,15 @@ let safe_push_named (id,_,_ as d) env =
 
 (* FIXME: no polymorphism allowed here. Is that what we really want? *)
 let push_named_def (id,b,topt) senv =
-  let (c,typ,cst) = translate_local_def senv.env (b,topt) in
-  let cst = constraints_of cst in
+  let (c,typ,cst) = Term_typing.translate_local_def senv.env (b,topt) in
+  let cst = ContextSet.constraints cst in
   let senv' = add_constraints cst senv in
   let env'' = safe_push_named (id,Some c,typ) senv'.env in
   (cst, {senv' with env=env''})
 
 let push_named_assum (id,t) senv =
-  let (t,cst) = translate_local_assum senv.env t in
-  let cst = constraints_of cst in
+  let (t,cst) = Term_typing.translate_local_assum senv.env t in
+  let cst = ContextSet.constraints cst in
   let senv' = add_constraints cst senv in
   let env'' = safe_push_named (id,None,t) senv'.env in
   (cst, {senv' with env=env''})
@@ -289,10 +289,17 @@ type global_declaration =
 let add_constant dir l decl senv =
   let kn = make_con senv.modinfo.modpath dir l in
   let cb = match decl with
-    | ConstantEntry ce -> translate_constant senv.env kn ce
+    | ConstantEntry ce -> Term_typing.translate_constant senv.env kn ce
     | GlobalRecipe r ->
-      let cb = translate_recipe senv.env kn r in
-      if Dir_path.is_empty dir then hcons_const_body cb else cb
+      let cb = Term_typing.translate_recipe senv.env kn r in
+      if DirPath.is_empty dir then Declareops.hcons_const_body cb else cb
+  in
+  let cb = match cb.const_body with
+    | OpaqueDef lc when DirPath.is_empty dir ->
+      (* In coqc, opaque constants outside sections will be stored
+         indirectly in a specific table *)
+      { cb with const_body = OpaqueDef (Lazyconstr.turn_indirect lc) }
+    | _ -> cb
   in
   let senv' = add_field (l,SFBconst cb) (C kn) senv in
   let senv'' = match cb.const_body with
@@ -307,17 +314,18 @@ let add_constant dir l decl senv =
 let add_mind dir l mie senv =
   let () = match mie.mind_entry_inds with
   | [] ->
-    anomaly "empty inductive types declaration"
+    anomaly (Pp.str "empty inductive types declaration")
             (* this test is repeated by translate_mind *)
   | _ -> ()
   in
   let id = (List.nth mie.mind_entry_inds 0).mind_entry_typename in
   if not (Label.equal l (Label.of_id id)) then
-    anomaly ("the label of inductive packet and its first inductive"^
-	     " type do not match");
+    anomaly (Pp.str "the label of inductive packet and its first inductive \
+	     type do not match");
   let kn = make_mind senv.modinfo.modpath dir l in
-  let mib = translate_mind senv.env kn mie in
-  let mib = match mib.mind_hyps with [] -> hcons_mind mib | _ -> mib in
+  let mib = Term_typing.translate_mind senv.env kn mie in
+  let mib = match mib.mind_hyps with [] -> Declareops.hcons_mind mib | _ -> mib
+  in
   let senv' = add_field (l,SFBmind mib) (I kn) senv in
   kn, senv'
 
@@ -363,7 +371,7 @@ let start_module l senv =
 	 modlabels = Label.Set.empty;
 	 objlabels = Label.Set.empty;
 	 revstruct = [];
-         univ = Univ.empty_constraint;
+         univ = Univ.Constraint.empty;
          engagement = None;
 	 imports = senv.imports;
 	 loads = [];
@@ -397,13 +405,13 @@ let end_module l restype senv =
    let mexpr,mod_typ,mod_typ_alg,resolver,cst = 
     match restype with
       | None ->  let mexpr = functorize_struct auto_tb in
-	 mexpr,mexpr,None,modinfo.resolver,empty_constraint
+	 mexpr,mexpr,None,modinfo.resolver,Constraint.empty
       | Some mtb ->
 	  let auto_mtb = {
 	    typ_mp = senv.modinfo.modpath;
 	    typ_expr = auto_tb;
 	    typ_expr_alg = None;
-	    typ_constraints = empty_constraint;
+	    typ_constraints = Constraint.empty;
 	    typ_delta = empty_delta_resolver} in
 	  let cst = check_subtypes senv.env auto_mtb
 	    mtb in
@@ -413,7 +421,7 @@ let end_module l restype senv =
 	    Option.map functorize_struct mtb.typ_expr_alg in
 	    mexpr,mod_typ,typ_alg,mtb.typ_delta,cst
   in
-  let cst = union_constraints cst senv.univ in
+  let cst = Constraint.union cst senv.univ in
   let mb =
     { mod_mp = mp;
       mod_expr = Some mexpr;
@@ -448,7 +456,7 @@ let end_module l restype senv =
 		  modlabels = Label.Set.add l oldsenv.modlabels;
 		  objlabels = oldsenv.objlabels;
 		  revstruct = (l,SFBmodule mb)::oldsenv.revstruct;
-		  univ = Univ.union_constraints senv'.univ oldsenv.univ;
+		  univ = Univ.Constraint.union senv'.univ oldsenv.univ;
 		  (* engagement is propagated to the upper level *)
 		  engagement = senv'.engagement;
 		  imports = senv'.imports;
@@ -491,23 +499,21 @@ let end_module l restype senv =
    let resolver,sign,senv = compute_sign sign {typ_mp = mp_sup;
 				      typ_expr = SEBstruct (List.rev senv.revstruct);
 				      typ_expr_alg = None;
-				      typ_constraints = empty_constraint;
+				      typ_constraints = Constraint.empty;
 				      typ_delta = senv.modinfo.resolver} resolver senv
    in
    let str = match sign with
      | SEBstruct(str_l) -> str_l
-     | _ -> error ("You cannot Include a high-order structure.")
+     | _ -> error ("You cannot Include a higher-order structure.")
    in
    let senv = update_resolver (add_delta_resolver resolver) senv
    in
    let add senv ((l,elem) as field) =
      let new_name = match elem with
        | SFBconst _ ->
-	   let kn = make_kn mp_sup Dir_path.empty l in
-	   C (constant_of_delta_kn resolver kn)
+           C (constant_of_delta_kn resolver (KerName.make2 mp_sup l))
        | SFBmind _ ->
-	   let kn = make_kn mp_sup Dir_path.empty l in
-	   I (mind_of_delta_kn resolver kn)
+	   I (mind_of_delta_kn resolver (KerName.make2 mp_sup l))
        | SFBmodule _ -> M
        | SFBmodtype _ -> MT (MPdot(senv.modinfo.modpath, l))
      in
@@ -520,7 +526,7 @@ let end_module l restype senv =
 let add_module_parameter mbid mte inl senv =
   let () = match senv.revstruct, senv.loads with
   | [], _ :: _ | _ :: _, [] ->
-    anomaly "Cannot add a module parameter to a non empty module"
+    anomaly (Pp.str "Cannot add a module parameter to a non empty module")
   | _ -> ()
   in
   let mtb = translate_module_type senv.env (MPbound mbid) inl mte in
@@ -531,7 +537,7 @@ let add_module_parameter mbid mte inl senv =
     | STRUCT params -> STRUCT ((mbid,mtb) :: params)
     | SIG params -> SIG ((mbid,mtb) :: params)
     | _ ->
-	anomaly "Module parameters can only be added to modules or signatures"  
+	anomaly (Pp.str "Module parameters can only be added to modules or signatures")  
   in
     
   let resolver_of_param = match mtb.typ_expr with
@@ -571,7 +577,7 @@ let start_modtype l senv =
 	modlabels = Label.Set.empty;
 	objlabels = Label.Set.empty;
 	revstruct = [];
-        univ = Univ.empty_constraint;
+        univ = Univ.Constraint.empty;
         engagement = None;
 	imports = senv.imports;
 	loads = [] ;
@@ -623,7 +629,7 @@ let end_modtype l senv =
 	  modlabels = Label.Set.add l oldsenv.modlabels;
 	  objlabels = oldsenv.objlabels;
 	  revstruct = (l,SFBmodtype mtb)::oldsenv.revstruct;
-          univ = Univ.union_constraints senv.univ oldsenv.univ;
+          univ = Univ.Constraint.union senv.univ oldsenv.univ;
           engagement = senv.engagement;
 	  imports = senv.imports;
 	  loads = senv.loads@oldsenv.loads;
@@ -633,7 +639,7 @@ let end_modtype l senv =
         senv.local_retroknowledge@oldsenv.local_retroknowledge}
 
 let current_modpath senv = senv.modinfo.modpath
-let current_dirpath senv = Names.dp_of_mp (current_modpath senv)
+let current_dirpath senv = Names.ModPath.dp (current_modpath senv)
 let delta_of_senv senv = senv.modinfo.resolver,senv.modinfo.resolver_of_param
 
 (* Check that the engagement expected by a library matches the initial one *)
@@ -651,8 +657,15 @@ let set_engagement c senv =
 
 (* Libraries = Compiled modules *)
 
-type compiled_library =
-    Dir_path.t * module_body * library_info list * engagement option
+type compiled_library = {
+  comp_name : DirPath.t;
+  comp_mod : module_body;
+  comp_deps : library_info array;
+  comp_enga : engagement option;
+  comp_natsymbs : Nativecode.symbol array
+}
+
+type native_library = Nativecode.global list
 
 (* We check that only initial state Require's were performed before
    [start_library] was called *)
@@ -663,12 +676,12 @@ let is_empty senv = match senv.revstruct, senv.modinfo.variant with
 
 let start_library dir senv =
   if not (is_empty senv) then
-    anomaly "Safe_typing.start_library: environment should be empty";
+    anomaly ~label:"Safe_typing.start_library" (Pp.str "environment should be empty");
   let dir_path,l =
-    match (Dir_path.repr dir) with
-	[] -> anomaly "Empty dirpath in Safe_typing.start_library"
+    match (DirPath.repr dir) with
+	[] -> anomaly (Pp.str "Empty dirpath in Safe_typing.start_library")
       | hd::tl ->
-	  Dir_path.make tl, Label.of_id hd
+	  DirPath.make tl, Label.of_id hd
   in
   let mp = MPfile dir in
   let modinfo = {modpath = mp;
@@ -683,7 +696,7 @@ let start_library dir senv =
 	modlabels = Label.Set.empty;
 	objlabels = Label.Set.empty;
 	revstruct = [];
-        univ = Univ.empty_constraint;
+        univ = Univ.Constraint.empty;
         engagement = None;
 	imports = senv.imports;
 	loads = [];
@@ -694,7 +707,7 @@ let pack_module senv =
    mod_expr=None;
    mod_type= SEBstruct (List.rev senv.revstruct);
    mod_type_alg=None;
-   mod_constraints=empty_constraint;
+   mod_constraints=Constraint.empty;
    mod_delta=senv.modinfo.resolver;
    mod_retroknowledge=[];
   }
@@ -704,10 +717,10 @@ let export senv dir =
   begin
     match modinfo.variant with
       | LIBRARY dp ->
-	  if not (Dir_path.equal dir dp) then
-	    anomaly "We are not exporting the right library!"
+	  if not (DirPath.equal dir dp) then
+	    anomaly (Pp.str "We are not exporting the right library!")
       | _ ->
-	  anomaly "We are not exporting the library"
+	  anomaly (Pp.str "We are not exporting the library")
   end;
   (*if senv.modinfo.params <> [] || senv.modinfo.restype <> None then
     (* error_export_simple *) (); *)
@@ -720,10 +733,23 @@ let export senv dir =
       mod_type_alg = None;
       mod_constraints = senv.univ;
       mod_delta = senv.modinfo.resolver;
-      mod_retroknowledge = senv.local_retroknowledge}
+      mod_retroknowledge = senv.local_retroknowledge
+    }
   in
-   mp, (dir,mb,senv.imports,engagement senv.env)
-
+  let ast, values =
+    if !Flags.no_native_compiler then [], [||]
+    else let ast, values, upds = Nativelibrary.dump_library mp dir senv.env str in
+    Nativecode.update_locations upds;
+    ast, values
+  in
+  let lib = {
+    comp_name = dir;
+    comp_mod = mb;
+    comp_deps = Array.of_list senv.imports;
+    comp_enga = engagement senv.env;
+    comp_natsymbs = values }
+  in
+  mp, lib, ast
 
 let check_imports senv needed =
   let imports = senv.imports in
@@ -732,11 +758,11 @@ let check_imports senv needed =
       let actual_stamp = List.assoc id imports in
       if not (String.equal stamp actual_stamp) then
 	error
-	  ("Inconsistent assumptions over module "^(Dir_path.to_string id)^".")
+	  ("Inconsistent assumptions over module "^(DirPath.to_string id)^".")
     with Not_found ->
-      error ("Reference to unknown module "^(Dir_path.to_string id)^".")
+      error ("Reference to unknown module "^(DirPath.to_string id)^".")
   in
-  List.iter check needed
+  Array.iter check needed
 
 
 
@@ -753,163 +779,23 @@ loaded by side-effect once and for all (like it is done in OCaml).
 Would this be correct with respect to undo's and stuff ?
 *)
 
-let import (dp,mb,depends,engmt) digest senv =
-  check_imports senv depends;
-  check_engagement senv.env engmt;
-  let mp = MPfile dp in
+let import lib digest senv =
+  check_imports senv lib.comp_deps;
+  check_engagement senv.env lib.comp_enga;
+  let mp = MPfile lib.comp_name in
+  let mb = lib.comp_mod in
   let env = senv.env in
   let env = Environ.add_constraints mb.mod_constraints env in
   let env = Modops.add_module mb env in
-  mp, { senv with
-	  env = env;
-	  modinfo = 
-      {senv.modinfo with 
-	 resolver = 
-	    add_delta_resolver mb.mod_delta senv.modinfo.resolver};
-	  imports = (dp,digest)::senv.imports;
-	  loads = (mp,mb)::senv.loads }
+  let reso = add_delta_resolver mb.mod_delta senv.modinfo.resolver in
+  let senv = { senv with
+    env = env;
+    modinfo = { senv.modinfo with resolver = reso };
+    imports = (lib.comp_name,digest)::senv.imports;
+    loads = (mp,mb)::senv.loads }
+  in
+  mp, senv, lib.comp_natsymbs
 
-
- (* Store the body of modules' opaque constants inside a table.  
-
-    This module is used during the serialization and deserialization
-    of vo files. 
-
-    By adding an indirection to the opaque constant definitions, we
-    gain the ability not to load them. As these constant definitions
-    are usually big terms, we save a deserialization time as well as
-    some memory space. *)
-module LightenLibrary : sig
-  type table 
-  type lightened_compiled_library 
-  val save : compiled_library -> lightened_compiled_library * table
-  val load : load_proof:Flags.load_proofs -> table Lazy.t
-    -> lightened_compiled_library -> compiled_library
-end = struct
-
-  (* The table is implemented as an array of [constr_substituted].
-     Keys are hence integers. To avoid changing the [compiled_library]
-     type, we brutally encode integers into [lazy_constr]. This isn't
-     pretty, but shouldn't be dangerous since the produced structure
-     [lightened_compiled_library] is abstract and only meant for writing
-     to .vo via Marshal (which doesn't care about types).
-  *)
-  type table = constr_substituted array
-  let key_as_lazy_constr (i:int) = (Obj.magic i : lazy_constr)
-  let key_of_lazy_constr (c:lazy_constr) = (Obj.magic c : int)
-
-  (* To avoid any future misuse of the lightened library that could 
-     interpret encoded keys as real [constr_substituted], we hide 
-     these kind of values behind an abstract datatype. *)
-  type lightened_compiled_library = compiled_library
-
-  (* Map a [compiled_library] to another one by just updating 
-     the opaque term [t] to [on_opaque_const_body t]. *)
-  let traverse_library on_opaque_const_body =
-    let rec traverse_module mb =
-      match mb.mod_expr with 
-	  None -> 
-	    { mb with
-		mod_expr = None;
-		mod_type = traverse_modexpr mb.mod_type;
-	    }
-	| Some impl when impl == mb.mod_type-> 
-	    let mtb =  traverse_modexpr mb.mod_type in 
-	      { mb with
-		  mod_expr = Some mtb;
-		  mod_type = mtb;
-	      }    
-	| Some impl -> 
-	    { mb with
-		mod_expr = Option.map traverse_modexpr mb.mod_expr;
-		mod_type = traverse_modexpr mb.mod_type;
-	    }    
-    and traverse_struct struc =
-      let traverse_body (l,body) = (l,match body with
-	| SFBconst cb when is_opaque cb ->
-	  SFBconst {cb with const_body = on_opaque_const_body cb.const_body}
-	| (SFBconst _ | SFBmind _ ) as x ->
-	  x
-	| SFBmodule m -> 
-	  SFBmodule (traverse_module m)
-	| SFBmodtype m -> 
-	  SFBmodtype ({m with typ_expr = traverse_modexpr m.typ_expr}))
-      in
-      List.map traverse_body struc
-	
-    and traverse_modexpr = function
-      | SEBfunctor (mbid,mty,mexpr) ->
-	SEBfunctor (mbid,
-		    ({mty with
-		      typ_expr = traverse_modexpr mty.typ_expr}),
-		    traverse_modexpr mexpr)
-      | SEBident mp as x -> x
-      | SEBstruct (struc) ->
-	SEBstruct  (traverse_struct struc)
-      | SEBapply (mexpr,marg,u) ->
-	SEBapply (traverse_modexpr mexpr,traverse_modexpr marg,u)
-      | SEBwith (seb,wdcl) ->
-	SEBwith (traverse_modexpr seb,wdcl)
-    in
-    fun (dp,mb,depends,s) -> (dp,traverse_module mb,depends,s) 
-
-  (* To disburden a library from opaque definitions, we simply 
-     traverse it and add an indirection between the module body 
-     and its reference to a [const_body]. *)
-  let save library = 
-    let ((insert    : constant_def -> constant_def),
-	 (get_table : unit -> table)) = 
-      (* We use an integer as a key inside the table. *)
-      let counter = ref (-1) in
-
-      (* During the traversal, the table is implemented by a list 
-	 to get constant time insertion. *)
-      let opaque_definitions = ref [] in
-      
-      ((* Insert inside the table. *) 
-	(fun def ->
-	  let opaque_definition = match def with
-	    | OpaqueDef lc -> force_lazy_constr lc
-	    | _ -> assert false
-	  in
-	  incr counter;
-	  opaque_definitions := opaque_definition :: !opaque_definitions;
-	  OpaqueDef (key_as_lazy_constr !counter)),
-
-       (* Get the final table representation. *)
-       (fun () -> Array.of_list (List.rev !opaque_definitions)))
-    in
-    let lightened_library = traverse_library insert library in
-    (lightened_library, get_table ())
-
-  (* Loading is also a traversing that decodes the embedded keys that
-     are inside the [lightened_library]. If the [load_proof] flag is
-     set, we lookup inside the table to graft the
-     [constr_substituted]. Otherwise, we set the [const_body] field
-     to [None]. 
-  *)
-  let load ~load_proof (table : table Lazy.t) lightened_library =
-    let decode_key = function
-      | Undef _ | Def _ -> assert false
-      | OpaqueDef k ->
-	  let k = key_of_lazy_constr k in
-	  let access key =
-	    try (Lazy.force table).(key)
-	    with _ -> error "Error while retrieving an opaque body"
-	  in
-	  match load_proof with
-	    | Flags.Force ->
-	      let lc = Lazy.lazy_from_val (access k) in
-	      OpaqueDef (make_lazy_constr lc)
-	    | Flags.Lazy ->
-	      let lc = lazy (access k) in
-	      OpaqueDef (make_lazy_constr lc)
-	    | Flags.Dont ->
-	      Undef None
-    in
-    traverse_library decode_key lightened_library
-
-end
 
 type judgment = unsafe_judgment
 

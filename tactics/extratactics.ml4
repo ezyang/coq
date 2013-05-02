@@ -252,11 +252,12 @@ TACTIC EXTEND rewrite_star
 
 let add_rewrite_hint name ort t lcsr =
   let env = Global.env() and sigma = Evd.empty in
+  let poly = Flags.use_polymorphic_flag () in 
   let f ce = 
     let c, ctx = Constrintern.interp_constr sigma env ce in
     let ctx =
-      if Flags.use_polymorphic_flag () then ctx
-      else (Global.add_constraints (snd ctx); Univ.empty_universe_context_set)
+      if poly then ctx
+      else (Global.add_constraints (snd ctx); Univ.ContextSet.empty)
     in
       Constrexpr_ops.constr_loc ce, (c, ctx), ort, t in
   add_rew_rules name (List.map f lcsr)
@@ -299,7 +300,7 @@ let project_hint pri l2r r =
     Nameops.add_suffix (Nametab.basename_of_global gr) ("_proj_" ^ (if l2r then "l2r" else "r2l"))
   in
   let c = Declare.declare_definition ~internal:Declare.KernelSilent id (c,ctx) in
-    (pri,false,true,Auto.PathAny, Globnames.IsGlobal (Globnames.ConstRef c))
+    (pri,false,true,Auto.PathAny, Auto.IsGlobRef (Globnames.ConstRef c))
 
 let add_hints_iff l2r lc n bl =
   Auto.add_hints true bl
@@ -593,7 +594,7 @@ let subst_hole_with_term occ tc t =
 open Tacmach
 
 let out_arg = function
-  | ArgVar _ -> anomaly "Unevaluated or_var variable"
+  | ArgVar _ -> anomaly (Pp.str "Unevaluated or_var variable")
   | ArgArg x -> x
 
 let hResolve id c occ t gl = 
@@ -606,9 +607,10 @@ let hResolve id c occ t gl =
   let rec resolve_hole t_hole =
     try 
       Pretyping.understand sigma env t_hole
-    with 
-    | Loc.Exc_located (loc,Pretype_errors.PretypeError (_,_,Pretype_errors.UnsolvableImplicit _)) ->
-        resolve_hole (subst_hole_with_term (fst (Loc.unloc loc)) c_raw t_hole)
+    with
+      | Pretype_errors.PretypeError (_,_,Pretype_errors.UnsolvableImplicit _) as e ->
+          let loc = match Loc.get_loc e with None -> Loc.ghost | Some loc -> loc in
+          resolve_hole (subst_hole_with_term (fst (Loc.unloc loc)) c_raw t_hole)
   in
   let t_constr,ctx = resolve_hole (subst_var_with_hole occ id t_raw) in
   let sigma = Evd.merge_context_set Evd.univ_rigid sigma ctx in
@@ -622,7 +624,7 @@ let hResolve_auto id c t gl =
       hResolve id c n t gl
     with
     | UserError _ as e -> raise e
-    | _ -> resolve_auto (n+1)
+    | e when Errors.noncritical e -> resolve_auto (n+1)
   in
   resolve_auto 1
 

@@ -8,12 +8,15 @@ Vernacular commands
   A flag "Set/Unset Record Elimination Schemes" allows to change this.
   The tactic "induction" on a record is now actually doing "destruct".
 - The "Open Scope" command can now be given also a delimiter (e.g. Z).
+- The "Definition" command now allows the "Local" modifier.
+- The "Let" command can now define local (co)fixpoints.
 
 Specification Language
 
 - The syntax "x -> y" is now declared at level 99. In particular, it has
   now a lower priority than "<->": "A -> B <-> C" is now "A -> (B <-> C)"
   (possible source of incompatibilities)
+- Slight changes in unification error messages.
 
 Tactics
 
@@ -27,6 +30,12 @@ Tactics
 - Similarly, "intuition" has been made more uniform and, where it now
   fails, "dintuition" can be used. (possible source of incompatibilities)
 - Tactic notations can now be defined locally to a module (use "Local" prefix).
+- Tactic "red" now reduces head beta-iota redexes (potential source of
+  rare incompatibilities).
+- Tactic "hnf" now reduces inner beta-iota redexes
+  (potential source of rare incompatibilities).
+- Tactic "intro H" now reduces beta-iota redexes if these hide a product
+  (potential source of rare incompatibilities).
 
 Program
 

@@ -145,7 +145,7 @@ let make_cases_pattern_action
 	Gram.action (fun (v:local_binder list list) ->
 	  make (env, envlist, true) tl)
     | (ETPattern | ETOther _) ->
-        anomaly "Unexpected entry of type cases pattern or other")
+        anomaly (Pp.str "Unexpected entry of type cases pattern or other"))
   | GramConstrListMark (n,b) :: tl ->
       (* Rebuild expansions of ConstrList *)
       let heads,env = List.chop n env in
@@ -248,7 +248,7 @@ type tactic_grammar = {
   tacgram_key : string;
   tacgram_level : int;
   tacgram_prods : grammar_prod_item list;
-  tacgram_tactic : Dir_path.t * Tacexpr.glob_tactic_expr;
+  tacgram_tactic : DirPath.t * Tacexpr.glob_tactic_expr;
 }
 
 type all_grammar_command =
@@ -321,7 +321,7 @@ let unfreeze (grams, lex) =
   remove_levels n;
   grammar_state := common;
   Lexer.unfreeze lex;
-  List.iter extend_grammar (List.rev (List.map snd redo))
+  List.iter extend_grammar (List.rev_map snd redo)
 
 let init_grammar () =
   remove_grammars (number_of_entries !grammar_state);
@@ -341,4 +341,7 @@ let _ =
 let with_grammar_rule_protection f x =
   let fs = freeze () in
   try let a = f x in unfreeze fs; a
-  with e -> unfreeze fs; raise e
+  with reraise ->
+    let reraise = Errors.push reraise in
+    let () = unfreeze fs in
+    raise reraise

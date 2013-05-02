@@ -47,13 +47,17 @@ type coe_index
 type inheritance_path = coe_index list
 
 (** {6 Access to classes infos } *)
-val class_info : cl_typ -> (cl_index * cl_info_typ)
+
 val class_exists : cl_typ -> bool
+
+val class_info : cl_typ -> (cl_index * cl_info_typ)
+(** @raise Not_found if this type is not a class *)
+
 val class_info_from_index : cl_index -> cl_typ * cl_info_typ
 
 (** [find_class_type env sigma c] returns the head reference of [c],
     its universe instance and its arguments *)
-val find_class_type : evar_map -> types -> cl_typ * Univ.universe_list * constr list
+val find_class_type : evar_map -> types -> cl_typ * Univ.universe_instance * constr list
 
 (** raises [Not_found] if not convertible to a class *)
 val class_of : env -> evar_map -> types -> types * cl_index
@@ -65,7 +69,7 @@ val class_args_of : env -> evar_map -> types -> constr list
 
 (** {6 [declare_coercion] adds a coercion in the graph of coercion paths } *)
 val declare_coercion :
-  coe_typ -> locality -> isid:bool ->
+  coe_typ -> ?local:bool -> isid:bool ->
       src:cl_typ -> target:cl_typ -> params:int -> unit
 
 (** {6 Access to coercions infos } *)
@@ -74,7 +78,9 @@ val coercion_exists : coe_typ -> bool
 val coercion_value : coe_index -> (unsafe_judgment * bool) Univ.in_universe_context_set
 
 (** {6 Lookup functions for coercion paths } *)
+
 val lookup_path_between_class : cl_index * cl_index -> inheritance_path
+(** @raise Not_found when no such path exists *)
 
 val lookup_path_between : env -> evar_map -> types * types ->
       types * types * inheritance_path

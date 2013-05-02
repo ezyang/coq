@@ -15,7 +15,9 @@ open Reductionops
 open Evd
 open Locus
 
-(** returns exception Reduction.NotConvertible if not unifiable *)
+exception UnableToUnify of evar_map * Pretype_errors.unification_error
+
+(** returns exception NotUnifiable with best known evar_map if not unifiable *)
 val the_conv_x     : ?ts:transparent_state -> env -> constr -> constr -> evar_map -> evar_map
 val the_conv_x_leq : ?ts:transparent_state -> env -> constr -> constr -> evar_map -> evar_map
 
@@ -27,24 +29,22 @@ val e_cumul : ?ts:transparent_state -> env -> evar_map ref -> constr -> constr -
 (**/**)
 (* For debugging *)
 val evar_conv_x : transparent_state ->
-  env -> evar_map -> conv_pb -> constr -> constr -> evar_map * bool
-val evar_eqappr_x : 
-  ?rhs_is_already_stuck:bool ->
-  transparent_state ->
+  env -> evar_map -> conv_pb -> constr -> constr -> Evarsolve.unification_result
+val evar_eqappr_x : ?rhs_is_already_stuck:bool -> transparent_state ->
   env -> evar_map ->
-    conv_pb -> constr * constr stack -> constr * constr stack ->
-      evar_map * bool
+    conv_pb -> state * Cst_stack.t -> state * Cst_stack.t ->
+      Evarsolve.unification_result
 (**/**)
 
 val consider_remaining_unif_problems : ?ts:transparent_state -> env -> evar_map -> evar_map
 
 val check_conv_record : constr * types stack -> constr * types stack ->
-  constr * constr list * (constr list * constr list) *
+  Univ.universe_context_set * constr * constr list * (constr list * constr list) *
     (constr list * types list) *
     (constr stack * types stack) * constr *
     (int * constr)
 
-val set_solve_evars : (env -> evar_map -> constr -> evar_map * constr) -> unit
+val set_solve_evars : (env -> evar_map ref -> constr -> constr) -> unit
 
-val second_order_matching : transparent_state -> env -> evar_map -> 
+val second_order_matching : transparent_state -> env -> evar_map ->
   existential -> occurrences option list -> constr -> evar_map * bool

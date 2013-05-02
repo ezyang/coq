@@ -26,8 +26,8 @@ let conv_leq_vecti env v1 v2 =
       let c' =
         try default_conv CUMUL env t1 t2
         with NotConvertible -> raise (NotConvertibleVect i) in
-      union_constraints c c')
-    empty_constraint
+      Constraint.union c c')
+    Constraint.empty
     v1
     v2
 
@@ -72,11 +72,8 @@ let judge_of_prop_contents = function
 (* Type of Type(i). *)
 
 let judge_of_type u =
-  let uu = super u in
-  let ctx = match universe_level u with
-    | None -> Univ.empty_universe_context_set
-    | Some l -> Univ.singleton_universe_context_set l
-  in
+  let uu = Universe.super u in
+  let ctx = ContextSet.of_set (Universe.levels u) in
     ({ uj_val = mkType u;
        uj_type = mkType uu }, ctx)
 
@@ -100,33 +97,20 @@ let judge_of_variable env id =
 
 (* Management of context of variables. *)
 
-(* Checks if a context of variable can be instantiated by the
+(* Checks if a context of variables can be instantiated by the
    variables of the current env *)
 (* TODO: check order? *)
-let check_hyps_inclusion env sign =
+let check_hyps_inclusion env c sign =
   Sign.fold_named_context
     (fun (id,_,ty1) () ->
-      let ty2 = named_type id env in
-      if not (eq_constr ty2 ty1) then
-        error "types do not match")
+      try
+        let ty2 = named_type id env in
+        if not (eq_constr ty2 ty1) then raise Exit
+      with Not_found | Exit ->
+        error_reference_variables env id c)
     sign
     ~init:()
 
-
-let check_args env c hyps =
-  try check_hyps_inclusion env hyps
-  with UserError _ | Not_found ->
-    error_reference_variables env c
-
-
-(* Checks if the given context of variables [hyps] is included in the
-   current context of [env]. *)
-(*
-let check_hyps id env hyps =
-  let hyps' = named_context env in
-  if not (hyps_inclusion env hyps hyps') then
-    error_reference_variables env id
-*)
 (* Instantiation of terms on real arguments. *)
 
 (* Make a type polymorphic if an arity *)
@@ -137,11 +121,13 @@ let type_of_constant env cst = constant_type env cst
 let type_of_constant_in env cst = constant_type_in env cst
 let type_of_constant_knowing_parameters env t _ = t
 
-let judge_of_constant env (_,u as cst) =
-  let ctx = universe_context_set_of_list u in
+let judge_of_constant env (kn,u as cst) =
+  let ctx = ContextSet.of_instance u in
   let c = mkConstU cst in
+  let cb = lookup_constant kn env in
+  let _ = check_hyps_inclusion env c cb.const_hyps in
   let ty, cu = type_of_constant env cst in
-    (make_judge c ty, add_constraints_ctx ctx cu)
+    (make_judge c ty, ContextSet.add_constraints ctx cu)
 
 (* Type of a lambda-abstraction. *)
 
@@ -178,7 +164,7 @@ let judge_of_apply env funj argjv =
           | Prod (_,c1,c2) ->
 	      (try
 		let c = conv_leq false env hj.uj_type c1 in
-		let ctx' = union_constraints cst c in
+		let ctx' = Constraint.union cst c in
 		apply_rec (n+1) (subst1 hj.uj_val c2) ctx' restjl
 	      with NotConvertible ->
 		error_cant_apply_bad_type env
@@ -190,7 +176,7 @@ let judge_of_apply env funj argjv =
   in
   apply_rec 1
     funj.uj_type
-    empty_constraint
+    Constraint.empty
     (Array.to_list argjv)
 
 (* Type of product *)
@@ -209,14 +195,14 @@ let sort_of_product env domsort rangsort =
           rangsort
         | _ ->
           (* Rule is (Type_i,Set,Type_i) in the Set-predicative calculus *)
-          Type (sup u1 type0_univ)
+          Type (Universe.sup Universe.type0 u1)
         end
     (* Product rule (Prop,Type_i,Type_i) *)
-    | (Prop Pos,  Type u2)  -> Type (sup type0_univ u2)
+    | (Prop Pos,  Type u2)  -> Type (Universe.sup Universe.type0 u2)
     (* Product rule (Prop,Type_i,Type_i) *)
     | (Prop Null, Type _)  -> rangsort
     (* Product rule (Type_i,Type_i,Type_i) *)
-    | (Type u1, Type u2) -> Type (sup u1 u2)
+    | (Type u1, Type u2) -> Type (Universe.sup u1 u2)
 
 (* [judge_of_product env name (typ1,s1) (typ2,s2)] implements the rule
 
@@ -253,7 +239,11 @@ let judge_of_cast env cj k tj =
           conv_leq false env cj.uj_type expected_type
       | REVERTcast ->
           cj.uj_val,
-          conv_leq true env cj.uj_type expected_type in
+          conv_leq true env cj.uj_type expected_type
+      | NATIVEcast ->
+          mkCast (cj.uj_val, k, expected_type),
+          native_conv CUMUL env cj.uj_type expected_type
+    in
     { uj_val = c;
       uj_type = expected_type },
       cst
@@ -285,10 +275,10 @@ let judge_of_cast env cj k tj =
 let judge_of_inductive env (ind,u as indu) =
   let c = mkIndU indu in
   let (mib,mip) = lookup_mind_specif env ind in
-  let ctx = universe_context_set_of_list u in
+  check_hyps_inclusion env c mib.mind_hyps;
+  let ctx = ContextSet.of_instance u in
   let t,cst = Inductive.constrained_type_of_inductive env ((mib,mip),u) in
-    (make_judge c t, Univ.add_constraints_ctx ctx cst)
-
+    (make_judge c t, ContextSet.add_constraints ctx cst)
 
 (* Constructors. *)
 
@@ -297,11 +287,11 @@ let judge_of_constructor env (c,u as cu) =
   let _ =
     let ((kn,_),_) = c in
     let mib = lookup_mind kn env in
-    check_args env constr mib.mind_hyps in
+    check_hyps_inclusion env constr mib.mind_hyps in
   let specif = lookup_mind_specif env (inductive_of_constructor c) in
-  let ctx = universe_context_set_of_list u in
+  let ctx = ContextSet.of_instance u in
   let t,cst = constrained_type_of_constructor cu specif in
-    (make_judge constr t, Univ.add_constraints_ctx ctx cst)
+    (make_judge constr t, ContextSet.add_constraints ctx cst)
 
 (* Case. *)
 
@@ -324,7 +314,7 @@ let judge_of_case env ci pj cj lfj =
   ({ uj_val  = mkCase (ci, (*nf_betaiota*) pj.uj_val, cj.uj_val,
                        Array.map j_val lfj);
      uj_type = rslty },
-   (union_constraints univ univ'))
+   (Constraint.union univ univ'))
 
 (* Fixpoints. *)
 
@@ -348,10 +338,10 @@ open Pp
    graph and in the universes of the environment. This is to ensure
    that the infered local graph is satisfiable. *)
 let univ_combinator (ctx,univ) (j,ctx') =
-  (j,(union_universe_context_set ctx ctx', merge_constraints (snd ctx') univ))
+  (j,(ContextSet.union ctx ctx', merge_constraints (ContextSet.constraints ctx') univ))
 
 let univ_combinator_cst (ctx,univ) (j,cst) =
-  (j,(union_universe_context_set ctx (Univ.LSet.empty, cst), merge_constraints cst univ))
+  (j,(ContextSet.add_constraints ctx cst, merge_constraints cst univ))
 
 (* The typing machine. *)
     (* ATTENTION : faudra faire le typage du contexte des Const,
@@ -447,10 +437,10 @@ let rec execute env cstr cu =
 
     (* Partial proofs: unsupported by the kernel *)
     | Meta _ ->
-	anomaly "the kernel does not support metavariables"
+	anomaly (Pp.str "the kernel does not support metavariables")
 
     | Evar _ ->
-	anomaly "the kernel does not support existential variables"
+	anomaly (Pp.str "the kernel does not support existential variables")
 
 and execute_type env constr cu =
   let (j,cu1) = execute env constr cu in
@@ -463,25 +453,25 @@ and execute_recdef env (names,lar,vdef) i cu =
   let (vdefj,cu2) = execute_array env1 vdef cu1 in
   let vdefv = Array.map j_val vdefj in
   let cst = type_fixpoint env1 names lara vdefj in
-  univ_combinator cu2
-    ((lara.(i),(names,lara,vdefv)), (Univ.LSet.empty, cst))
+  univ_combinator_cst cu2
+    ((lara.(i),(names,lara,vdefv)), cst)
 
 and execute_array env = Array.fold_map' (execute env)
 
 (* Derived functions *)
 let infer env constr =
-  let univs = (empty_universe_context_set, universes env) in
+  let univs = (ContextSet.empty, universes env) in
   let (j,(cst,_)) = execute env constr univs in
     assert (eq_constr j.uj_val constr);
     j, cst
 
 let infer_type env constr =
-  let univs = (empty_universe_context_set, universes env) in
+  let univs = (ContextSet.empty, universes env) in
   let (j,(cst,_)) = execute_type env constr univs in
     j, cst
 
 let infer_v env cv =
-  let univs = (empty_universe_context_set, universes env) in
+  let univs = (ContextSet.empty, universes env) in
   let (jv,(cst,_)) = execute_array env cv univs in
     jv, cst
 
@@ -500,8 +490,8 @@ let infer_local_decls env decls =
   | (id, d) :: l ->
       let (env, l), ctx = inferec env l in
       let d, ctx' = infer_local_decl env id d in
-	(push_rel d env, add_rel_decl d l), union_universe_context_set ctx' ctx
-  | [] -> (env, empty_rel_context), empty_universe_context_set in
+	(push_rel d env, add_rel_decl d l), ContextSet.union ctx' ctx
+  | [] -> (env, empty_rel_context), ContextSet.empty in
   inferec env decls
 
 (* Exported typing functions *)

@@ -19,12 +19,12 @@ open Declarations
 open Environ
 
 let rec debug_string_of_mp = function
-  | MPfile sl -> Dir_path.to_string sl
+  | MPfile sl -> DirPath.to_string sl
   | MPbound uid -> "bound("^MBId.to_string uid^")"
   | MPdot (mp,l) -> debug_string_of_mp mp ^ "." ^ Label.to_string l
 
 let rec string_of_mp = function
-  | MPfile sl -> Dir_path.to_string sl
+  | MPfile sl -> DirPath.to_string sl
   | MPbound uid -> MBId.to_string uid
   | MPdot (mp,l) -> string_of_mp mp ^ "." ^ Label.to_string l
 
@@ -100,7 +100,7 @@ let rec sorts_of_constr_args env t =
         let env1 = push_rel (name,Some def,ty) env in
 	sorts_of_constr_args env1 c
     | _ when is_constructor_head t -> []
-    | _ -> anomaly "infos_and_sort: not a positive constructor"
+    | _ -> anomaly ~label:"infos_and_sort" (Pp.str "not a positive constructor")
 
 
 (* Prop and Set are small *)
@@ -299,11 +299,11 @@ let failwith_non_pos n ntypes c =
 
 let failwith_non_pos_vect n ntypes v =
   Array.iter (failwith_non_pos n ntypes) v;
-  anomaly "failwith_non_pos_vect: some k in [n;n+ntypes-1] should occur"
+  anomaly ~label:"failwith_non_pos_vect" (Pp.str "some k in [n;n+ntypes-1] should occur")
 
 let failwith_non_pos_list n ntypes l =
   List.iter (failwith_non_pos n ntypes) l;
-  anomaly "failwith_non_pos_list: some k in [n;n+ntypes-1] should occur"
+  anomaly ~label:"failwith_non_pos_list" (Pp.str "some k in [n;n+ntypes-1] should occur")
 
 (* Conclusion of constructors: check the inductive type is called with
    the expected parameters *)
@@ -355,8 +355,8 @@ let abstract_mind_lc env ntyps npars lc =
     lc
   else
     let make_abs =
-      List.tabulate
-	(function i -> lambda_implicit_lift npars (Rel (i+1))) ntyps
+      List.init ntyps
+	(function i -> lambda_implicit_lift npars (Rel (i+1)))
     in
     Array.map (substl make_abs) lc
 
@@ -514,7 +514,7 @@ let check_positivity env_ar mind params nrecp inds =
   let lparams = rel_context_length params in
   let check_one i mip =
     let ra_env =
-      List.tabulate (fun _ -> (Norec,mk_norec)) lparams @ lra_ind in
+      List.init lparams (fun _ -> (Norec,mk_norec)) @ lra_ind in
     let ienv = (env_ar, 1+lparams, ntypes, ra_env) in
       check_positivity_one ienv params nrecp (mind,i) mip.mind_nf_lc
   in

@@ -65,17 +65,18 @@ Add Printing Let sigT2.
     [(proj1_sig y)] is the witness [a] and [(proj2_sig y)] is the
     proof of [(P a)] *)
 
+Set Universe Polymorphism.
 
 Section Subset_projections.
 
   Variable A : Type.
   Variable P : A -> Prop.
 
-  Polymorphic Definition proj1_sig (e:sig P) := match e with
+  Definition proj1_sig (e:sig P) := match e with
                                     | exist _ a b => a
                                     end.
 
-  Polymorphic Definition proj2_sig (e:sig P) :=
+  Definition proj2_sig (e:sig P) :=
     match e return P (proj1_sig e) with
     | exist _ a b => b
     end.
@@ -97,16 +98,18 @@ Section Projections.
   Variable A : Type.
   Variable P : A -> Type.
 
-  Polymorphic Definition projT1 (x:sigT P) : A := match x with
+  Definition projT1 (x:sigT P) : A := match x with
                                       | existT _ a _ => a
                                       end.
 
-  Polymorphic Definition projT2 (x:sigT P) : P (projT1 x) :=
+  Definition projT2 (x:sigT P) : P (projT1 x) :=
     match x return P (projT1 x) with
     | existT _ _ h => h
     end.
 
 End Projections.
+
+Unset Universe Polymorphism.
 
 (** [sigT] of a predicate is equivalent to [sig] *)
 
@@ -185,7 +188,7 @@ Section Dependent_choice_lemmas.
 
   Variables X : Set.
   Variable R : X -> X -> Prop.
-Unset Printing Notations. 
+
   Lemma dependent_choice :
     (forall x:X, {y | R x y}) ->
     forall x0, {f : nat -> X | f O = x0 /\ forall n, R (f n) (f (S n))}.

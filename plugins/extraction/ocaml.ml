@@ -127,7 +127,7 @@ let pp_type par vl t =
   let rec pp_rec par = function
     | Tmeta _ | Tvar' _ | Taxiom -> assert false
     | Tvar i -> (try pp_tvar (List.nth vl (pred i))
-		 with _ -> (str "'a" ++ int i))
+                 with Failure _ -> (str "'a" ++ int i))
     | Tglob (r,[a1;a2]) when is_infix r ->
 	pp_par par (pp_rec true a1 ++ str (get_infix r) ++ pp_rec true a2)
     | Tglob (r,[]) -> pp_global Type r
@@ -196,7 +196,7 @@ let rec pp_expr par env args =
 	   let args = List.skipn (projection_arity r) args in
 	   let record = List.hd args in
 	   pp_apply (record ++ str "." ++ pp_global Term r) par (List.tl args)
-	 with _ -> apply (pp_global Term r))
+	 with e when Errors.noncritical e -> apply (pp_global Term r))
     | MLfix (i,ids,defs) ->
 	let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
 	pp_fix par env' i (Array.of_list (List.rev ids'),defs) args
@@ -650,7 +650,7 @@ and pp_module_type params = function
       let mp_w =
 	List.fold_left (fun mp l -> MPdot(mp,Label.of_id l)) mp_mt idl'
       in
-      let r = ConstRef (make_con mp_w Dir_path.empty (Label.of_id l)) in
+      let r = ConstRef (Constant.make2 mp_w (Label.of_id l)) in
       push_visible mp_mt [];
       let pp_w = str " with type " ++ ids ++ pp_global Type r in
       pop_visible();

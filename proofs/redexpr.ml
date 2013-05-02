@@ -28,6 +28,9 @@ let cbv_vm env _ c =
   let ctyp = (fst (Typeops.infer env c)).Environ.uj_type in
   Vnorm.cbv_vm env c ctyp
 
+let cbv_native env _ c =
+  let ctyp = (fst (Typeops.infer env c)).Environ.uj_type in
+  Nativenorm.native_norm env c ctyp
 
 let set_strategy_one ref l  =
   let k =
@@ -167,7 +170,7 @@ let decl_red_expr s e =
   end
 
 let out_arg = function
-  | ArgVar _ -> anomaly "Unevaluated or_var variable"
+  | ArgVar _ -> anomaly (Pp.str "Unevaluated or_var variable")
   | ArgArg x -> x
 
 let out_with_occurrences (occs,c) =
@@ -185,7 +188,7 @@ let rec reduction_of_red_expr = function
   | Cbv f -> (cbv_norm_flags (make_flag f),DEFAULTcast)
   | Cbn f ->
     (strong (fun env evd x -> zip ~refold:true
-      (whd_state_gen ~refold:true (make_flag f) env evd (x, []))),DEFAULTcast)
+      (fst (whd_state_gen true (make_flag f) env evd (x, [])))),DEFAULTcast)
   | Lazy f -> (clos_norm_flags (make_flag f),DEFAULTcast)
   | Unfold ubinds -> (unfoldn (List.map out_with_occurrences ubinds),DEFAULTcast)
   | Fold cl -> (fold_commands cl,DEFAULTcast)
@@ -206,7 +209,16 @@ let rec reduction_of_red_expr = function
     let redfun = contextually b lp vmfun in
     (redfun, VMcast)
   | CbvVm None -> (cbv_vm, VMcast)
-
+  | CbvNative (Some lp) ->
+    let b = is_reference (snd lp) in
+    let lp = out_with_occurrences lp in
+    let nativefun _ env map c =
+      let tpe = Retyping.get_type_of env map c in
+      Nativenorm.native_norm env c tpe
+    in
+    let redfun = contextually b lp nativefun in
+    (redfun, NATIVEcast)
+  | CbvNative None -> (cbv_native, NATIVEcast)
 
 let subst_flags subs flags =
   { flags with rConst = List.map subs flags.rConst }

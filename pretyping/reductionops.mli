@@ -17,21 +17,23 @@ open Closure
 
 exception Elimconst
 
-(***********************************************************************
-  s A [stack] is a context of arguments, arguments are pushed by
-   [append_stack] one array at a time but popped with [decomp_stack]
-   one by one *)
-
+(** 90% copy-paste of kernel/closure.ml but polymorphic and with extra
+    arguments for storing refold *)
 type 'a stack_member =
-  | Zapp of 'a list
-  | Zcase of case_info * 'a * 'a array * ('a * 'a list) option
-  | Zfix of fixpoint * 'a list * ('a * 'a list) option
-  | Zshift of int
-  | Zupdate of 'a
+| Zapp of 'a list
+| Zcase of case_info * 'a * 'a array * ('a * 'a list) option
+| Zfix of fixpoint * 'a stack * ('a * 'a list) option
+| Zshift of int
+| Zupdate of 'a
 
 and 'a stack = 'a stack_member list
 
 val empty_stack : 'a stack
+val compare_stack_shape : 'a stack -> 'a stack -> bool
+(** [fold_stack2 f x sk1 sk2] folds [f] on any pair of term in [(sk1,sk2)].
+@return the result and the lifts to apply on the terms *)
+val fold_stack2 : ('a -> Term.constr -> Term.constr -> 'a) -> 'a ->
+  Term.constr stack -> Term.constr stack -> 'a * int * int
 val append_stack_app : 'a array -> 'a stack -> 'a stack
 val append_stack_app_list : 'a list -> 'a stack -> 'a stack
 
@@ -69,6 +71,19 @@ type contextual_state_reduction_function =
 type state_reduction_function = contextual_state_reduction_function
 type local_state_reduction_function = evar_map -> state -> state
 
+(** {6 Machinery about a stack of unfolded constant }
+
+    cst applied to params must convertible to term of the state applied to args
+*)
+module Cst_stack : sig
+  type t
+  val empty : t
+  val add_param : constr -> t -> t
+  val add_args : constr array -> t -> t
+  val add_cst : constr -> t -> t
+  val best_cst : t -> (constr * constr list) option
+end
+
 (** {6 Reduction Function Operators } *)
 
 val strong : reduction_function -> reduction_function
@@ -80,12 +95,8 @@ val stack_reduction_of_reduction :
 i*)
 val stacklam : (state -> 'a) -> constr list -> constr -> constr stack -> 'a
 
-val whd_state_gen : ?refold:bool ->
-  Closure.RedFlags.reds ->
-  Environ.env ->
-  Evd.evar_map ->
-  Term.constr * Term.constr stack_member list ->
-  Term.constr * Term.constr stack_member list
+val whd_state_gen : ?csts:Cst_stack.t -> bool -> Closure.RedFlags.reds ->
+  Environ.env -> Evd.evar_map -> state -> state * Cst_stack.t
 
 (** {6 Generic Optimized Reduction Function using Closures } *)
 
@@ -224,7 +235,8 @@ val head_unfold_under_prod : transparent_state -> reduction_function
 (** {6 Heuristic for Conversion with Evar } *)
 
 val whd_betaiota_deltazeta_for_iota_state :
-  transparent_state -> state_reduction_function
+  transparent_state -> Environ.env -> Evd.evar_map -> Cst_stack.t -> state ->
+  state * Cst_stack.t
 
 (** {6 Meta-related reduction functions } *)
 val meta_instance : evar_map -> constr freelisted -> constr

@@ -88,6 +88,7 @@ open Reductionops
 open Evarconv
 open Retyping
 open Evarutil
+open Evarsolve
 open Tacred
 open Evd
 open Universes
@@ -192,10 +193,11 @@ let constr_of_string s =
 (* get the body of a constant *)
 
 open Declarations;;
+open Declareops;;
 
 let constbody_of_string s =
   let b = Global.lookup_constant (Nametab.locate_constant (qualid_of_string s)) in
-  Option.get (body_of_constant b);;
+  Option.get (Declareops.body_of_constant b);;
 
 (* Get the current goal *)
 (*
@@ -209,8 +211,8 @@ let pf_e gl s =
 
 (* Set usual printing since the global env is available from the tracer *)
 let _ = Constrextern.in_debugger := false
-let _ = Constrextern.set_debug_global_reference_printer
-  (fun loc r -> Libnames.Qualid (loc,Nametab.shortest_qualid_of_global Idset.empty r));;
+let _ = Constrextern.set_extern_reference
+  (fun loc _ r -> Libnames.Qualid (loc,Nametab.shortest_qualid_of_global Idset.empty r));;
 
 open Toplevel
 let go = loop

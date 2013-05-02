@@ -77,7 +77,7 @@ type lemma_possible_guards = Proof_global.lemma_possible_guards
 val start_proof :
   Id.t -> goal_kind -> named_context_val -> constr Univ.in_universe_context_set ->
   ?init_tac:tactic -> ?compute_guard:lemma_possible_guards -> 
-  (Univ.universe_full_subst -> unit declaration_hook) -> unit
+  (Universes.universe_opt_subst Univ.in_universe_context -> unit declaration_hook) -> unit
 
 (** [restart_proof ()] restarts the current focused proof from the beginning
    or fails if no proof is focused *)
@@ -99,8 +99,8 @@ val cook_proof : (Proof.proof -> unit) ->
 val set_xml_cook_proof : (goal_kind * Proof.proof -> unit) -> unit
 
 (** {6 ... } *)
-(** [get_Proof.proof ()] returns the current focused pending proof or
-   raises [UserError "no focused proof"] *)
+(** [get_pftreestate ()] returns the current focused pending proof or
+   @raise NoCurrentProof *)
 
 val get_pftreestate : unit -> Proof.proof
 
@@ -117,7 +117,8 @@ val get_current_goal_context : unit -> Evd.evar_map * env
 (** [current_proof_statement] *)
 
 val current_proof_statement :
-  unit -> Id.t * goal_kind * types * (Univ.universe_full_subst -> unit declaration_hook)
+  unit -> Id.t * goal_kind * types * 
+  (Universes.universe_opt_subst Univ.in_universe_context -> unit declaration_hook)
 
 (** {6 ... } *)
 (** [get_current_proof_name ()] return the name of the current focused
@@ -165,7 +166,7 @@ val instantiate_nth_evar_com : int -> Constrexpr.constr_expr -> unit
 
 (** [build_by_tactic typ tac] returns a term of type [typ] by calling [tac] *)
 
-val build_constant_by_tactic : Id.t -> named_context_val -> 
+val build_constant_by_tactic : Id.t -> polymorphic -> named_context_val -> 
   types Univ.in_universe_context_set -> tactic ->
   Entries.definition_entry
 val build_by_tactic : env -> types Univ.in_universe_context_set -> tactic -> constr

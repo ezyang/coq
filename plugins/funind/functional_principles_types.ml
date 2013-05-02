@@ -5,6 +5,7 @@ open Term
 open Namegen
 open Names
 open Declarations
+open Declareops
 open Pp
 open Entries
 open Tactics
@@ -48,7 +49,7 @@ let compute_new_princ_type_from_rel rel_to_fun sorts princ_type =
        let id =  Namegen.next_ident_away x avoid in
        Hashtbl.add tbl id x;
        (Name id,v,t)::(change_predicates_names (id::avoid) predicates)
-    | (Anonymous,_,_)::_ -> anomaly "Anonymous property binder "
+    | (Anonymous,_,_)::_ -> anomaly (Pp.str "Anonymous property binder ")
   in
   let avoid = (Termops.ids_of_context env_with_params ) in
   let princ_type_info =
@@ -290,7 +291,7 @@ let build_functional_principle interactive_proof old_princ_type sorts funs i pro
     Lemmas.start_proof
       new_princ_name
       (Decl_kinds.Global,false,(Decl_kinds.Proof Decl_kinds.Theorem))
-      (new_principle_type, (*FIXME*) Univ.empty_universe_context_set)
+      (new_principle_type, (*FIXME*) Univ.ContextSet.empty)
       (hook new_principle_type)
     ;
     (*       let _tim1 = System.get_time ()  in *)
@@ -338,17 +339,18 @@ let generate_functional_principle
 	let ce =
 	  { const_entry_body = value;
             const_entry_secctx = None;
-	    const_entry_type = None;
+	    const_entry_type = None;	
 	    const_entry_polymorphic = false;
-	    const_entry_universes = Univ.empty_universe_context (*FIXME*);
-	    const_entry_opaque = false }
+	    const_entry_universes = Univ.Context.empty (*FIXME*);
+	    const_entry_opaque = false;
+	    const_entry_inline_code = false
+	  }
 	in
 	ignore(
 	  Declare.declare_constant
 	    name
 	    (Entries.DefinitionEntry ce,
-	     Decl_kinds.IsDefinition (Decl_kinds.Scheme)
-	    )
+	     Decl_kinds.IsDefinition (Decl_kinds.Scheme))
 	);
 	Declare.definition_message name;
 	names := name :: !names
@@ -363,7 +365,7 @@ let generate_functional_principle
      Don't forget to close the goal if an error is raised !!!!
   *)
   save false new_princ_name entry g_kind hook
-  with e ->
+  with e when Errors.noncritical e ->
     begin
       begin
 	try
@@ -375,7 +377,7 @@ let generate_functional_principle
 	  then Pfedit.delete_current_proof ()
 	  else ()
 	  else ()
-	with _ -> ()
+	with e when Errors.noncritical e -> ()
       end;
       raise (Defining_principle e)
     end
@@ -395,7 +397,7 @@ let get_funs_constant mp dp =
 		     let const = make_con mp dp (Label.of_id id) in
 		     const,i
 		 | Anonymous ->
-		     anomaly "Anonymous fix"
+		     anomaly (Pp.str "Anonymous fix")
 	    )
 	    na
       | _ -> [|const,0|]
@@ -403,8 +405,7 @@ let get_funs_constant mp dp =
   function const ->
     let find_constant_body const =
       match body_of_constant (Global.lookup_constant const) with
-	| Some b ->
-	    let body = force b in
+	| Some body ->
 	    let body = Tacred.cbv_norm_flags
 	      (Closure.RedFlags.mkflags [Closure.RedFlags.fZETA])
 	      (Global.env ())
@@ -485,7 +486,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
     List.map
       (fun (idx) ->
 	 let ind = first_fun_kn,idx in
-	   (ind,[])(*FIXME*),true,prop_sort
+	   (ind,Univ.Instance.empty)(*FIXME*),true,prop_sort
       )
       funs_indexes
   in
@@ -506,7 +507,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
   let first_type,other_princ_types =
     match l_schemes with
 	s::l_schemes -> s,l_schemes
-      | _ -> anomaly ""
+      | _ -> anomaly (Pp.str "")
   in
   let (_,(const,_,_)) =
     try
@@ -517,7 +518,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
 	0
 	(prove_princ_for_struct false 0 (Array.of_list funs))
 	(fun _ _ _ _ -> ())
-  with e ->
+  with e when Errors.noncritical e ->
     begin
       begin
 	try
@@ -529,7 +530,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
 	  then Pfedit.delete_current_proof ()
 	  else ()
 	  else ()
-	with _ -> ()
+	with e when Errors.noncritical e -> ()
       end;
       raise (Defining_principle e)
     end
@@ -540,7 +541,7 @@ let make_scheme (fas : (constant*glob_sort) list) : Entries.definition_entry lis
     let finfos = find_Function_infos this_block_funs.(0) in
     try
       let equation =  Option.get finfos.equation_lemma in
-      Declarations.is_opaque (Global.lookup_constant equation)
+      Declareops.is_opaque (Global.lookup_constant equation)
     with Option.IsNone -> (* non recursive definition *)
       false
   in
@@ -665,7 +666,7 @@ let build_case_scheme fa =
   in
   let ind_fun =
 	 let ind = first_fun_kn,funs_indexes in
-	   (ind,[])(*FIXME*),prop_sort
+	   (ind,Univ.Instance.empty)(*FIXME*),prop_sort
   in
   let sigma, scheme = 
     (fun (ind,sf) -> Indrec.build_case_analysis_scheme_default env sigma ind sf)  ind_fun in

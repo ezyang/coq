@@ -13,133 +13,34 @@ open Util
 open Names
 open Libnames
 open Nameops
-open Safe_typing
 open Libobject
 open Lib
-
-(*************************************************************************)
-(*s Load path. Mapping from physical to logical paths etc.*)
-
-type logical_path = Dir_path.t
-
-let load_paths = ref ([] : (CUnix.physical_path * logical_path * bool) list)
-
-let get_load_paths () = List.map pi1 !load_paths
-
-let find_logical_path phys_dir =
-  let phys_dir = CUnix.canonical_path_name phys_dir in
-  let filter (p, _, _) = String.equal p phys_dir in
-  let paths = List.filter filter !load_paths in
-  match paths with
-  | [_,dir,_] -> dir
-  | [] -> Nameops.default_root_prefix
-  | l -> anomaly ("Two logical paths are associated to "^phys_dir)
-
-let is_in_load_paths phys_dir =
-  let dir = CUnix.canonical_path_name phys_dir in
-  let lp = get_load_paths () in
-  let check_p = fun p -> (String.compare dir p) == 0 in
-    List.exists check_p lp
-
-let remove_load_path dir =
-  load_paths := List.filter (fun (p,_,_) -> not (String.equal p dir)) !load_paths
-
-let add_load_path isroot (phys_path,coq_path) =
-  let phys_path = CUnix.canonical_path_name phys_path in
-  let filter (p, _, _) = String.equal p phys_path in
-    match List.filter filter !load_paths with
-      | [_,dir,_] ->
-	  if not (Dir_path.equal coq_path dir)
-            (* If this is not the default -I . to coqtop *)
-            && not
-            (String.equal phys_path (CUnix.canonical_path_name Filename.current_dir_name)
-		&& Dir_path.equal coq_path (Nameops.default_root_prefix))
-	  then
-	    begin
-              (* Assume the user is concerned by library naming *)
-	      if not (Dir_path.equal dir Nameops.default_root_prefix) then
-		Flags.if_warn msg_warning
-		  (str phys_path ++ strbrk " was previously bound to " ++
-		   pr_dirpath dir ++ strbrk "; it is remapped to " ++
-		   pr_dirpath coq_path);
-	      remove_load_path phys_path;
-	      load_paths := (phys_path,coq_path,isroot) :: !load_paths;
-	    end
-      | [] ->
-	  load_paths := (phys_path,coq_path,isroot) :: !load_paths;
-      | _ -> anomaly ("Two logical paths are associated to "^phys_path)
-
-let extend_path_with_dirpath p dir =
-  List.fold_left Filename.concat p
-    (List.map Id.to_string (List.rev (Dir_path.repr dir)))
-
-let root_paths_matching_dir_path dir =
-  let rec aux = function
-  | [] -> []
-  | (p,d,true) :: l when is_dirpath_prefix_of d dir ->
-      let suffix = drop_dirpath_prefix d dir in
-      extend_path_with_dirpath p suffix :: aux l
-  | _ :: l -> aux l in
-  aux !load_paths
-
-(* Root p is bound to A.B.C.D and we require file C.D.E.F *)
-(* We may mean A.B.C.D.E.F, or A.B.C.D.C.D.E.F *)
-
-(* Root p is bound to A.B.C.C and we require file C.C.E.F *)
-(* We may mean A.B.C.C.E.F, or A.B.C.C.C.E.F, or A.B.C.C.C.C.E.F *)
-
-let intersections d1 d2 =
-  let rec aux d1 =
-    if Dir_path.equal d1 Dir_path.empty then [d2] else
-      let rest = aux (snd (chop_dirpath 1 d1)) in
-      if is_dirpath_prefix_of d1 d2 then drop_dirpath_prefix d1 d2 :: rest
-      else rest in
-  aux d1
-
-let loadpaths_matching_dir_path dir =
-  let rec aux = function
-  | [] -> []
-  | (p,d,true) :: l ->
-      let inters = intersections d dir in
-      List.map (fun tl -> (extend_path_with_dirpath p tl,append_dirpath d tl))
-	inters @
-	aux l
-  | (p,d,_) :: l ->
-      (extend_path_with_dirpath p dir,append_dirpath d dir) :: aux l in
-  aux !load_paths
-
-let get_full_load_paths () = List.map (fun (a,b,c) -> (a,b)) !load_paths
 
 (************************************************************************)
 (*s Modules on disk contain the following informations (after the magic
     number, and before the digest). *)
 
-type compilation_unit_name = Dir_path.t
+type compilation_unit_name = DirPath.t
 
 type library_disk = {
   md_name : compilation_unit_name;
-  md_compiled : LightenLibrary.lightened_compiled_library;
+  md_compiled : Safe_typing.compiled_library;
   md_objects : Declaremods.library_objects;
-  md_deps : (compilation_unit_name * Digest.t) list;
-  md_imports : compilation_unit_name list }
+  md_deps : (compilation_unit_name * Digest.t) array;
+  md_imports : compilation_unit_name array }
 
 (*s Modules loaded in memory contain the following informations. They are
     kept in the global table [libraries_table]. *)
 
 type library_t = {
   library_name : compilation_unit_name;
-  library_compiled : compiled_library;
+  library_compiled : Safe_typing.compiled_library;
   library_objects : Declaremods.library_objects;
-  library_deps : (compilation_unit_name * Digest.t) list;
-  library_imports : compilation_unit_name list;
+  library_deps : (compilation_unit_name * Digest.t) array;
+  library_imports : compilation_unit_name array;
   library_digest : Digest.t }
 
-module LibraryOrdered =
-  struct
-    type t = Dir_path.t
-    let compare = Dir_path.compare
-  end
-
+module LibraryOrdered = DirPath
 module LibraryMap = Map.Make(LibraryOrdered)
 module LibraryFilenameMap = Map.Make(LibraryOrdered)
 
@@ -187,7 +88,7 @@ let find_library dir =
 let try_find_library dir =
   try find_library dir
   with Not_found ->
-    error ("Unknown library " ^ (Dir_path.to_string dir))
+    error ("Unknown library " ^ (DirPath.to_string dir))
 
 let register_library_filename dir f =
   (* Not synchronized: overwrite the previous binding if one existed *)
@@ -210,7 +111,7 @@ let library_is_loaded dir =
   with Not_found -> false
 
 let library_is_opened dir =
-  List.exists (fun m -> Dir_path.equal m.library_name dir) !libraries_imports_list
+  List.exists (fun m -> DirPath.equal m.library_name dir) !libraries_imports_list
 
 let loaded_libraries () =
   List.map (fun m -> m.library_name) !libraries_loaded_list
@@ -222,9 +123,17 @@ let opened_libraries () =
      be performed first, thus the libraries_loaded_list ... *)
 
 let register_loaded_library m =
+  let link m =
+    let dirname = Filename.dirname (library_full_filename m.library_name) in
+    let prefix = Nativecode.mod_uid_of_dirpath m.library_name ^ "." in
+    let f = prefix ^ "cmo" in
+    let f = Dynlink.adapt_filename f in
+    if not !Flags.no_native_compiler then
+      Nativelib.call_linker ~fatal:false prefix (Filename.concat dirname f) None
+  in
   let rec aux = function
-    | [] -> [m]
-    | m'::_ as l when Dir_path.equal m'.library_name m.library_name -> l
+    | [] -> link m; [m]
+    | m'::_ as l when DirPath.equal m'.library_name m.library_name -> l
     | m'::l' -> m' :: aux l' in
   libraries_loaded_list := aux !libraries_loaded_list;
   libraries_table := LibraryMap.add m.library_name m !libraries_table
@@ -238,7 +147,7 @@ let register_loaded_library m =
 let rec remember_last_of_each l m =
   match l with
   | [] -> [m]
-  | m'::l' when Dir_path.equal m'.library_name m.library_name -> remember_last_of_each l' m
+  | m'::l' when DirPath.equal m'.library_name m.library_name -> remember_last_of_each l' m
   | m'::l' -> m' :: remember_last_of_each l' m
 
 let register_open_library export m =
@@ -252,7 +161,7 @@ let register_open_library export m =
 (* [open_library export explicit m] opens library [m] if not already
    opened _or_ if explicitly asked to be (re)opened *)
 
-let eq_lib_name m1 m2 = Dir_path.equal m1.library_name m2.library_name
+let eq_lib_name m1 m2 = DirPath.equal m1.library_name m2.library_name
 
 let open_library export explicit_libs m =
   if
@@ -276,7 +185,7 @@ let open_libraries export modl =
     List.fold_left
       (fun l m ->
          let subimport =
-           List.fold_left
+           Array.fold_left
              (fun l m -> remember_last_of_each l (try_find_library m))
              l m.library_imports
          in remember_last_of_each subimport m)
@@ -301,7 +210,7 @@ let subst_import (_,o) = o
 let classify_import (_,export as obj) =
   if export then Substitute obj else Dispose
 
-let in_import : Dir_path.t * bool -> obj =
+let in_import : DirPath.t * bool -> obj =
   declare_object {(default_object "IMPORT LIBRARY") with
        cache_function = cache_import;
        open_function = open_import;
@@ -315,7 +224,7 @@ let in_import : Dir_path.t * bool -> obj =
 (*s Loading from disk to cache (preparation phase) *)
 
 let (raw_extern_library, raw_intern_library) =
-  System.raw_extern_intern Coq_config.vo_magic_number ".vo"
+  System.raw_extern_intern Coq_config.vo_magic_number
 
 (************************************************************************)
 (*s Locate absolute or partially qualified library names in the path *)
@@ -327,7 +236,7 @@ type library_location = LibLoaded | LibInPath
 let locate_absolute_library dir =
   (* Search in loadpath *)
   let pref, base = split_dirpath dir in
-  let loadpath = root_paths_matching_dir_path pref in
+  let loadpath = Loadpath.expand_root_path pref in
   let () = match loadpath with [] -> raise LibUnmappedDir | _ -> () in
   try
     let name = (Id.to_string base)^".vo" in
@@ -344,7 +253,7 @@ let locate_qualified_library warn qid =
   try
     (* Search library in loadpath *)
     let dir, base = repr_qualid qid in
-    let loadpath = loadpaths_matching_dir_path dir in
+    let loadpath = Loadpath.expand_path dir in
     let () = match loadpath with [] -> raise LibUnmappedDir | _ -> () in
     let name = Id.to_string base ^ ".vo" in
     let lpath, file = System.where_in_path ~warn (List.map fst loadpath) name in
@@ -355,67 +264,140 @@ let locate_qualified_library warn qid =
     else (LibInPath, dir, file)
   with Not_found -> raise LibNotFound
 
-let explain_locate_library_error qid = function
-  | LibUnmappedDir ->
-      let prefix, _ = repr_qualid qid in
-      errorlabstrm "load_absolute_library_from"
-      (str "Cannot load " ++ pr_qualid qid ++ str ":" ++ spc () ++
-      str "no physical path bound to" ++ spc () ++ pr_dirpath prefix ++ fnl ())
-  | LibNotFound ->
-      errorlabstrm "load_absolute_library_from"
-      (str"Cannot find library " ++ pr_qualid qid ++ str" in loadpath")
-  | e -> raise e
+let error_unmapped_dir qid =
+  let prefix, _ = repr_qualid qid in
+  errorlabstrm "load_absolute_library_from"
+    (str "Cannot load " ++ pr_qualid qid ++ str ":" ++ spc () ++
+     str "no physical path bound to" ++ spc () ++ pr_dirpath prefix ++ fnl ())
+
+let error_lib_not_found qid =
+  errorlabstrm "load_absolute_library_from"
+    (str"Cannot find library " ++ pr_qualid qid ++ str" in loadpath")
 
 let try_locate_absolute_library dir =
   try
     locate_absolute_library dir
-  with e ->
-    explain_locate_library_error (qualid_of_dirpath dir) e
+  with
+    | LibUnmappedDir -> error_unmapped_dir (qualid_of_dirpath dir)
+    | LibNotFound -> error_lib_not_found (qualid_of_dirpath dir)
 
 let try_locate_qualified_library (loc,qid) =
   try
     let (_,dir,f) = locate_qualified_library (Flags.is_verbose()) qid in
     dir,f
-  with e ->
-    explain_locate_library_error qid e
+  with
+    | LibUnmappedDir -> error_unmapped_dir qid
+    | LibNotFound -> error_lib_not_found qid
 
+(************************************************************************)
+(** {6 Tables of opaque proof terms} *)
+
+(** We now store opaque proof terms apart from the rest of the environment.
+    See the [Indirect] contructor in [Lazyconstr.lazy_constr]. This way,
+    we can quickly load a first half of a .vo file without these opaque
+    terms, and access them only when a specific command (e.g. Print or
+    Print Assumptions) needs it. *)
+
+exception Faulty
+
+(** Fetching a table of opaque terms at position [pos] in file [f],
+    expecting to find first a copy of [digest]. *)
+
+let fetch_opaque_table (f,pos,digest) =
+  if !Flags.load_proofs == Flags.Dont then
+    error "Not accessing an opaque term due to option -dont-load-proofs.";
+  try
+    Pp.msg_info (Pp.str "Fetching opaque terms in " ++ str f);
+    let ch = System.with_magic_number_check raw_intern_library f in
+    let () = seek_in ch pos in
+    if not (String.equal (System.marshal_in f ch) digest) then raise Faulty;
+    let table = (System.marshal_in f ch : Term.constr array) in
+    (* Verification of the final digest (the one also covering the opaques) *)
+    let pos' = pos_in ch in
+    let digest' = (System.marshal_in f ch : Digest.t) in
+    let () = close_in ch in
+    let ch' = open_in f in
+    if not (String.equal (Digest.channel ch' pos') digest') then raise Faulty;
+    let () = close_in ch' in
+    table
+  with e when Errors.noncritical e ->
+    error
+      ("The file "^f^" is inaccessible or corrupted,\n"
+       ^ "cannot load some opaque constant bodies in it.\n")
+
+(** Delayed / available tables of opaque terms *)
+
+type opaque_table_status =
+  | ToFetch of string * int * Digest.t
+  | Fetched of Term.constr array
+
+let opaque_tables = ref (LibraryMap.empty : opaque_table_status LibraryMap.t)
+
+let add_opaque_table dp st =
+  opaque_tables := LibraryMap.add dp st !opaque_tables
+
+let access_opaque_table dp i =
+  let t = match LibraryMap.find dp !opaque_tables with
+    | Fetched t -> t
+    | ToFetch (f,pos,digest) ->
+      let t = fetch_opaque_table (f,pos,digest) in
+      add_opaque_table dp (Fetched t);
+      t
+  in
+  assert (i < Array.length t); t.(i)
+
+(** Table of opaque terms from the library currently being compiled *)
+
+module OpaqueTables = struct
+
+ let a_constr = Term.mkRel 1
+
+ let local_table = ref (Array.make 100 a_constr)
+ let local_index = ref 0
+
+ let get dp i =
+   if DirPath.equal dp (Lib.library_dp ())
+   then (!local_table).(i)
+   else access_opaque_table dp i
+
+ let store c =
+  let n = !local_index in
+  incr local_index;
+  if n = Array.length !local_table then begin
+    let t = Array.make (2*n) a_constr in
+    Array.blit !local_table 0 t 0 n;
+    local_table := t
+  end;
+  (!local_table).(n) <- c;
+  Some (Lib.library_dp (), n)
+
+ let dump () = Array.sub !local_table 0 !local_index
+
+end
+
+let _ = Lazyconstr.set_indirect_opaque_accessor OpaqueTables.get
 
 (************************************************************************)
 (* Internalise libraries *)
 
-let mk_library md table digest =
-  let md_compiled =
-    LightenLibrary.load ~load_proof:!Flags.load_proofs table md.md_compiled
-  in {
+let mk_library md digest =
+  {
     library_name     = md.md_name;
-    library_compiled = md_compiled;
+    library_compiled = md.md_compiled;
     library_objects  = md.md_objects;
     library_deps     = md.md_deps;
     library_imports  = md.md_imports;
     library_digest    = digest
   }
 
-let fetch_opaque_table (f,pos,digest) =
-  try
-    let ch = System.with_magic_number_check raw_intern_library f in
-    seek_in ch pos;
-    if not (String.equal (System.marshal_in ch) digest) then failwith "File changed!";
-    let table = (System.marshal_in ch : LightenLibrary.table) in
-    close_in ch;
-    table
-  with _ ->
-    error
-      ("The file "^f^" is inaccessible or has changed,\n" ^
-       "cannot load some opaque constant bodies in it.\n")
-
 let intern_from_file f =
   let ch = System.with_magic_number_check raw_intern_library f in
-  let lmd = System.marshal_in ch in
+  let lmd = System.marshal_in f ch in
   let pos = pos_in ch in
-  let digest = System.marshal_in ch in
-  let table = lazy (fetch_opaque_table (f,pos,digest)) in
+  let digest = System.marshal_in f ch in
   register_library_filename lmd.md_name f;
-  let library = mk_library lmd table digest in
+  add_opaque_table lmd.md_name (ToFetch (f,pos,digest));
+  let library = mk_library lmd digest in
   close_in ch;
   library
 
@@ -428,7 +410,7 @@ let rec intern_library needed (dir, f) =
   with Not_found ->
   (* [dir] is an absolute name which matches [f] which must be in loadpath *)
   let m = intern_from_file f in
-  if not (Dir_path.equal dir m.library_name) then
+  if not (DirPath.equal dir m.library_name) then
     errorlabstrm "load_physical_library"
       (str ("The file " ^ f ^ " contains library") ++ spc () ++
        pr_dirpath m.library_name ++ spc () ++ str "and not library" ++
@@ -436,14 +418,14 @@ let rec intern_library needed (dir, f) =
   m, intern_library_deps needed dir m
 
 and intern_library_deps needed dir m =
-  (dir,m)::List.fold_left (intern_mandatory_library dir) needed m.library_deps
+  (dir,m)::Array.fold_left (intern_mandatory_library dir) needed m.library_deps
 
 and intern_mandatory_library caller needed (dir,d) =
   let m,needed = intern_library needed (try_locate_absolute_library dir) in
   if not (String.equal d m.library_digest) then
-    errorlabstrm "" (strbrk ("Compiled library "^(Dir_path.to_string caller)^
+    errorlabstrm "" (strbrk ("Compiled library "^(DirPath.to_string caller)^
 	   ".vo makes inconsistent assumptions over library "
-	   ^(Dir_path.to_string dir)));
+	   ^(DirPath.to_string dir)));
   needed
 
 let rec_intern_library needed mref =
@@ -461,6 +443,8 @@ let rec_intern_by_filename_only id f =
   let m = try intern_from_file f with Sys_error s -> error s in
   (* Only the base name is expected to match *)
   check_library_short_name f m.library_name id;
+  if !Flags.print_mod_uid then
+    print_endline (Nativecode.mod_uid_of_dirpath m.library_name);
   (* We check no other file containing same library is loaded *)
   if library_is_loaded m.library_name then
     begin
@@ -475,7 +459,7 @@ let rec_intern_by_filename_only id f =
 
 let rec_intern_library_from_file idopt f =
   (* A name is specified, we have to check it contains library id *)
-  let paths = get_load_paths () in
+  let paths = Loadpath.get_paths () in
   let _, f =
     System.find_file_in_path ~warn:(Flags.is_verbose()) paths (f^".vo") in
   rec_intern_by_filename_only idopt f
@@ -525,7 +509,7 @@ let discharge_require (_,o) = Some o
 
 (* open_function is never called from here because an Anticipate object *)
 
-type require_obj = library_t list * Dir_path.t list * bool option
+type require_obj = library_t list * DirPath.t list * bool option
 
 let in_require : require_obj -> obj =
   declare_object {(default_object "REQUIRE") with
@@ -596,21 +580,27 @@ let import_module export (loc,qid) =
 (*s Initializing the compilation of a library. *)
 
 let check_coq_overwriting p id =
-  let l = Dir_path.repr p in
+  let l = DirPath.repr p in
   let is_empty = match l with [] -> true | _ -> false in
   if not !Flags.boot && not is_empty && String.equal (Id.to_string (List.last l)) "Coq" then
     errorlabstrm ""
-      (strbrk ("Cannot build module "^Dir_path.to_string p^"."^Id.to_string id^
+      (strbrk ("Cannot build module "^DirPath.to_string p^"."^Id.to_string id^
       ": it starts with prefix \"Coq\" which is reserved for the Coq library."))
 
 let start_library f =
-  let paths = get_load_paths () in
-  let _,longf =
+  let paths = Loadpath.get_paths () in
+  let _, longf =
     System.find_file_in_path ~warn:(Flags.is_verbose()) paths (f^".v") in
-  let ldir0 = find_logical_path (Filename.dirname longf) in
+  let ldir0 =
+    try
+      let lp = Loadpath.find_load_path (Filename.dirname longf) in
+      Loadpath.logical lp
+    with Not_found -> Nameops.default_root_prefix
+  in
   let id = Id.of_string (Filename.basename f) in
   check_coq_overwriting ldir0 id;
   let ldir = add_dirpath_suffix ldir0 id in
+  Lazyconstr.set_indirect_opaque_creator OpaqueTables.store;
   Declaremods.start_library ldir;
   ldir,longf
 
@@ -629,33 +619,55 @@ let error_recursively_dependent_library dir =
      strbrk " to save current library because" ++
      strbrk " it already depends on a library of this name.")
 
+(* We now use two different digests in a .vo file. The first one
+   only covers half of the file, without the opaque table. It is
+   used for identifying this version of this library : this digest
+   is the one leading to "inconsistent assumptions" messages.
+   The other digest comes at the very end, and covers everything
+   before it. This one is used for integrity check of the whole
+   file when loading the opaque table. *)
+
 (* Security weakness: file might have been changed on disk between
    writing the content and computing the checksum... *)
+
 let save_library_to dir f =
-  let cenv, seg = Declaremods.end_library dir in
-  let cenv, table = LightenLibrary.save cenv in
+  Lazyconstr.reset_indirect_opaque_creator ();
+  let cenv, seg, ast = Declaremods.end_library dir in
+  let table = OpaqueTables.dump () in
   let md = {
     md_name = dir;
     md_compiled = cenv;
     md_objects = seg;
-    md_deps = current_deps ();
-    md_imports = current_reexports () } in
-  if List.mem_assoc dir md.md_deps then
+    md_deps = Array.of_list (current_deps ());
+    md_imports = Array.of_list (current_reexports ()) } in
+  if Array.exists (fun (d,_) -> DirPath.equal d dir) md.md_deps then
     error_recursively_dependent_library dir;
   let (f',ch) = raw_extern_library f in
   try
     System.marshal_out ch md;
     flush ch;
-    (* The loading of the opaque definitions table is optional whereas
-       the digest is loaded all the time. As a consequence, the digest
-       must be serialized before the table (if we want to keep the
-       current simple layout of .vo files). This also entails that the
-       digest does not take opaque terms into account anymore. *)
     let di = Digest.file f' in
     System.marshal_out ch di;
     System.marshal_out ch table;
-    close_out ch
-  with e -> msg_warning (str ("Removed file "^f')); close_out ch; Sys.remove f'; raise e
+    flush ch;
+    let di = Digest.file f' in
+    System.marshal_out ch di;
+    close_out ch;
+    if not !Flags.no_native_compiler then begin
+    let lp = Loadpath.get_load_paths () in
+    let map_path p = CUnix.string_of_physical_path (Loadpath.physical p) in
+    let lp = List.map map_path lp in
+    let fn = Filename.dirname f'^"/"^Nativecode.mod_uid_of_dirpath dir in
+    match Nativelibrary.compile_library dir ast lp fn with
+      | 0 -> ()
+      | _ -> anomaly (Pp.str "Library compilation failure")
+    end
+  with reraise ->
+    let reraise = Errors.push reraise in
+    let () = msg_warning (str ("Removed file "^f')) in
+    let () = close_out ch in
+    let () = Sys.remove f' in
+    raise reraise
 
 (************************************************************************)
 (*s Display the memory use of a library. *)
@@ -667,3 +679,10 @@ let mem s =
   h 0 (str (sprintf "%dk (cenv = %dk / seg = %dk)"
 		 (CObj.size_kb m) (CObj.size_kb m.library_compiled)
 		 (CObj.size_kb m.library_objects)))
+
+let get_load_paths_str () =
+  let lp = Loadpath.get_load_paths () in
+  let map_path p = CUnix.string_of_physical_path (Loadpath.physical p) in
+  List.map map_path lp
+
+let _ = Nativelib.get_load_paths := get_load_paths_str

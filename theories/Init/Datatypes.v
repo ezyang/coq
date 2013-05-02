@@ -181,16 +181,19 @@ Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z) : core_scope.
 
 Arguments pair {A B} _ _.
 
+Set Universe Polymorphism.
+
 Section projections.
   Context {A : Type} {B : Type}.
 
-  Polymorphic Definition fst (p:A * B) := match p with
+  Definition fst (p:A * B) := match p with
 				| (x, y) => x
                               end.
-  Polymorphic Definition snd (p:A * B) := match p with
+  Definition snd (p:A * B) := match p with
 				| (x, y) => y
                               end.
 End projections.
+Unset Universe Polymorphism.
 
 Hint Resolve pair inl inr: core.
 
@@ -244,6 +247,7 @@ Polymorphic Definition app (A : Type) : list A -> list A -> list A :=
    | nil => m
    | a :: l1 => a :: app l1 m
   end.
+
 
 Infix "++" := app (right associativity, at level 60) : list_scope.
 
@@ -338,8 +342,11 @@ Arguments identity_rect [A] a P f y i.
 
 (** Identity type *)
 
-Definition ID := forall A:Type, A -> A.
-Definition id : ID := fun A x => x.
+Polymorphic Definition ID := forall A:Type, A -> A.
+Polymorphic Definition id : ID := fun A x => x.
+
+Definition IDProp := forall A:Prop, A -> A.
+Definition idProp : IDProp := fun A x => x.
 
 
 (* begin hide *)

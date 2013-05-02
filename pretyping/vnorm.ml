@@ -44,7 +44,7 @@ let invert_tag cst tag reloc_tbl =
 let find_rectype_a env c =
   let (t, l) =
     let t = whd_betadeltaiota env c in
-    try destApp t with _ -> (t,[||]) in
+    try destApp t with DestKO -> (t,[||]) in
   match kind_of_term t with
   | Ind ind -> (ind, l)
   | _ -> raise Not_found
@@ -102,7 +102,7 @@ let constr_type_of_idkey env idkey =
       mkRel n, lift n ty
 
 let type_of_ind env ind =
-  type_of_inductive env (Inductive.lookup_mind_specif env ind,[](*FIXME*))
+  type_of_inductive env (Inductive.lookup_mind_specif env ind, Univ.Instance.empty(*FIXME*))
 
 let build_branches_type env (mind,_ as _ind) mib mip u params dep p =
   let rtbl = mip.mind_reloc_tbl in
@@ -177,7 +177,7 @@ and nf_stk env c t stk  =
       nf_stk env (mkApp(c,args)) t stk
   | Zfix (f,vargs) :: stk ->
       let fa, typ = nf_fix_app env f vargs in
-      let _,_,codom = try decompose_prod env typ with _ -> exit 120 in
+      let _,_,codom = try decompose_prod env typ with DestKO -> exit 120 in
       nf_stk env (mkApp(fa,[|c|])) (subst1 c codom) stk
   | Zswitch sw :: stk ->
       let ((mind,_ as ind), u), allargs = find_rectype_a env t in
@@ -207,7 +207,7 @@ and nf_predicate env ind mip params v pT =
   | Vfun f, Prod _ ->
       let k = nb_rel env in
       let vb = body_of_vfun k f in
-      let name,dom,codom = try decompose_prod env pT with _ -> exit 121 in
+      let name,dom,codom = try decompose_prod env pT with DestKO -> exit 121 in
       let dep,body =
 	nf_predicate (push_rel (name,None,dom) env) ind mip params vb codom in
       dep, mkLambda(name,dom,body)
@@ -229,7 +229,7 @@ and nf_args env vargs t =
   let args =
     Array.init len
       (fun i ->
-	let _,dom,codom = try decompose_prod env !t with _ -> exit 123 in
+	let _,dom,codom = try decompose_prod env !t with DestKO -> exit 123 in
 	let c = nf_val env (arg vargs i) dom in
 	t := subst1 c codom; c) in
   !t,args
@@ -240,7 +240,7 @@ and nf_bargs env b t =
   let args =
     Array.init len
       (fun i ->
-	let _,dom,codom = try decompose_prod env !t with _ -> exit 124 in
+	let _,dom,codom = try decompose_prod env !t with DestKO -> exit 124 in
 	let c = nf_val env (bfield b i) dom in
 	t := subst1 c codom; c) in
   args
@@ -250,8 +250,10 @@ and nf_fun env f typ =
   let vb = body_of_vfun k f in
   let name,dom,codom =
     try decompose_prod env typ
-    with _ ->
-      raise (Type_errors.TypeError(env,Type_errors.ReferenceVariables typ))
+    with DestKO ->
+      (* 27/2/13: Turned this into an anomaly *)
+      Errors.anomaly
+        (Pp.strbrk "Returned a functional value in a type not recognized as a product type.")
   in
   let body = nf_val (push_rel (name,None,dom) env) vb codom in
   mkLambda(name,dom,body)

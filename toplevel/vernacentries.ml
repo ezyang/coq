@@ -116,7 +116,7 @@ let show_script () =
   msg_notice (v 0 (Pp.prlist_with_sep Pp.fnl (fun x -> x) indented_cmds))
 
 let show_thesis () =
-     msg_error (anomaly "TODO" )
+     msg_error (anomaly (Pp.str "TODO") )
 
 let show_top_evars () =
   (* spiwack: new as of Feb. 2010: shows goal evars in addition to non-goal evars. *)
@@ -200,17 +200,22 @@ let show_match id =
 
 (* "Print" commands *)
 
-let print_path_entry (s,l) =
-  (str (Dir_path.to_string l) ++ str " " ++ tbrk (0,0) ++ str s)
+let print_path_entry p =
+  let dir = str (DirPath.to_string (Loadpath.logical p)) in
+  let path = str (Loadpath.physical p) in
+  (dir ++ str " " ++ tbrk (0, 0) ++ path)
 
 let print_loadpath dir =
-  let l = Library.get_full_load_paths () in
+  let l = Loadpath.get_load_paths () in
   let l = match dir with
-    | None -> l
-    | Some dir -> List.filter (fun (s,l) -> is_dirpath_prefix_of dir l) l in
-    Pp.t (str "Logical Path:                 " ++
-                  tab () ++ str "Physical path:" ++ fnl () ++
-                  prlist_with_sep fnl print_path_entry l)
+  | None -> l
+  | Some dir ->
+    let filter p = is_dirpath_prefix_of dir (Loadpath.logical p) in
+    List.filter filter l
+  in
+  Pp.t (str "Logical Path:                 " ++
+                tab () ++ str "Physical path:" ++ fnl () ++
+                prlist_with_sep fnl print_path_entry l)
 
 let print_modules () =
   let opened = Library.opened_libraries ()
@@ -250,7 +255,7 @@ let print_modtype r =
       msg_error (str"Unknown Module Type or Module " ++ pr_qualid qid)
 
 let print_namespace ns =
-  let ns = List.rev (Names.Dir_path.repr ns) in
+  let ns = List.rev (Names.DirPath.repr ns) in
   (* [match_dirpath], [match_modulpath] are helpers for [matches]
      which checks whether a constant is in the namespace [ns]. *)
   let rec match_dirpath ns = function
@@ -259,20 +264,20 @@ let print_namespace ns =
         begin match match_dirpath ns dir with
         | Some [] as y -> y
         | Some (a::ns') ->
-            if Int.equal (Names.Id.compare a id) 0 then Some ns'
+            if Names.Id.equal a id then Some ns'
             else None
         | None -> None
         end
   in
   let rec match_modulepath ns = function
     | MPbound _ -> None (* Not a proper namespace. *)
-    | MPfile dir -> match_dirpath ns (Names.Dir_path.repr dir)
+    | MPfile dir -> match_dirpath ns (Names.DirPath.repr dir)
     | MPdot (mp,lbl) ->
         let id = Names.Label.to_id lbl in
         begin match match_modulepath ns mp with
         | Some [] as y -> y
         | Some (a::ns') ->
-            if Int.equal (Names.Id.compare a id) 0 then Some ns'
+            if Names.Id.equal a id then Some ns'
             else None
         | None -> None
         end
@@ -286,7 +291,7 @@ let print_namespace ns =
   let qualified_minus n mp =
     let rec list_of_modulepath = function
       | MPbound _ -> assert false (* MPbound never matches *)
-      | MPfile dir -> Names.Dir_path.repr dir
+      | MPfile dir -> Names.DirPath.repr dir
       | MPdot (mp,lbl) -> (Names.Label.to_id lbl)::(list_of_modulepath mp)
     in
     snd (Util.List.chop n (List.rev (list_of_modulepath mp)))
@@ -350,8 +355,7 @@ let dump_universes_gen g s =
     Univ.dump_universes output_constraint g;
     close ();
     msg_info (str ("Universes written to file \""^s^"\"."))
-  with
-      e -> close (); raise e
+  with reraise -> close (); raise reraise
 
 let dump_universes sorted s =
   let g = Global.universes () in
@@ -362,7 +366,8 @@ let dump_universes sorted s =
 (* "Locate" commands *)
 
 let locate_file f =
-  let _,file = System.find_file_in_path ~warn:false (Library.get_load_paths ()) f in
+  let paths = Loadpath.get_paths () in
+  let _, file = System.find_file_in_path ~warn:false paths f in
   str file
 
 let msg_found_library = function
@@ -374,21 +379,23 @@ let msg_found_library = function
       msg_info (hov 0
 	(pr_dirpath fulldir ++ strbrk " is bound to file " ++ str file))
 
-let msg_notfound_library loc qid = function
-  | Library.LibUnmappedDir ->
-      let dir = fst (repr_qualid qid) in
-      user_err_loc (loc,"locate_library",
-        strbrk "Cannot find a physical path bound to logical path " ++
-           pr_dirpath dir ++ str".")
-  | Library.LibNotFound ->
-      msg_error (hov 0
-	(strbrk "Unable to locate library " ++ pr_qualid qid ++ str"."))
-  | e -> assert false
+let err_unmapped_library loc qid =
+  let dir = fst (repr_qualid qid) in
+  user_err_loc
+    (loc,"locate_library",
+     strbrk "Cannot find a physical path bound to logical path " ++
+       pr_dirpath dir ++ str".")
+
+let err_notfound_library loc qid =
+  msg_error
+    (hov 0 (strbrk "Unable to locate library " ++ pr_qualid qid ++ str"."))
 
 let print_located_library r =
   let (loc,qid) = qualid_of_reference r in
   try msg_found_library (Library.locate_qualified_library false qid)
-  with e -> msg_notfound_library loc qid e
+  with
+    | Library.LibUnmappedDir -> err_unmapped_library loc qid
+    | Library.LibNotFound -> err_notfound_library loc qid
 
 let print_located_module r =
   let (loc,qid) = qualid_of_reference r in
@@ -396,7 +403,7 @@ let print_located_module r =
     let dir = Nametab.full_name_module qid in
     msg_notice (str "Module " ++ pr_dirpath dir)
   with Not_found ->
-    if Dir_path.equal (fst (repr_qualid qid)) Dir_path.empty then
+    if DirPath.is_empty (fst (repr_qualid qid)) then
       msg_error (str "No module is referred to by basename" ++ spc () ++ pr_qualid qid)
     else
       msg_error (str "No module is referred to by name" ++ spc () ++ pr_qualid qid)
@@ -418,7 +425,7 @@ let dump_global r =
   try
     let gr = Smartlocate.smart_global r in
     Dumpglob.add_glob (Genarg.loc_of_or_by_notation loc_of_reference r) gr
-  with _ -> ()
+  with e when Errors.noncritical e -> ()
 (**********)
 (* Syntax *)
 
@@ -442,17 +449,28 @@ let vernac_notation = Metasyntax.add_notation
 (* Gallina *)
 
 let start_proof_and_print k l hook =
+  Locality.check_locality (); (* early check, cf #2975 *)
   start_proof_com k l hook;
   print_subgoals ()
 
-let vernac_definition (local,p,k) (loc,id as lid) def hook =
-  if local == Local then Dumpglob.dump_definition lid true "var"
-  else Dumpglob.dump_definition lid false "def";
+let no_hook _ _ = ()
+
+let vernac_definition_hook p = function
+| Coercion -> Class.add_coercion_hook p
+| CanonicalStructure -> fun _ -> Recordops.declare_canonical_structure
+| SubClass -> Class.add_subclass_hook p
+| _ -> no_hook
+
+let vernac_definition (local,p,k) (loc,id as lid) def =
+  let hook = vernac_definition_hook p k in
+  let () = match local with
+  | Discharge -> Dumpglob.dump_definition lid true "var"
+  | Local | Global -> Dumpglob.dump_definition lid false "def"
+  in
   (match def with
     | ProveBody (bl,t) ->   (* local binders, typ *)
- 	let hook _ _ = () in
  	  start_proof_and_print (local,p,DefinitionBody Definition)
-	    [Some lid, (bl,t,None)] hook
+	    [Some lid, (bl,t,None)] no_hook
     | DefineBody (bl,red_option,c,typ_opt) ->
  	let red_option = match red_option with
           | None -> None
@@ -461,7 +479,7 @@ let vernac_definition (local,p,k) (loc,id as lid) def hook =
  		Some (snd (interp_redexp env evc r)) in
 	do_definition id (local,p,k) bl red_option c typ_opt hook)
 
-let vernac_start_proof kind p l lettop hook =
+let vernac_start_proof kind p l lettop =
   if Dumpglob.dump () then
     List.iter (fun (id, _) ->
       match id with
@@ -471,7 +489,7 @@ let vernac_start_proof kind p l lettop hook =
     if lettop then
       errorlabstrm "Vernacentries.StartProof"
 	(str "Let declarations can only be used in proof editing mode.");
-  start_proof_and_print (Global, p, Proof kind) l hook
+  start_proof_and_print (Global, p, Proof kind) l no_hook
 
 let qed_display_script = ref true
 
@@ -527,7 +545,7 @@ let vernac_record k poly finite infer struc binders sort nameopt cfs =
 	| _ -> ()) cfs);
     ignore(Record.definition_structure (k,poly,finite,infer,struc,binders,cfs,const,sort))
 
-let vernac_inductive poly finite infer indl =
+let vernac_inductive poly lo finite infer indl =
   if Dumpglob.dump () then
     List.iter (fun (((coe,lid), _, _, _, cstrs), _) ->
       match cstrs with
@@ -558,17 +576,17 @@ let vernac_inductive poly finite infer indl =
       | _ -> Errors.error "Cannot handle mutually (co)inductive records."
     in
     let indl = List.map unpack indl in
-    do_mutual_inductive indl poly (finite != CoFinite)
+    do_mutual_inductive indl poly lo (finite != CoFinite)
 
-let vernac_fixpoint l =
+let vernac_fixpoint local l =
   if Dumpglob.dump () then
     List.iter (fun ((lid, _, _, _, _), _) -> Dumpglob.dump_definition lid false "def") l;
-  do_fixpoint l
+  do_fixpoint local l
 
-let vernac_cofixpoint l =
+let vernac_cofixpoint local l =
   if Dumpglob.dump () then
     List.iter (fun ((lid, _, _, _), _) -> Dumpglob.dump_definition lid false "def") l;
-  do_cofixpoint l
+  do_cofixpoint local l
 
 let vernac_scheme l =
   if Dumpglob.dump () then
@@ -725,7 +743,7 @@ let vernac_begin_section (_, id as lid) =
 
 let vernac_end_section (loc,_) =
   Dumpglob.dump_reference loc
-    (Dir_path.to_string (Lib.current_dirpath true)) "<>" "sec";
+    (DirPath.to_string (Lib.current_dirpath true)) "<>" "sec";
   Lib.close_section ()
 
 (* Dispatcher of the "End" command *)
@@ -756,13 +774,13 @@ let vernac_coercion stre poly ref qids qidt =
   let target = cl_of_qualid qidt in
   let source = cl_of_qualid qids in
   let ref' = smart_global ref in
-  Class.try_add_new_coercion_with_target ref' stre poly ~source ~target;
+  Class.try_add_new_coercion_with_target ref' ~local:stre poly ~source ~target;
   if_verbose msg_info (pr_global ref' ++ str " is now a coercion")
 
 let vernac_identity_coercion stre poly id qids qidt =
   let target = cl_of_qualid qidt in
   let source = cl_of_qualid qids in
-  Class.try_add_new_identity_coercion id stre poly ~source ~target
+  Class.try_add_new_identity_coercion id ~local:stre poly ~source ~target
 
 (* Type classes *)
 
@@ -841,7 +859,7 @@ let vernac_add_loadpath isrec pdir ldiropt =
     ~unix_path:pdir ~coq_root:alias
 
 let vernac_remove_loadpath path =
-  Library.remove_load_path (expand path)
+  Loadpath.remove_load_path (expand path)
 
   (* Coq syntax for ML or system commands *)
 
@@ -974,9 +992,11 @@ let vernac_declare_arguments local r l nargs flags =
   | [[]] -> false | _ -> true in
   let scopes = List.map (function
     | None -> None
-    | Some (o, k) -> 
-        try Some(ignore(Notation.find_scope k); k)
-        with _ -> Some (Notation.find_delimiters_scope o k)) scopes in
+    | Some (o, k) ->
+        try ignore (Notation.find_scope k); Some k
+        with UserError _ ->
+          Some (Notation.find_delimiters_scope o k)) scopes
+  in
   let some_scopes_specified = List.exists ((!=) None) scopes in
   let rargs =
     Util.List.map_filter (function (n, true) -> Some n | _ -> None)
@@ -1158,7 +1178,7 @@ let _ =
     { optsync  = true;
       optdepr  = false;
       optname  = "use of the program extension";
-      optkey   = ["Program"];
+      optkey   = ["Program";"Mode"];
       optread  = (fun () -> !Flags.program_mode);
       optwrite = (fun b -> Flags.program_mode:=b) }
 
@@ -1331,8 +1351,7 @@ let vernac_check_may_eval redexp glopt rc =
     try
       Evarutil.check_evars env sigma sigma' c;
       fst (Arguments_renaming.rename_typing env c) (* FIXME *)
-    with P.PretypeError (_,_,P.UnsolvableImplicit _)
-      | Loc.Exc_located (_,P.PretypeError (_,_,P.UnsolvableImplicit _)) ->
+    with P.PretypeError (_,_,P.UnsolvableImplicit _) ->
       Evarutil.j_nf_evar sigma' (Retyping.get_judgment_of env sigma' c) in
   match redexp with
     | None ->
@@ -1440,16 +1459,15 @@ let interp_search_about_item = function
 
 let vernac_search s r =
   let r = interp_search_restriction r in
+  let env = Global.env () in
+  let get_pattern c = snd (Constrintern.intern_constr_pattern Evd.empty env c) in
   match s with
   | SearchPattern c ->
-      let (_,c) = interp_open_constr_patvar Evd.empty (Global.env()) c in
-      msg_notice (Search.search_pattern c r)
+      msg_notice (Search.search_pattern (get_pattern c) r)
   | SearchRewrite c ->
-      let _,pat = interp_open_constr_patvar Evd.empty (Global.env()) c in
-      msg_notice (Search.search_rewrite pat r)
+      msg_notice (Search.search_rewrite (get_pattern c) r)
   | SearchHead c ->
-      let _,pat = interp_open_constr_patvar Evd.empty (Global.env()) c in
-      msg_notice (Search.search_by_head pat r)
+      msg_notice (Search.search_by_head (get_pattern c) r)
   | SearchAbout sl ->
       msg_notice (Search.search_about (List.map (on_snd interp_search_about_item) sl) r)
 
@@ -1495,12 +1513,12 @@ let vernac_reset_name id =
 	let gr = Smartlocate.global_with_alias (Ident id) in
 	Dumpglob.add_glob (fst id) gr;
 	true
-      with _ -> false in
+      with e when Errors.noncritical e -> false in
 
     if not globalized then begin
        try begin match Lib.find_opening_node (snd id) with
           | Lib.OpenedSection _ -> Dumpglob.dump_reference (fst id)
-              (Dir_path.to_string (Lib.current_dirpath true)) "<>" "sec";
+              (DirPath.to_string (Lib.current_dirpath true)) "<>" "sec";
           (* Might be nice to implement module cases, too.... *)
           | _ -> ()
        end with UserError _ -> ()
@@ -1676,14 +1694,15 @@ let interp c = match c with
   | VernacNotation (local,c,infpl,sc) -> vernac_notation local c infpl sc
 
   (* Gallina *)
-  | VernacDefinition (k,lid,d,f) -> vernac_definition k lid d f
-  | VernacStartTheoremProof (k,p,l,top,f) -> vernac_start_proof k p l top f
+  | VernacDefinition (k,lid,d) -> vernac_definition k lid d
+  | VernacStartTheoremProof (k,p,l,top) -> vernac_start_proof k p l top
   | VernacEndProof e -> vernac_end_proof e
   | VernacExactProof c -> vernac_exact_proof c
   | VernacAssumption (stre,nl,l) -> vernac_assumption stre l nl
-  | VernacInductive (poly,finite,infer,l) -> vernac_inductive poly finite infer l
-  | VernacFixpoint l -> vernac_fixpoint l
-  | VernacCoFixpoint l -> vernac_cofixpoint l
+  | VernacInductive (poly, local, finite,infer,l) ->
+       vernac_inductive poly local finite infer l
+  | VernacFixpoint (local, l) -> vernac_fixpoint local l
+  | VernacCoFixpoint (local, l) -> vernac_cofixpoint local l
   | VernacScheme l -> vernac_scheme l
   | VernacCombinedScheme (id, l) -> vernac_combined_scheme id l
 
@@ -1763,7 +1782,7 @@ let interp c = match c with
   | VernacNop -> ()
 
   (* Proof management *)
-  | VernacGoal t -> vernac_start_proof Theorem false [None,([],t,None)] false (fun _ _->())
+  | VernacGoal t -> vernac_start_proof Theorem false [None,([],t,None)] false
   | VernacAbort id -> vernac_abort id
   | VernacAbortAll -> vernac_abort_all ()
   | VernacRestart -> vernac_restart ()
@@ -1797,13 +1816,14 @@ let interp c =
   Obligations.set_program_mode isprogcmd;
   try
     interp c; Locality.check_locality ();
-    Flags.program_mode := mode;
+    if not (not mode && !Flags.program_mode && not isprogcmd) then
+      Flags.program_mode := mode;
     true
   with
     | UnsafeSuccess ->
-        Flags.program_mode := mode;
-        false
-    | e ->
-    Flags.program_mode := mode;
-    raise e
-
+      Flags.program_mode := mode;
+      false
+    | reraise ->
+      let e = Errors.push reraise in
+      Flags.program_mode := mode;
+      raise e

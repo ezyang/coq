@@ -95,22 +95,17 @@ let printable_constr_of_global = function
 
 let reference_of_constr = global_of_constr
 
-let global_ord_gen fc fmi x y =
-  let ind_ord (indx,ix) (indy,iy) =
-    let c = Int.compare ix iy in
-    if Int.equal c 0 then kn_ord (fmi indx) (fmi indy) else c
-  in
-  match x, y with
-    | ConstRef cx, ConstRef cy -> kn_ord (fc cx) (fc cy)
-    | IndRef indx, IndRef indy -> ind_ord indx indy
-    | ConstructRef (indx,jx), ConstructRef (indy,jy) ->
-      let c = Int.compare jx jy in
-      if Int.equal c 0 then ind_ord indx indy else c
-    | VarRef v1, VarRef v2 -> Id.compare v1 v2
-    | _, _ -> Pervasives.compare x y
+let global_ord_gen ord_cst ord_ind ord_cons x y = match x, y with
+  | ConstRef cx, ConstRef cy -> ord_cst cx cy
+  | IndRef indx, IndRef indy -> ord_ind indx indy
+  | ConstructRef consx, ConstructRef consy -> ord_cons consx consy
+  | VarRef v1, VarRef v2 -> Id.compare v1 v2
+  | _, _ -> Pervasives.compare x y
 
-let global_ord_can = global_ord_gen canonical_con canonical_mind
-let global_ord_user = global_ord_gen user_con user_mind
+let global_ord_can =
+  global_ord_gen con_ord ind_ord constructor_ord
+let global_ord_user =
+  global_ord_gen con_user_ord ind_user_ord constructor_user_ord
 
 (* By default, [global_reference] are ordered on their canonical part *)
 
@@ -126,6 +121,11 @@ end
 
 module Refset = Set.Make(RefOrdered)
 module Refmap = Map.Make(RefOrdered)
+
+(* Alternative sets and maps indexed by the user part of the kernel names *)
+
+module Refset_env = Set.Make(RefOrdered_env)
+module Refmap_env = Map.Make(RefOrdered_env)
 
 (* Extended global references *)
 
@@ -153,33 +153,37 @@ type global_reference_or_constr =
 
 (** {6 Temporary function to brutally form kernel names from section paths } *)
 
-let encode_mind dir id = make_mind (MPfile dir) Dir_path.empty (Label.of_id id)
+let encode_mind dir id = MutInd.make2 (MPfile dir) (Label.of_id id)
 
-let encode_con dir id = make_con (MPfile dir) Dir_path.empty (Label.of_id id)
+let encode_con dir id = Constant.make2 (MPfile dir) (Label.of_id id)
+
+let check_empty_section dp =
+  if not (DirPath.is_empty dp) then
+    anomaly (Pp.str "Section part should be empty!")
 
 let decode_mind kn =
   let rec dir_of_mp = function
-    | MPfile dir -> Dir_path.repr dir
+    | MPfile dir -> DirPath.repr dir
     | MPbound mbid ->
 	let _,_,dp = MBId.repr mbid in
 	let id = MBId.to_id mbid in
-	  id::(Dir_path.repr dp)
+	  id::(DirPath.repr dp)
     | MPdot(mp,l) -> (Label.to_id l)::(dir_of_mp mp)
   in
   let mp,sec_dir,l = repr_mind kn in
-    if (Dir_path.repr sec_dir) = [] then
-     (Dir_path.make (dir_of_mp mp)),Label.to_id l
-    else
-      anomaly "Section part should be empty!"
+  check_empty_section sec_dir;
+  (DirPath.make (dir_of_mp mp)),Label.to_id l
 
 let decode_con kn =
   let mp,sec_dir,l = repr_con kn in
-    match mp,(Dir_path.repr sec_dir) with
-	MPfile dir,[] -> (dir,Label.to_id l)
-      | _ , [] -> anomaly "MPfile expected!"
-      | _ -> anomaly "Section part should be empty!"
+  check_empty_section sec_dir;
+  match mp with
+    | MPfile dir -> (dir,Label.to_id l)
+    | _ -> anomaly (Pp.str "MPfile expected!")
 
-(* popping one level of section in global names *)
+(** Popping one level of section in global names.
+    These functions are meant to be used during discharge:
+    user and canonical kernel names must be equal. *)
 
 let pop_con con =
   let (mp,dir,l) = repr_con con in
@@ -193,4 +197,4 @@ let pop_global_reference = function
   | ConstRef con -> ConstRef (pop_con con)
   | IndRef (kn,i) -> IndRef (pop_kn kn,i)
   | ConstructRef ((kn,i),j) -> ConstructRef ((pop_kn kn,i),j)
-  | VarRef id -> anomaly "VarRef not poppable"
+  | VarRef id -> anomaly (Pp.str "VarRef not poppable")

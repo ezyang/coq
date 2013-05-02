@@ -21,7 +21,7 @@ open Errors
 open Util
 open Proof_type
 
-let declare_fix_ref = ref (fun _ _ _ _ _ _ _ -> assert false)
+let declare_fix_ref = ref (fun _ _ _ _ _ _ -> assert false)
 let declare_definition_ref = ref (fun _ _ _ _ _ -> assert false)
 
 let trace s =
@@ -31,7 +31,7 @@ let trace s =
 let succfix (depth, fixrels) =
   (succ depth, List.map succ fixrels)
 
-let mkMetas n = List.tabulate (fun _ -> Evarutil.mk_new_meta ()) n
+let mkMetas n = List.init n (fun _ -> Evarutil.mk_new_meta ())
 
 let check_evars env evm =
   List.iter
@@ -56,7 +56,6 @@ type oblinfo =
     ev_deps: Int.Set.t }
 
 (* spiwack: Store field for internalizing ev_tac in evar_infos' evar_extra. *)
-open Store.Field
 let evar_tactic = Store.field ()
 
 (** Substitute evar references in t using De Bruijn indices,
@@ -72,7 +71,7 @@ let subst_evar_constr evs n idf t =
 	      ev_hyps = hyps ; ev_chop = chop } =
 	  try evar_info k
 	  with Not_found ->
-	    anomaly ("eterm: existential variable " ^ string_of_int k ^ " not found")
+	    anomaly ~label:"eterm" (Pp.str "existential variable " ++ int k ++ str " not found")
 	in
         seen := Int.Set.add id !seen;
 	  (* Evar arguments are created in inverse order,
@@ -169,9 +168,9 @@ let evar_dependencies evm oev =
     Int.Set.fold (fun ev s ->
       let evi = Evd.find evm ev in
       let deps' = evars_of_evar_info evi in
-	if Int.Set.mem oev deps' then
-	  raise (Invalid_argument ("Ill-formed evar map: cycle detected for evar " ^ string_of_int oev))
-	else Int.Set.union deps' s)
+      if Int.Set.mem oev deps' then
+	invalid_arg ("Ill-formed evar map: cycle detected for evar " ^ string_of_int oev)
+      else Int.Set.union deps' s)
       deps deps
   in
   let rec aux deps =
@@ -240,7 +239,7 @@ let eterm_obligations env name evm fs ?status t ty =
 	   | Some s -> s, None
 	   | None -> Evar_kinds.Define true, None
 	 in
-	 let tac = match evar_tactic.get ev.evar_extra with
+	 let tac = match Store.get ev.evar_extra evar_tactic with
 	   | Some t ->
 	       if String.equal (Dyn.tag t) "tactic" then
 		 Some (Tacinterp.interp 
@@ -322,7 +321,7 @@ type program_info = {
   prg_body: constr;
   prg_type: constr;
   prg_ctx:  Univ.universe_context_set;
-  prg_subst : Univ.universe_full_subst;
+  prg_subst : Universes.universe_opt_subst;
   prg_obligations: obligations;
   prg_deps : Id.t list;
   prg_fixkind : fixpoint_kind option ;
@@ -379,10 +378,10 @@ let get_body subst obl =
   | None -> assert false
   | Some (DefinedObl c) -> 
     let _, ctx = Environ.constant_type_in_ctx (Global.env ()) c in
-    let pc = Universes.subst_univs_full_puniverses subst (c, fst ctx) in
+    let pc = subst_univs_fn_puniverses (Univ.level_subst_of subst) (c, Univ.Context.instance ctx) in
       DefinedObl pc
   | Some (TermObl c) -> 
-      TermObl (Universes.subst_univs_full_constr subst c)
+      TermObl (subst_univs_fn_constr subst c)
 
 let get_obligation_body expand subst obl =
   let c = get_body subst obl in
@@ -402,14 +401,15 @@ let obl_substitution expand subst obls deps =
        let xobl = obls.(x) in
        let oblb =
 	 try get_obligation_body expand subst xobl
-	 with _ -> assert(false)
-       in 
-	 (xobl.obl_name, (xobl.obl_type, oblb)) :: acc)
+	 with e when Errors.noncritical e -> assert false
+       in (xobl.obl_name, (xobl.obl_type, oblb)) :: acc)
     deps []
 
 let subst_deps expand subst obls deps t =
-  let subst = obl_substitution expand subst obls deps in
-    Term.replace_vars (List.map (fun (n, (_, b)) -> n, b) subst) t
+  let subst = Universes.make_opt_subst subst in
+  let osubst = obl_substitution expand subst obls deps in
+    subst_univs_fn_constr subst
+      (Term.replace_vars (List.map (fun (n, (_, b)) -> n, b) osubst) t)
 
 let rec prod_app t n =
   match kind_of_term (strip_outer_cast t) with
@@ -437,7 +437,8 @@ let replace_appvars subst =
   in map_constr aux
        
 let subst_prog expand obls ints prg =
-  let subst = obl_substitution expand prg.prg_subst obls ints in
+  let usubst = Universes.make_opt_subst prg.prg_subst in
+  let subst = obl_substitution expand usubst obls ints in
     if get_hide_obligations () then
       (replace_appvars subst prg.prg_body,
        replace_appvars subst ((* Termops.refresh_universes *) prg.prg_type))
@@ -493,7 +494,7 @@ let close sec =
       errorlabstrm "Program" 
 	(str "Unsolved obligations when closing " ++ str sec ++ str":" ++ spc () ++
 	   prlist_with_sep spc (fun x -> Nameops.pr_id x) keys ++
-	   (str (if Int.equal (List.length keys) 1 then " has " else "have ") ++
+	   (str (if Int.equal (List.length keys) 1 then " has " else " have ") ++
 	      str "unsolved obligations"))
 
 let input : program_info ProgMap.t -> obj =
@@ -531,8 +532,9 @@ let declare_definition prg =
       const_entry_secctx = None;
       const_entry_type = Some typ;
       const_entry_polymorphic = pi2 prg.prg_kind;
-      const_entry_universes = Univ.context_of_universe_context_set prg.prg_ctx;
-      const_entry_opaque = false }
+      const_entry_universes = Univ.ContextSet.to_context prg.prg_ctx;
+      const_entry_opaque = false;
+      const_entry_inline_code = false}
   in
     progmap_remove prg;
     !declare_definition_ref prg.prg_name prg.prg_kind ce prg.prg_implicits
@@ -590,8 +592,9 @@ let declare_mutual_definition l =
 	  None, List.map_i (fun i _ -> mkCoFix (i,fixdecls)) 0 l
   in
   (* Declare the recursive definitions *)
-  let ctx = Univ.context_of_universe_context_set first.prg_ctx in
-  let kns = List.map4 (!declare_fix_ref kind poly ctx) fixnames fixdecls fixtypes fiximps in
+  let ctx = Univ.ContextSet.to_context first.prg_ctx in
+  let kns = List.map4 (!declare_fix_ref (local, poly, kind) ctx) 
+    fixnames fixdecls fixtypes fiximps in
     (* Declare notations *)
     List.iter Metasyntax.add_notation_interpretation first.prg_notations;
     Declare.recursive_message (fixkind != IsCoFixpoint) indexes fixnames;
@@ -613,9 +616,11 @@ let declare_obligation prg obl body ctx =
 	  const_entry_type = Some ty;
 	  const_entry_polymorphic = pi2 prg.prg_kind;
 	  const_entry_universes = ctx;
-	  const_entry_opaque = opaque }
+	  const_entry_opaque = opaque;
+	  const_entry_inline_code = false} 
       in
-      let constant = Declare.declare_constant obl.obl_name
+    (** ppedrot: seems legit to have obligations as local *)
+      let constant = Declare.declare_constant obl.obl_name ~local:true
 	(DefinitionEntry ce,IsProof Property)
       in
 	if not opaque then
@@ -729,9 +734,9 @@ let dependencies obls n =
       obls;
     !res
 
-let goal_kind poly = Decl_kinds.Global, poly, Decl_kinds.DefinitionBody Decl_kinds.Definition
+let goal_kind poly = Decl_kinds.Local, poly, Decl_kinds.DefinitionBody Decl_kinds.Definition
 
-let goal_proof_kind poly = Decl_kinds.Global, poly, Decl_kinds.Proof Decl_kinds.Lemma
+let goal_proof_kind poly = Decl_kinds.Local, poly, Decl_kinds.Proof Decl_kinds.Lemma
 
 let kind_of_obligation poly o =
   match o with
@@ -751,20 +756,25 @@ let rec string_of_list sep f = function
 
 (* Solve an obligation using tactics, return the corresponding proof term *)
 
-let solve_by_tac evi t poly ctx =
+let solve_by_tac evi t poly subst ctx =
   let id = Id.of_string "H" in
   try
-    Pfedit.start_proof id (goal_kind poly) evi.evar_hyps (evi.evar_concl, ctx)
-    (fun _ _ _ -> ());
+    let substref = ref (Univ.LMap.empty, Univ.Context.empty) in
+    Pfedit.start_proof id (goal_kind poly) evi.evar_hyps 
+      (Universes.subst_opt_univs_constr subst evi.evar_concl, ctx)
+    (fun subst-> substref:=subst; fun _ _ -> ());
     Pfedit.by (tclCOMPLETE t);
     let _,(const,_,_,_) = Pfedit.cook_proof ignore in
       Pfedit.delete_current_proof (); 
       Inductiveops.control_only_guard (Global.env ())
 	const.Entries.const_entry_body;
-      const.Entries.const_entry_body, const.Entries.const_entry_universes
-  with e ->
+      let subst, ctx = !substref in
+	subst_univs_fn_constr (Universes.make_opt_subst subst) const.Entries.const_entry_body,
+	subst, const.Entries.const_entry_universes
+  with reraise ->
+    let reraise = Errors.push reraise in
     Pfedit.delete_current_proof();
-    raise e
+    raise reraise
 
 let rec solve_obligation prg num tac =
   let user_num = succ num in
@@ -779,8 +789,8 @@ let rec solve_obligation prg num tac =
 	  let obl = subst_deps_obl prg.prg_subst obls obl in
 	  let kind = kind_of_obligation (pi2 prg.prg_kind) obl.obl_status in
 	    Lemmas.start_proof obl.obl_name kind 
-	      (Universes.subst_univs_full_constr prg.prg_subst obl.obl_type, ctx)
-	      (fun subst strength gr ->
+	      (Universes.subst_opt_univs_constr prg.prg_subst obl.obl_type, ctx)
+	      (fun (subst,ctx) strength gr ->
 		let cst = match gr with ConstRef cst -> cst | _ -> assert false in
 		let obl =
 		  let transparent = evaluable_constant cst (Global.env ()) in
@@ -800,16 +810,15 @@ let rec solve_obligation prg num tac =
 		in
 		let obls = Array.copy obls in
 		let _ = obls.(num) <- obl in
-		let ctx = Univ.universe_context_set_of_universe_context
-		  (snd (constant_type_in_ctx (Global.env ()) cst))
-		in
+		let ctx = Univ.ContextSet.of_context ctx in
 		let res = try update_obls 
-		  {prg with prg_body = Universes.subst_univs_full_constr subst prg.prg_body;
-		   prg_type = Universes.subst_univs_full_constr subst prg.prg_type;
+		  {prg with prg_body = Universes.subst_opt_univs_constr subst prg.prg_body;
+		   prg_type = Universes.subst_opt_univs_constr subst prg.prg_type;
 		   prg_ctx = ctx;
 		   prg_subst = Univ.LMap.union prg.prg_subst subst}
 		obls (pred rem)
-		  with e -> pperror (Errors.print (Cerrors.process_vernac_interp_error e))
+		  with e when Errors.noncritical e ->
+                    pperror (Errors.print (Cerrors.process_vernac_interp_error e))
 		in
 		  match res with
 		  | Remain n when n > 0 ->
@@ -852,19 +861,20 @@ and solve_obligation_by_tac prg obls i tac =
 		  | Some t -> t
 		  | None -> snd (get_default_tactic ())
 	    in
-	    let t, ctx = 
-	      solve_by_tac (evar_of_obligation obl) tac (pi2 prg.prg_kind) prg.prg_ctx
+	    let t, subst, ctx = 
+	      solve_by_tac (evar_of_obligation obl) tac 
+	        (pi2 prg.prg_kind) prg.prg_subst prg.prg_ctx
 	    in
-	      obls.(i) <- declare_obligation prg obl t ctx;
+	      obls.(i) <- declare_obligation {prg with prg_subst = subst} obl t ctx;
 	      true
 	  else false
-	with
-	| Loc.Exc_located(_, Proof_type.LtacLocated (_, Refiner.FailError (_, s)))
-	| Loc.Exc_located(_, Refiner.FailError (_, s))
-	| Refiner.FailError (_, s) ->
-	    user_err_loc (fst obl.obl_location, "solve_obligation", Lazy.force s)
-	| Errors.Anomaly _ as e -> raise e
-	| e -> false
+	with e when Errors.noncritical e ->
+          let e = Errors.push e in
+          match e with
+	  | Proof_type.LtacLocated (_, _, Refiner.FailError (_, s))
+	  | Refiner.FailError (_, s) ->
+	      user_err_loc (fst obl.obl_location, "solve_obligation", Lazy.force s)
+          | e -> false
 
 and solve_prg_obligations prg ?oblset tac =
   let obls, rem = prg.prg_obligations in
@@ -983,8 +993,9 @@ let admit_prog prg =
         match x.obl_body with
         | None ->
             let x = subst_deps_obl prg.prg_subst obls x in
-            let kn = Declare.declare_constant x.obl_name 
-              (ParameterEntry (None,(x.obl_type,prg.prg_ctx),None), IsAssumption Conjectural)
+	    let ctx = Univ.ContextSet.to_context prg.prg_ctx in
+            let kn = Declare.declare_constant x.obl_name ~local:true
+              (ParameterEntry (None,false,(x.obl_type,ctx),None), IsAssumption Conjectural)
             in
               assumption_message x.obl_name;
               obls.(i) <- { x with obl_body = Some (DefinedObl kn) }
@@ -1016,7 +1027,7 @@ let next_obligation n tac =
   let is_open _ x = Option.is_empty x.obl_body && List.is_empty (deps_remaining obls x.obl_deps) in
   let i = match Array.findi is_open obls with
   | Some i -> i
-  | None -> anomaly "Could not find a solvable obligation."
+  | None -> anomaly (Pp.str "Could not find a solvable obligation.")
   in
   solve_obligation prg i tac
 

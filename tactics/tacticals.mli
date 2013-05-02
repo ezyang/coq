@@ -147,9 +147,6 @@ val elimination_sort_of_clause : Id.t option -> goal sigma -> sorts_family
 val pf_with_evars :  (goal sigma -> Evd.evar_map * 'a) -> ('a -> tactic) -> tactic
 val pf_constr_of_global : Globnames.global_reference -> (constr -> tactic) -> tactic
 
-val pf_with_evars :  (goal sigma -> Evd.evar_map * 'a) -> ('a -> tactic) -> tactic
-val pf_constr_of_global : Globnames.global_reference -> (constr -> tactic) -> tactic
-
 val general_elim_then_using :
   (pinductive -> goal sigma -> Evd.evar_map * constr) -> rec_flag ->
   intro_pattern_expr located option -> (branch_args -> tactic) ->

@@ -21,7 +21,7 @@ open Cooking
 let detype_param = function
   | (Name id,None,p) -> id, Entries.LocalAssum p
   | (Name id,Some p,_) -> id, Entries.LocalDef p
-  | (Anonymous,_,_) -> anomaly"Unnamed inductive local variable"
+  | (Anonymous,_,_) -> anomaly (Pp.str "Unnamed inductive local variable")
 
 (* Replace
 
@@ -38,7 +38,7 @@ let abstract_inductive hyps nparams inds =
   let ntyp = List.length inds in
   let nhyp = named_context_length hyps in
   let args = instance_from_named_context (List.rev hyps) in
-  let subs = List.tabulate (fun k -> lift nhyp (mkApp(mkRel (k+1),args))) ntyp in
+  let subs = List.init ntyp (fun k -> lift nhyp (mkApp(mkRel (k+1),args))) in
   let inds' =
     List.map
       (function (tname,arity,cnames,lc) ->
@@ -83,15 +83,12 @@ let process_inductive (sechyps,abs_ctx) modlist mib =
       mib.mind_packets in
   let sechyps' = map_named_context (expmod_constr modlist) sechyps in
   let (params',inds') = abstract_inductive sechyps' nparams inds in
-  let univs = 
-    if mib.mind_polymorphic then
-      Univ.union_universe_context abs_ctx mib.mind_universes
-    else mib.mind_universes
-  in
+  let univs = Univ.Context.union abs_ctx mib.mind_universes in
   { mind_entry_record = mib.mind_record;
     mind_entry_finite = mib.mind_finite;
     mind_entry_params = params';
     mind_entry_inds = inds';
     mind_entry_polymorphic = mib.mind_polymorphic;
+    mind_entry_private = !(mib.mind_private);
     mind_entry_universes = univs
   }

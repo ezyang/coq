@@ -20,6 +20,7 @@ open Nameops
 open Term
 open Namegen
 open Declarations
+open Declareops
 open Inductive
 open Inductiveops
 open Environ
@@ -42,6 +43,11 @@ let mkLambda_string s t c = mkLambda (Name (Id.of_string s), t, c)
 (* Building curryfied elimination          *)
 (*******************************************)
 
+let check_privacy_block mib =
+  match !(mib.mind_private) with
+      Some false -> errorlabstrm ""(str"case analysis on a private inductive type")
+    | _ -> ()
+
 (**********************************************************************)
 (* Building case analysis schemes *)
 (* Christine Paulin, 1996 *)
@@ -52,6 +58,7 @@ let mis_make_case_com dep env sigma (ind, u as pind) (mib,mip as specif) kind =
     mib.mind_params_ctxt
   in
 
+  check_privacy_block mib;
   if not (List.mem kind (elim_sorts specif)) then
     raise
       (RecursionSchemeError
@@ -186,7 +193,7 @@ let type_rec_branch is_rec dep env sigma (vargs,depPvect,decP) tyi cs recargs =
       | _ -> assert false
     else
       if dep then
-	let realargs = List.map (fun k -> mkRel (i-k)) (List.rev li) in
+	let realargs = List.rev_map (fun k -> mkRel (i-k)) li in
         let params = List.map (lift i) vargs in
         let co = applist (mkConstructU cs.cs_cstr,params@realargs) in
 	Reduction.beta_appvect c [|co|]
@@ -248,7 +255,7 @@ let make_rec_branch_arg env sigma (nparrec,fvect,decF) f cstr recargs =
 	   process_constr (push_rel d env) (i+1) (lift 1 f)
 	     (cprest,rest))
     | [],[] -> f
-    | _,[] | [],_ -> anomaly "process_constr"
+    | _,[] | [],_ -> anomaly (Pp.str "process_constr")
 
   in
   process_constr env 0 f (List.rev cstr.cs_args, recargs)
@@ -437,7 +444,7 @@ let mis_make_indrec env sigma listdepkind mib u =
 	  evdref := evd'; c
   in
     (* Body of mis_make_indrec *)
-    !evdref, List.tabulate make_one_rec nrec
+    !evdref, List.init nrec make_one_rec
 
 (**********************************************************************)
 (* This builds elimination predicate for Case tactic *)
@@ -483,7 +490,7 @@ let modify_sort_scheme sort =
 	      s', mkLambda (n, t, t')
       | LetIn (n,b,t,c) -> 
         let s', t' = drec npar c in s', mkLetIn (n,b,t,t')
-      | _ -> anomaly "modify_sort_scheme: wrong elimination type"
+      | _ -> anomaly ~label:"modify_sort_scheme" (Pp.str "wrong elimination type")
   in
   drec
 
@@ -504,7 +511,7 @@ let weaken_sort_scheme env evd set sort npars term ty =
 	    mkProd (n, t, c'), mkLambda (n, t, term')
       | LetIn (n,b,t,c) -> let c',term' = drec np c in
            mkLetIn (n,b,t,c'), mkLetIn (n,b,t,term')
-      | _ -> anomaly "weaken_sort_scheme: wrong elimination type"
+      | _ -> anomaly ~label:"weaken_sort_scheme" (Pp.str "wrong elimination type")
   in
   let ty, term = drec npars ty in
     !evdref, ty, term
@@ -546,7 +553,7 @@ let build_mutual_induction_scheme env sigma = function
       in
       let _ = check_arities listdepkind in
       mis_make_indrec env sigma listdepkind mib u
-  | _ -> anomaly "build_induction_scheme expects a non empty list of inductive types"
+  | _ -> anomaly (Pp.str "build_induction_scheme expects a non empty list of inductive types")
 
 let build_induction_scheme env sigma pind dep kind =
   let (mib,mip) = lookup_mind_specif env (fst pind) in

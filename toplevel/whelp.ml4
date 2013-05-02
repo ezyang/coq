@@ -83,7 +83,7 @@ let error_whelp_unknown_reference ref =
 let uri_of_repr_kn ref (mp,dir,l) =
   match mp with
     | MPfile sl ->
-        uri_of_dirpath (Label.to_id l :: Dir_path.repr dir @ Dir_path.repr sl)
+        uri_of_dirpath (Label.to_id l :: DirPath.repr dir @ DirPath.repr sl)
     | _ ->
         error_whelp_unknown_reference ref
 
@@ -160,14 +160,14 @@ let rec uri_of_constr c =
   | GLetIn (_,na,b,c) ->
       url_string "let "; url_of_name na; url_string "\\def ";
       uri_of_constr b; url_string " in "; uri_of_constr c
-  | GCast (_,c, (CastConv t|CastVM t)) ->
+  | GCast (_,c, (CastConv t|CastVM t|CastNative t)) ->
       uri_of_constr c; url_string ":"; uri_of_constr t
   | GRec _ | GIf _ | GLetTuple _ | GCases _ ->
       error "Whelp does not support pattern-matching and (co-)fixpoint."
   | GVar _ | GRef _ | GHole _ | GEvar _ | GSort _ | GCast (_,_, CastCoerce) ->
-      anomaly "Written w/o parenthesis"
+      anomaly (Pp.str "Written w/o parenthesis")
   | GPatVar _ ->
-      anomaly "Found constructors not supported in constr") ()
+      anomaly (Pp.str "Found constructors not supported in constr")) ()
 
 let make_string f x = Buffer.reset b; f x; Buffer.contents b
 

@@ -14,6 +14,7 @@ open Term
 open Termops
 open Namegen
 open Declarations
+open Declareops
 open Environ
 open Reductionops
 open Inductive
@@ -97,7 +98,8 @@ let mis_nf_constructor_type ((ind,u),mib,mip) j =
   and nconstr = Array.length mip.mind_consnames in
   let make_Ik k = mkIndU (((fst ind),ntypes-k-1),u) in
   if j > nconstr then error "Not enough constructors in the type.";
-  substl (List.tabulate make_Ik ntypes) specif.(j-1)
+  let univsubst = make_inductive_subst mib u in
+    substl (List.init ntypes make_Ik) (subst_univs_constr univsubst specif.(j-1))
 
 (* Arity of constructors excluding parameters and local defs *)
 
@@ -213,13 +215,13 @@ let instantiate_params t args sign =
     | ((_,None,_)::ctxt,a::args) ->
 	(match kind_of_term t with
 	   | Prod(_,_,t) -> inst (a::s) t (ctxt,args)
-	   | _ -> anomaly"instantiate_params: type, ctxt and args mismatch")
+	   | _ -> anomaly ~label:"instantiate_params" (Pp.str "type, ctxt and args mismatch"))
     | ((_,(Some b),_)::ctxt,args) ->
 	(match kind_of_term t with
 	   | LetIn(_,_,_,t) -> inst ((substl s b)::s) t (ctxt,args)
-	   | _ -> anomaly"instantiate_params: type, ctxt and args mismatch")
+	   | _ -> anomaly ~label:"instantiate_params" (Pp.str "type, ctxt and args mismatch"))
     | _, [] -> substl s t
-    | _ -> anomaly"instantiate_params: type, ctxt and args mismatch"
+    | _ -> anomaly ~label:"instantiate_params" (Pp.str "type, ctxt and args mismatch")
   in inst [] t (List.rev sign,args)
 
 let get_constructor ((ind,u as indu),mib,mip,params) j =
@@ -255,11 +257,12 @@ let instantiate_context sign args =
   | (_,None,_)::sign, a::args -> aux (a::subst) (sign,args)
   | (_,Some b,_)::sign, args -> aux (substl subst b::subst) (sign,args)
   | [], [] -> subst
-  | _ -> anomaly "Signature/instance mismatch in inductive family"
+  | _ -> anomaly (Pp.str "Signature/instance mismatch in inductive family")
   in aux [] (List.rev sign,args)
 
 let get_arity env ((ind,u),params) =
   let (mib,mip) = Inductive.lookup_mind_specif env ind in
+  let univsubst = make_inductive_subst mib u in
   let parsign =
     (* Dynamically detect if called with an instance of recursively
        uniform parameter only or also of non recursively uniform
@@ -270,9 +273,11 @@ let get_arity env ((ind,u),params) =
       snd (List.chop nnonrecparams mib.mind_params_ctxt)
     else
       parsign in
+  let parsign = Sign.subst_univs_context univsubst parsign in
   let arproperlength = List.length mip.mind_arity_ctxt - List.length parsign in
   let arsign,_ = List.chop arproperlength mip.mind_arity_ctxt in
   let subst = instantiate_context parsign params in
+  let arsign = Sign.subst_univs_context univsubst arsign in
   (substl_rel_context subst arsign, Inductive.inductive_sort_family mip)
 
 (* Functions to build standard types related to inductive *)
@@ -333,6 +338,7 @@ let find_rectype env sigma c =
   match kind_of_term t with
     | Ind (ind,u as indu) ->
         let (mib,mip) = Inductive.lookup_mind_specif env ind in
+        if mib.mind_nparams > List.length l then raise Not_found;
         let (par,rargs) = List.chop mib.mind_nparams l in
         IndType((indu, par),rargs)
     | _ -> raise Not_found
@@ -392,7 +398,7 @@ let is_predicate_explicitly_dep env pred arsign =
           | Name _ -> true
           end
 
-      | _ -> anomaly "Non eta-expanded dep-expanded \"match\" predicate"
+      | _ -> anomaly (Pp.str "Non eta-expanded dep-expanded \"match\" predicate")
   in
   srec env pred arsign
 

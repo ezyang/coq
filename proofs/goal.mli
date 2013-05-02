@@ -28,7 +28,6 @@ val pr_goal : goal -> Pp.std_ppcmds
 (* [advance sigma g] returns [Some g'] if [g'] is undefined and 
     is the current avatar of [g] (for instance [g] was changed by [clear]
     into [g']). It returns [None] if [g] has been (partially) solved. *)
-open Store.Field
 val advance : Evd.evar_map -> goal -> goal option
 
 
@@ -182,9 +181,6 @@ module V82 : sig
   (* Old style env primitive *)
   val env : Evd.evar_map -> goal -> Environ.env
 
-  (* For printing *)
-  val unfiltered_env : Evd.evar_map -> goal -> Environ.env
-
   (* Old style hyps primitive *)
   val hyps : Evd.evar_map -> goal -> Environ.named_context_val
 
@@ -192,7 +188,7 @@ module V82 : sig
   val concl : Evd.evar_map -> goal -> Term.constr
 
   (* Access to ".evar_extra" *)
-  val extra : Evd.evar_map -> goal -> Store.t
+  val extra : Evd.evar_map -> goal -> Evd.Store.t
 
   (* Old style filtered_context primitive *)
   val filtered_context : Evd.evar_map -> goal -> Sign.named_context
@@ -203,7 +199,7 @@ module V82 : sig
   val mk_goal : Evd.evar_map -> 
                          Environ.named_context_val ->
                          Term.constr ->
-                         Store.t ->
+                         Evd.Store.t ->
                          goal * Term.constr * Evd.evar_map
 
   (* Equality function on goals *)
@@ -232,7 +228,7 @@ module V82 : sig
   val same_goal : Evd.evar_map -> goal -> Evd.evar_map -> goal -> bool
 
  (* Used for congruence closure *)
-  val new_goal_with : Evd.evar_map -> goal ->  Environ.named_context_val -> goal Evd.sigma 
+  val new_goal_with : Evd.evar_map -> goal -> Sign.named_context -> goal Evd.sigma
 
   (* Used by the compatibility layer and typeclasses *)
   val nf_evar : Evd.evar_map -> goal -> goal * Evd.evar_map

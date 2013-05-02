@@ -50,37 +50,39 @@ let add_cache_hook f = cache_hook := f
 (** Declaration of section variables and local definitions *)
 
 type section_variable_entry =
-  | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * bool (** opacity *)
-  | SectionLocalAssum of types Univ.in_universe_context_set * bool (** Implicit status *)
+  | SectionLocalDef of (constr * types option) Univ.in_universe_context_set * polymorphic * bool (** opacity *)
+  | SectionLocalAssum of types Univ.in_universe_context_set * polymorphic * bool (** Implicit status *)
 
-type variable_declaration = Dir_path.t * section_variable_entry * logical_kind
+type variable_declaration = DirPath.t * section_variable_entry * logical_kind
 
 let cache_variable ((sp,_),o) =
   match o with
-  | Inl cst -> Global.add_constraints cst
+  | Inl ctx -> Global.push_context_set ctx
   | Inr (id,(p,d,mk)) ->
   (* Constr raisonne sur les noms courts *)
   if variable_exists id then
     alreadydeclared (pr_id id ++ str " already exists");
-  let impl,opaq,ctx,cst = match d with (* Fails if not well-typed *)
-    | SectionLocalAssum ((ty,ctx), impl) ->
-        let cst = Global.push_named_assum (id,ty) in
+  let impl,opaq,poly,ctx = match d with (* Fails if not well-typed *)
+    | SectionLocalAssum ((ty,ctx),poly,impl) ->
+        let _cst = Global.push_named_assum (id,ty) in
 	let impl = if impl then Implicit else Explicit in
-	impl, true, ctx, cst
-    | SectionLocalDef (((c,t),ctx),opaq) ->
-        let cst = Global.push_named_def (id,c,t) in
-        Explicit, opaq, ctx, cst in
+	impl, true, poly, ctx
+    | SectionLocalDef (((c,t),ctx),poly,opaq) ->
+        let _cst = Global.push_named_def (id,c,t) in
+        Explicit, opaq, poly, ctx in
   Nametab.push (Nametab.Until 1) (restrict_path 0 sp) (VarRef id);
-  add_section_variable id impl ctx;
+  add_section_variable id impl poly ctx;
   Dischargedhypsmap.set_discharged_hyps sp [];
-  add_variable_data id (p,opaq,ctx,cst,mk)
+  add_variable_data id (p,opaq,ctx,poly,mk)
 
 let discharge_variable (_,o) = match o with
-  | Inr (id,_) -> Some (Inl (variable_constraints id))
+  | Inr (id,_) -> 
+    if variable_polymorphic id then None
+    else Some (Inl (variable_context id))
   | Inl _ -> Some o
 
 type variable_obj =
-    (Univ.constraints, Id.t * variable_declaration) union
+    (Univ.ContextSet.t, Id.t * variable_declaration) union
 
 let inVariable : variable_obj -> obj =
   declare_object { (default_object "VARIABLE") with
@@ -100,20 +102,30 @@ let declare_variable id obj =
 
 (** Declaration of constants and parameters *)
 
+type constant_obj = {
+  cst_decl : global_declaration;
+  cst_hyps : Dischargedhypsmap.discharged_hyps;
+  cst_kind : logical_kind;
+  cst_locl : bool;
+}
+
 type constant_declaration = constant_entry * logical_kind
 
 (* At load-time, the segment starting from the module name to the discharge *)
 (* section (if Remark or Fact) is needed to access a construction *)
-let load_constant i ((sp,kn),(_,_,kind)) =
+let load_constant i ((sp,kn), obj) =
   if Nametab.exists_cci sp then
     alreadydeclared (pr_id (basename sp) ++ str " already exists");
   let con = Global.constant_of_delta_kn kn in
   Nametab.push (Nametab.Until i) sp (ConstRef con);
-  add_constant_kind con kind
+  add_constant_kind con obj.cst_kind
 
 (* Opening means making the name without its module qualification available *)
-let open_constant i ((sp,kn),_) =
-  let con = Global.constant_of_delta_kn kn in
+let open_constant i ((sp,kn), obj) =
+  (** Never open a local definition *)
+  if obj.cst_locl then ()
+  else
+    let con = Global.constant_of_delta_kn kn in
     Nametab.push (Nametab.Exactly i) sp (ConstRef con)
 
 let exists_name id =
@@ -123,42 +135,48 @@ let check_exists sp =
   let id = basename sp in
   if exists_name id then alreadydeclared (pr_id id ++ str " already exists")
 
-let cache_constant ((sp,kn),(cdt,dhyps,kind)) =
+let cache_constant ((sp,kn), obj) =
   let id = basename sp in
   let _,dir,_ = repr_kn kn in
-  check_exists sp;
-  let kn' = Global.add_constant dir id cdt in
+  let () = check_exists sp in
+  let kn' = Global.add_constant dir id obj.cst_decl in
   assert (eq_constant kn' (constant_of_kn kn));
   Nametab.push (Nametab.Until 1) sp (ConstRef (constant_of_kn kn));
   let cst = Global.lookup_constant kn' in
-  add_section_constant cst.const_polymorphic kn' cst.const_hyps;
-  Dischargedhypsmap.set_discharged_hyps sp dhyps;
-  add_constant_kind (constant_of_kn kn) kind;
+  add_section_constant kn' cst.const_hyps;
+  Dischargedhypsmap.set_discharged_hyps sp obj.cst_hyps;
+  add_constant_kind (constant_of_kn kn) obj.cst_kind;
   !cache_hook sp
 
 let discharged_hyps kn sechyps =
   let (_,dir,_) = repr_kn kn in
   let args = Array.to_list (instance_from_variable_context sechyps) in
-  List.rev (List.map (Libnames.make_path dir) args)
+  List.rev_map (Libnames.make_path dir) args
 
-let discharge_constant ((sp,kn),(cdt,dhyps,kind)) =
+let discharge_constant ((sp, kn), obj) =
   let con = constant_of_kn kn in
   let cb = Global.lookup_constant con in
   let repl = replacement_context () in
+
   let sechyps,uctx = section_segment_of_constant con in
-  let recipe = { d_from=cb; d_modlist=repl; d_abstract=(named_of_variable_context sechyps,uctx) } in
-  Some (GlobalRecipe recipe,(discharged_hyps kn sechyps)@dhyps,kind)
+  let recipe = { d_from=cb; d_modlist=repl; 
+		 d_abstract=(named_of_variable_context sechyps,uctx) } in
+  let new_hyps = (discharged_hyps kn sechyps) @ obj.cst_hyps in
+  let new_decl = GlobalRecipe recipe in
+  Some { obj with cst_hyps = new_hyps; cst_decl = new_decl; }
 
 (* Hack to reduce the size of .vo: we keep only what load/open needs *)
 let dummy_constant_entry = 
-  ConstantEntry (ParameterEntry (None,(mkProp,Univ.empty_universe_context_set),None))
+  ConstantEntry (ParameterEntry (None,false,(mkProp,Univ.Context.empty),None))
 
-let dummy_constant (ce,_,mk) = dummy_constant_entry,[],mk
+let dummy_constant cst = {
+  cst_decl = dummy_constant_entry;
+  cst_hyps = [];
+  cst_kind = cst.cst_kind;
+  cst_locl = cst.cst_locl;
+}
 
 let classify_constant cst = Substitute (dummy_constant cst)
-
-type constant_obj =
-    global_declaration * Dischargedhypsmap.discharged_hyps * logical_kind
 
 let inConstant : constant_obj -> obj =
   declare_object { (default_object "CONSTANT") with
@@ -169,31 +187,39 @@ let inConstant : constant_obj -> obj =
     subst_function = ident_subst_function;
     discharge_function = discharge_constant }
 
-let declare_constant_common id dhyps (cd,kind) =
-  let (sp,kn) = add_leaf id (inConstant (cd,dhyps,kind)) in
+let declare_constant_common id cst =
+  let (sp,kn) = add_leaf id (inConstant cst) in
   let c = Global.constant_of_delta_kn kn in
   declare_constant_implicits c;
   Heads.declare_head (EvalConstRef c);
   Notation.declare_ref_arguments_scope (ConstRef c);
   c
 
-let declare_constant ?(internal = UserVerbose) id (cd,kind) =
-  let kn = declare_constant_common id [] (ConstantEntry cd,kind) in
-  !xml_declare_constant (internal,kn);
+let declare_constant ?(internal = UserVerbose) ?(local = false) id (cd, kind) =
+  let cst = {
+    cst_decl = ConstantEntry cd;
+    cst_hyps = [] ;
+    cst_kind = kind;
+    cst_locl = local;
+  } in
+  let kn = declare_constant_common id cst in
+  let () = !xml_declare_constant (internal, kn) in
   kn
 
-let declare_definition ?(internal=UserVerbose) ?(opaque=false) ?(kind=Decl_kinds.Definition)
+let declare_definition ?(internal=UserVerbose) 
+  ?(opaque=false) ?(kind=Decl_kinds.Definition) ?(local = false)
   ?(poly=false) id ?types (body,ctx) =
   let cb = 
     { Entries.const_entry_body = body;
       const_entry_type = types;
       const_entry_opaque = opaque;
-      const_entry_secctx = None; (*FIXME*)
       const_entry_polymorphic = poly;
-      const_entry_universes = Univ.context_of_universe_context_set ctx }
+      const_entry_universes = Univ.ContextSet.to_context ctx;
+      const_entry_inline_code = false;
+      const_entry_secctx = None }
   in
-    declare_constant ~internal id
-      (Entries.DefinitionEntry cb, Decl_kinds.IsDefinition kind) 
+    declare_constant ~internal ~local id
+      (Entries.DefinitionEntry cb, Decl_kinds.IsDefinition kind)
 
 (** Declaration of inductive blocks *)
 
@@ -226,6 +252,8 @@ let inductive_names sp kn mie =
   in names
 
 let load_inductive i ((sp,kn),(_,mie)) =
+  let mib = Environ.lookup_mind (mind_of_kn kn) (Global.env()) in
+    (match !(mib.mind_private) with Some true -> mib.mind_private := Some false | _ -> ());
   let names = inductive_names sp kn mie in
   List.iter (fun (sp, ref) -> Nametab.push (Nametab.Until i) sp ref ) names
 
@@ -241,7 +269,7 @@ let cache_inductive ((sp,kn),(dhyps,mie)) =
   let kn' = Global.add_mind dir id mie in
   assert (eq_mind kn' (mind_of_kn kn));
   let mind = Global.lookup_mind kn' in
-  add_section_kn mind.mind_polymorphic kn' mind.mind_hyps;
+  add_section_kn kn' mind.mind_hyps;
   Dischargedhypsmap.set_discharged_hyps sp dhyps;
   List.iter (fun (sp, ref) -> Nametab.push (Nametab.Until 1) sp ref) names;
   List.iter (fun (sp,_) -> !cache_hook sp) (inductive_names sp kn mie)
@@ -269,7 +297,8 @@ let dummy_inductive_entry (_,m) = ([],{
   mind_entry_finite = true;
   mind_entry_inds = List.map dummy_one_inductive_entry m.mind_entry_inds;
   mind_entry_polymorphic = false;
-  mind_entry_universes = Univ.empty_universe_context })
+  mind_entry_private = None;
+  mind_entry_universes = Univ.Context.empty })
 
 type inductive_obj = Dischargedhypsmap.discharged_hyps * mutual_inductive_entry
 
@@ -286,7 +315,7 @@ let inInductive : inductive_obj -> obj =
 let declare_mind isrecord mie =
   let id = match mie.mind_entry_inds with
     | ind::_ -> ind.mind_entry_typename
-    | [] -> anomaly "cannot declare an empty list of inductives" in
+    | [] -> anomaly (Pp.str "cannot declare an empty list of inductives") in
   let (sp,kn as oname) = add_leaf id (inInductive ([],mie)) in
   let mind = Global.mind_of_delta_kn kn in
   declare_mib_implicits mind;
@@ -300,7 +329,7 @@ let pr_rank i = pr_nth (i+1)
 
 let fixpoint_message indexes l =
   Flags.if_verbose msg_info (match l with
-  | [] -> anomaly "no recursive definition"
+  | [] -> anomaly (Pp.str "no recursive definition")
   | [id] -> pr_id id ++ str " is recursively defined" ++
       (match indexes with
 	 | Some [|i|] -> str " (decreasing on "++pr_rank i++str " argument)"
@@ -315,7 +344,7 @@ let fixpoint_message indexes l =
 
 let cofixpoint_message l =
   Flags.if_verbose msg_info (match l with
-  | [] -> anomaly "No corecursive definition."
+  | [] -> anomaly (Pp.str "No corecursive definition.")
   | [id] -> pr_id id ++ str " is corecursively defined"
   | l -> hov 0 (prlist_with_sep pr_comma pr_id l ++
                     spc () ++ str "are corecursively defined"))

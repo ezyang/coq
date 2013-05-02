@@ -443,13 +443,13 @@ let dump_glob_red_expr = function
     try
       Dumpglob.add_glob (loc_of_or_by_notation Libnames.loc_of_reference r)
 	(Smartlocate.smart_global r)
-    with _ -> ()) occs
+    with e when Errors.noncritical e -> ()) occs
   | Cbv grf | Lazy grf ->
     List.iter (fun r ->
       try
         Dumpglob.add_glob (loc_of_or_by_notation Libnames.loc_of_reference r)
 	  (Smartlocate.smart_global r)
-      with _ -> ()) grf.rConst
+      with e when Errors.noncritical e -> ()) grf.rConst
   | _ -> ()
 
 let intern_red_expr ist = function
@@ -461,6 +461,7 @@ let intern_red_expr ist = function
   | Pattern l -> Pattern (List.map (intern_constr_with_occurrences ist) l)
   | Simpl o -> Simpl (Option.map (intern_typed_pattern_with_occurrences ist) o)
   | CbvVm o -> CbvVm (Option.map (intern_typed_pattern_with_occurrences ist) o)
+  | CbvNative o -> CbvNative (Option.map (intern_typed_pattern_with_occurrences ist) o)
   | (Red _ | Hnf | ExtraRedExpr _ as r ) -> r
 
 let intern_in_hyp_as ist lf (id,ipat) =
@@ -773,8 +774,8 @@ and intern_tacarg strict onlytac ist = function
       (match Dyn.tag t with
 	| "tactic" | "value" -> x
         | "constr" -> if onlytac then error_tactic_expected loc else x
-	| s -> anomaly_loc (loc, "",
-                 str "Unknown dynamic: <" ++ str s ++ str ">"))
+	| s -> anomaly ~loc
+                 (str "Unknown dynamic: <" ++ str s ++ str ">"))
 
 (* Reads the rules of a Match Context or a Match *)
 and intern_match_rule onlytac ist = function

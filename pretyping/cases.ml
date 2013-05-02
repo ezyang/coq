@@ -6,6 +6,7 @@
 (*         *       GNU Lesser General Public License Version 2.1        *)
 (************************************************************************)
 
+open Pp
 open Errors
 open Util
 open Names
@@ -23,6 +24,7 @@ open Glob_ops
 open Retyping
 open Pretype_errors
 open Evarutil
+open Evarsolve
 open Evarconv
 open Evd
 
@@ -64,12 +66,10 @@ let error_needs_inversion env x t =
 
 let rec list_try_compile f = function
   | [a] -> f a
-  | [] -> anomaly "try_find_f"
+  | [] -> anomaly (str "try_find_f")
   | h::t ->
       try f h
-      with UserError _ | TypeError _ | PretypeError _ | PatternMatchingError _
-	| Loc.Exc_located
-	    (_, (UserError _ | TypeError _ | PretypeError _ | PatternMatchingError _)) ->
+      with UserError _ | TypeError _ | PretypeError _ | PatternMatchingError _ ->
 	    list_try_compile f t
 
 let force_name =
@@ -149,9 +149,9 @@ let feed_history arg = function
   | Continuation (n, l, h) when n>=1 ->
       Continuation (n-1, arg :: l, h)
   | Continuation (n, _, _) ->
-      anomaly ("Bad number of expected remaining patterns: "^(string_of_int n))
+      anomaly (str "Bad number of expected remaining patterns: " ++ int n)
   | Result _ ->
-      anomaly "Exhausted pattern history"
+      anomaly (Pp.str "Exhausted pattern history")
 
 (* This is for non exhaustive error message *)
 
@@ -177,7 +177,7 @@ let pop_history_pattern = function
   | Continuation (0, l, MakeConstructor (pci, rh)) ->
       feed_history (PatCstr (Loc.ghost,pci,List.rev l,Anonymous)) rh
   | _ ->
-      anomaly "Constructor not yet filled with its arguments"
+      anomaly (Pp.str "Constructor not yet filled with its arguments")
 
 let pop_history h =
   feed_history (PatVar (Loc.ghost, Anonymous)) h
@@ -404,7 +404,7 @@ let lift_tomatch_type n = liftn_tomatch_type n 1
 let current_pattern eqn =
   match eqn.patterns with
     | pat::_ -> pat
-    | [] -> anomaly "Empty list of patterns"
+    | [] -> anomaly (Pp.str "Empty list of patterns")
 
 let alias_of_pat = function
   | PatVar (_,name) -> name
@@ -416,7 +416,7 @@ let remove_current_pattern eqn =
 	{ eqn with
 	    patterns = pats;
 	    alias_stack = alias_of_pat pat :: eqn.alias_stack }
-    | [] -> anomaly "Empty list of patterns"
+    | [] -> anomaly (Pp.str "Empty list of patterns")
 
 let push_current_pattern (cur,ty) eqn =
   match eqn.patterns with
@@ -425,7 +425,7 @@ let push_current_pattern (cur,ty) eqn =
 	{ eqn with
             rhs = { eqn.rhs with rhs_env = rhs_env };
 	    patterns = pats }
-    | [] -> anomaly "Empty list of patterns"
+    | [] -> anomaly (Pp.str "Empty list of patterns")
 
 let prepend_pattern tms eqn = {eqn with patterns = tms@eqn.patterns }
 
@@ -607,7 +607,7 @@ let replace_tomatch n c =
   | Pushed ((b,tm),l,na) :: rest ->
       let b = replace_term n c depth b in
       let tm = map_tomatch_type (replace_term n c depth) tm in
-      List.iter (fun i -> if Int.equal i (n + depth) then anomaly "replace_tomatch") l;
+      List.iter (fun i -> if Int.equal i (n + depth) then anomaly (Pp.str "replace_tomatch")) l;
       Pushed ((b,tm),l,na) :: replrec depth rest
   | Alias (na,b,d) :: rest ->
       (* [b] is out of replacement scope *)
@@ -836,7 +836,7 @@ let specialize_predicate_var (cur,typ,dep) tms ccl =
 (*****************************************************************************)
 let generalize_predicate (names,na) ny d tms ccl =
   let () = match na with
-  | Anonymous -> anomaly "Undetected dependency"
+  | Anonymous -> anomaly (Pp.str "Undetected dependency")
   | _ -> () in
   let p = List.length names + 1 in
   let ccl = lift_predicate 1 ccl tms in
@@ -915,13 +915,19 @@ let expand_arg tms (p,ccl) ((_,t),_,na) =
   let k = length_of_tomatch_type_sign na t in
   (p+k,liftn_predicate (k-1) (p+1) ccl tms)
 
+
+let use_unit_judge evd =
+  let j, ctx = coq_unit_judge () in
+  let evd' = Evd.merge_context_set Evd.univ_flexible_alg evd ctx in
+    evd', j
+
 let adjust_impossible_cases pb pred tomatch submat =
   match submat with
   | [] ->
     begin match kind_of_term (whd_evar !(pb.evdref) pred) with
     | Evar (evk,_) when snd (evar_source evk !(pb.evdref)) == Evar_kinds.ImpossibleCase ->
-	let default = (coq_unit_judge ()).uj_type in
-	pb.evdref := Evd.define evk default !(pb.evdref);
+	let evd, default = use_unit_judge !(pb.evdref) in
+	pb.evdref := Evd.define evk default.uj_type evd;
       (* we add an "assert false" case *)
       let pats = List.map (fun _ -> PatVar (Loc.ghost,Anonymous)) tomatch in
       let aliasnames =
@@ -1276,6 +1282,7 @@ and match_current pb tomatch =
 	shift_problem tomatch pb
     | IsInd (_,(IndType(indf,realargs) as indt),names) ->
 	let mind,_ = dest_ind_family indf in
+        let mind = Tacred.check_privacy pb.env mind in
 	let cstrs = get_constructors pb.env indf in
 	let arsign, _ = get_arity pb.env indf in
 	let eqns,onlydflt = group_equations pb (fst mind) current cstrs pb.mat in
@@ -1653,9 +1660,11 @@ let build_inversion_problem loc env sigma tms t =
       return type of the original problem Xi *)
   (* let sigma, s = Evd.new_sort_variable sigma in *)
 (*FIXME TRY *)
-  let sigma, s = Evd.new_sort_variable univ_rigid sigma in
+  (* let sigma, s = Evd.new_sort_variable univ_flexible sigma in *)
+  let s' = Retyping.get_sort_of env sigma t in
+  let sigma, s = Evd.new_sort_variable univ_flexible_alg sigma in
+  let sigma = Evd.set_leq_sort sigma s' s in
   let evdref = ref sigma in
-  (* let ty = Retyping.get_type_of env sigma t in *)
   (* let ty = evd_comb1 (refresh_universes false) evdref ty in *)
   let pb =
     { env       = pb_env;
@@ -1702,7 +1711,7 @@ let extract_arity_signature ?(dolift=true) env0 tomatchl tmsign =
 		  if not (eq_ind ind ind') then
 		    user_err_loc (loc,"",str "Wrong inductive type.");
 		  if not (Int.equal nrealargs_ctxt (List.length realnal)) then
-		      anomaly "Ill-formed 'in' clause in cases";
+		      anomaly (Pp.str "Ill-formed 'in' clause in cases");
 		  List.rev realnal
 	      | None -> List.make nrealargs_ctxt Anonymous in
 	  (na,None,build_dependent_inductive env0 indf')
@@ -1799,7 +1808,7 @@ let prepare_predicate loc typing_fun sigma env tomatchs arsign tycon pred =
 	| Some t -> sigma,t
 	| None -> 
 	  let sigma, (t, _) = 
-	    new_type_evar univ_flexible sigma env ~src:(loc, Evar_kinds.CasesType) in
+	    new_type_evar univ_flexible_alg sigma env ~src:(loc, Evar_kinds.CasesType) in
 	    sigma, t
 	in
         (* First strategy: we build an "inversion" predicate *)
@@ -1811,7 +1820,7 @@ let prepare_predicate loc typing_fun sigma env tomatchs arsign tycon pred =
     | Some rtntyp, _ ->
       (* We extract the signature of the arity *)
       let envar = List.fold_right push_rel_context arsign env in
-      let sigma, newt = new_sort_variable univ_flexible sigma in
+      let sigma, newt = new_sort_variable univ_flexible_alg sigma in
       let evdref = ref sigma in
       let predcclj = typing_fun (mk_tycon (mkSort newt)) envar evdref rtntyp in
       let sigma = !evdref in
@@ -1967,7 +1976,7 @@ let vars_of_ctx ctx =
 		   [hole; GVar (Loc.ghost, prev)])) :: vars
 	| _ ->
 	    match na with
-		Anonymous -> raise (Invalid_argument "vars_of_ctx")
+		Anonymous -> invalid_arg "vars_of_ctx"
 	      | Name n -> n, GVar (Loc.ghost, n) :: vars)
       ctx (Id.of_string "vars_of_ctx_error", [])
   in List.rev y
@@ -2142,7 +2151,7 @@ let abstract_tomatch env tomatchs tycon =
 let build_dependent_signature env evars avoid tomatchs arsign =
   let avoid = ref avoid in
   let arsign = List.rev arsign in
-  let allnames = List.rev (List.map (List.map pi1) arsign) in
+  let allnames = List.rev_map (List.map pi1) arsign in
   let nar = List.fold_left (fun n names -> List.length names + n) 0 allnames in
   let eqs, neqs, refls, slift, arsign' =
     List.fold_left2
@@ -2235,7 +2244,7 @@ let compile_program_cases loc style (typing_function, evdref) tycon env
     (predopt, tomatchl, eqns) =
   let typing_fun tycon env = function
     | Some t ->	typing_function tycon env evdref t
-    | None -> coq_unit_judge () in
+    | None -> Evarutil.evd_comb0 use_unit_judge evdref in
 
   (* We build the matrix of patterns and right-hand side *)
   let matx = matx_of_eqns env eqns in
@@ -2266,7 +2275,7 @@ let compile_program_cases loc style (typing_function, evdref) tycon env
 	      (* The tycon may be ill-typed after abstraction. *)
 	    let env' = push_rel_context (context_of_arsign sign) env in
 	      ignore(Typing.sort_of env' !evdref pred); pred
-	  with _ -> 
+	  with e when Errors.noncritical e ->
 	    let nar = List.fold_left (fun n sign -> List.length sign + n) 0 sign in
 	      lift nar t
 	in Option.get tycon, pred
@@ -2314,7 +2323,7 @@ let compile_program_cases loc style (typing_function, evdref) tycon env
     
   let typing_function tycon env evdref = function
     | Some t ->	typing_function tycon env evdref t
-    | None -> coq_unit_judge () in
+    | None -> evd_comb0 use_unit_judge evdref in
 
   let pb =
     { env      = env;
@@ -2388,7 +2397,7 @@ let compile_cases loc style (typing_fun, evdref) tycon env (predopt, tomatchl, e
     (* A typing function that provides with a canonical term for absurd cases*)
     let typing_fun tycon env evdref = function
     | Some t ->	typing_fun tycon env evdref t
-    | None -> coq_unit_judge () in
+    | None -> evd_comb0 use_unit_judge evdref in
 
     let myevdref = ref sigma in
 

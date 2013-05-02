@@ -81,6 +81,14 @@ val eq_constr_univs : constr -> constr -> bool Univ.constrained
 val leq_constr_univs : constr -> constr -> bool Univ.constrained
 
 (** [eq_constr_univs a b] [true, c] if [a] equals [b] modulo alpha, casts,
+   application grouping and the universe equalities in [c]. *)
+val eq_constr_universes : constr -> constr -> bool Univ.universe_constrained
+
+(** [leq_constr_univs a b] [true, c] if [a] is convertible to [b] modulo 
+    alpha, casts, application grouping and the universe inequalities in [c]. *)
+val leq_constr_universes : constr -> constr -> bool Univ.universe_constrained
+
+(** [eq_constr_univs a b] [true, c] if [a] equals [b] modulo alpha, casts,
    application grouping and ignoring universe instances. *)
 val eq_constr_nounivs : constr -> constr -> bool
 
@@ -118,8 +126,8 @@ val mkSet  : types
 val mkType : Univ.universe -> types
 
 
-(** This defines the strategy to use for verifiying a Cast *)
-type cast_kind = VMcast | DEFAULTcast | REVERTcast
+(* This defines the strategy to use for verifiying a Cast *)
+type cast_kind = VMcast | NATIVEcast | DEFAULTcast | REVERTcast
 
 (** Constructs the term [t1::t2], i.e. the term t{_ 1} casted with the
    type t{_ 2} (that means t2 is declared as the type of t1). *)
@@ -289,7 +297,9 @@ val is_small : sorts -> bool
 
 (** {6 Term destructors } *)
 (** Destructor operations are partial functions and
-    @raise Invalid_argument "dest*" if the term has not the expected form. *)
+    @raise DestKO if the term has not the expected form. *)
+
+exception DestKO
 
 (** Destructs a DeBrujin index *)
 val destRel : constr -> int
@@ -402,7 +412,9 @@ val empty_rel_context : rel_context
 val add_rel_decl : rel_declaration -> rel_context -> rel_context
 
 val lookup_rel : int -> rel_context -> rel_declaration
+(** Size of the [rel_context] including LetIns *)
 val rel_context_length : rel_context -> int
+(** Size of the [rel_context] without LetIns *)
 val rel_context_nhyps : rel_context -> int
 
 (** Constructs either [(x:t)c] or [[x=b:t]c] *)
@@ -656,7 +668,15 @@ val compare_constr : (constr -> constr -> bool) -> constr -> constr -> bool
 val constr_ord : constr -> constr -> int
 val hash_constr : constr -> int
 
-val subst_univs_constr : Univ.universe_subst -> constr -> constr
+open Univ
+
+val subst_univs_fn_constr : universe_subst_fn -> constr -> constr
+val subst_univs_fn_puniverses : universe_level_subst_fn -> 
+  'a puniverses -> 'a puniverses
+
+val subst_univs_constr : universe_subst -> constr -> constr
+val subst_univs_puniverses : universe_level_subst -> 'a puniverses -> 'a puniverses
+val subst_univs_level_constr : universe_level_subst -> constr -> constr
 
 
 (*********************************************************************)
