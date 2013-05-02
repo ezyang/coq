@@ -277,7 +277,20 @@ let process_universe_constraints univs postponed vars alg local cstrs =
 	  | Some l -> Inr (l, Univ.LMap.mem l !vars, Univ.LSet.mem l alg)
 	in
 	  if d = Univ.ULe then
-	    if Univ.check_leq univs l r then
+	    if Univ.is_small_univ r then 
+	      (match varinfo l with
+	      | Inl _ -> errorlabstrm "add_constraints" 
+	        (str"Trying to lower global universe " ++ Univ.Universe.pr l 
+		 ++ str" to " ++ Univ.Universe.pr r)
+	      | Inr (lev, var, alg) -> 
+	        if Univ.Level.is_small lev then 
+		  if Univ.is_type0m_univ l && Univ.is_type0_univ r then
+		    local, postponed
+		  else (raise (Univ.UniverseInconsistency (Univ.Le, l, r, [])))
+		else if var then 
+		  Univ.enforce_leq l r local, postponed
+		else (raise (Univ.UniverseInconsistency (Univ.Le, l, r, []))))
+	    else if Univ.check_leq univs l r then
 	      (** Keep Prop <= var around if var might be instantiated by prop later. *)
 	      if Univ.is_type0m_univ l && not (Univ.is_small_univ r) then
 		match Univ.Universe.level l, Univ.Universe.level r with

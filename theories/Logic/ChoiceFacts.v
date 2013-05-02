@@ -724,7 +724,7 @@ Proof.
   exists (f (existT _ A (existT _ P H'))).
   pose (Hf' := Hf (existT _ A (existT _ P H'))).
   assumption.
-Admitted.
+Qed.
 
 Lemma constructive_indefinite_descr_fun_choice :
   ConstructiveIndefiniteDescription -> FunctionalChoice.
@@ -753,7 +753,7 @@ Proof.
   exists (f (existT _ A (existT _ P H'))).
   pose (Hf' := Hf (existT _ A (existT _ P H'))).
   assumption.
-Admitted. (*FIXME*)
+Qed.
 
 Lemma constructive_definite_descr_fun_reification :
   ConstructiveDefiniteDescription -> FunctionalRelReification.

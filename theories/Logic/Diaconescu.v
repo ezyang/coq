@@ -89,7 +89,7 @@ Qed.
 (** The form of choice we need: there is a functional relation which chooses
     an element in any non empty subset of bool *)
 
-Require Import Bool.
+Require Import Bool.Bool.
 
 Lemma AC_bool_subset_to_bool :
   exists R : (bool -> Prop) -> bool -> Prop,
