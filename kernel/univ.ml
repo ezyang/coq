@@ -1633,13 +1633,18 @@ let constraint_add_leq v u c =
     | (x,n), (y,m) -> 
     let j = m - n in
       if j = -1 (* n = m+1, v+1 <= u <-> v < u *) then
-	Constraint.add (x,Lt,y) c
+	if Level.is_small y then (* Set+1 <= Prop/Set *)
+	  raise (UniverseInconsistency (Le, Universe.tip v, Universe.tip u, []))
+	else Constraint.add (x,Lt,y) c
       else if j <= -1 (* n = m+k, v+k <= u <-> v+(k-1) < u *) then
 	if Level.eq x y then (* u+(k+1) <= u *)
 	  raise (UniverseInconsistency (Le, Universe.tip v, Universe.tip u, []))
 	else anomaly (Pp.str"Unable to handle arbitrary u+k <= v constraints")
       else if j = 0 then
-	Constraint.add (x,Le,y) c
+	if Level.is_small y (* Set/Prop <= Prop/Set *)
+	  && Level.is_set x && Level.is_prop y then
+	  raise (UniverseInconsistency (Le, Universe.tip v, Universe.tip u, []))
+	else Constraint.add (x,Le,y) c
       else (* j >= 1 *) (* m = n + k, u <= v+k *)
 	if Level.eq x y then c (* u <= u+k, trivial *)
 	else if Level.is_small x then c (* Prop,Set <= u+S k, trivial *)

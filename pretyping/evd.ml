@@ -279,17 +279,15 @@ let process_universe_constraints univs postponed vars alg local cstrs =
 	  if d = Univ.ULe then
 	    if Univ.is_small_univ r then 
 	      (match varinfo l with
-	      | Inl _ -> errorlabstrm "add_constraints" 
-	        (str"Trying to lower global universe " ++ Univ.Universe.pr l 
-		 ++ str" to " ++ Univ.Universe.pr r)
+	      | Inl _ -> 
+		Univ.enforce_leq l r local, postponed
 	      | Inr (lev, var, alg) -> 
 	        if Univ.Level.is_small lev then 
 		  if Univ.is_type0m_univ l && Univ.is_type0_univ r then
 		    local, postponed
 		  else (raise (Univ.UniverseInconsistency (Univ.Le, l, r, [])))
-		else if var then 
-		  Univ.enforce_leq l r local, postponed
-		else (raise (Univ.UniverseInconsistency (Univ.Le, l, r, []))))
+		else
+		  Univ.enforce_leq l r local, postponed)
 	    else if Univ.check_leq univs l r then
 	      (** Keep Prop <= var around if var might be instantiated by prop later. *)
 	      if Univ.is_type0m_univ l && not (Univ.is_small_univ r) then
@@ -1044,6 +1042,11 @@ let conversion env d pb t u =
 let test_conversion env d pb t u =
   try let cst = conversion_gen env d pb t u in
 	ignore(add_universe_constraints d cst); true
+  with _ -> false
+
+let e_test_conversion env d pb t u =
+  try let cst = conversion_gen env !d pb t u in
+	d := add_universe_constraints !d cst; true
   with _ -> false
 
 (**********************************************************)

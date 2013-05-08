@@ -180,7 +180,7 @@ GEXTEND Gram
 	  let poly = use_poly () in
           VernacDefinition ((l, poly, k), id, b)
       | IDENT "Let"; id = identref; b = def_body ->
-          VernacDefinition ((Discharge, false, Definition), id, b)
+          VernacDefinition ((Discharge, use_poly (), Definition), id, b)
       (* Gallina inductive declarations *)
       | f = finite_token;
         indl = LIST1 inductive_definition SEP "with" ->
@@ -746,7 +746,7 @@ GEXTEND Gram
       | IDENT "Declare"; IDENT "Instance"; namesup = instance_name; ":";
 	 expl = [ "!" -> Decl_kinds.Implicit | -> Decl_kinds.Explicit ] ; t = operconstr LEVEL "200";
 	 pri = OPT [ "|"; i = natural -> i ] ->
-	   VernacInstance (true, not (use_section_locality ()), false,
+	   VernacInstance (true, not (use_section_locality ()), use_poly (),
 			   snd namesup, (fst namesup, expl, t),
 			   None, pri)
 

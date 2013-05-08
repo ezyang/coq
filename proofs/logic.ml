@@ -472,17 +472,20 @@ and mk_casegoals sigma goal goalacc p c =
 let convert_hyp sign sigma (id,b,bt as d) =
   let env = Global.env() in
   let reorder = ref [] in
+  let evd = ref sigma in
   let sign' =
     apply_to_hyp sign id
       (fun _ (_,c,ct) _ ->
         let env = Global.env_of_context sign in
-        if !check && not (is_conv env sigma bt ct) then
-	  error ("Incorrect change of the type of "^(Id.to_string id)^".");
-        if !check && not (Option.equal (is_conv env sigma) b c) then
-	  error ("Incorrect change of the body of "^(Id.to_string id)^".");
-       if !check then reorder := check_decl_position env sign d;
-       d) in
-  reorder_val_context env sign' !reorder
+          if not !check then d
+	  else
+	    (if not (Evd.e_test_conversion env evd Reduction.CONV bt ct) then
+		error ("Incorrect change of the type of "^(Id.to_string id)^".");
+	     if not (Option.equal (Evd.e_test_conversion env evd Reduction.CONV) b c) then
+	       error ("Incorrect change of the body of "^(Id.to_string id)^".");
+	     reorder := check_decl_position env sign d;
+	     d)) in
+  !evd, reorder_val_context env sign' !reorder
 
 
 
@@ -648,7 +651,8 @@ let prim_refiner r sigma goal =
           ([sg], sigma)
 
     | Convert_hyp (id,copt,ty) ->
-	let (gl,ev,sigma) = mk_goal (convert_hyp sign sigma (id,copt,ty)) cl in
+        let sigma, hyps = convert_hyp sign sigma (id,copt,ty) in
+	let (gl,ev,sigma) = Goal.V82.mk_goal sigma hyps cl (Goal.V82.extra sigma goal) in
 	let sigma = Goal.V82.partial_solution sigma goal ev in
 	([gl], sigma)
 

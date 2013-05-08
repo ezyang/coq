@@ -341,6 +341,8 @@ val conversion : env -> evar_map -> conv_pb -> constr -> constr -> evar_map
 (** This one forgets about the assignemts of universes. *)
 val test_conversion : env -> evar_map -> conv_pb -> constr -> constr -> bool
 
+val e_test_conversion : env -> evar_map ref -> conv_pb -> constr -> constr -> bool
+
 (********************************************************************
    constr with holes *)
 type open_constr = evar_map * constr
