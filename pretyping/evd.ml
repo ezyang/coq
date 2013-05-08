@@ -282,7 +282,7 @@ let process_universe_constraints univs postponed vars alg local cstrs =
 	      | Inl _ -> 
 		Univ.enforce_leq l r local, postponed
 	      | Inr (lev, var, alg) -> 
-	        if Univ.Level.is_small lev then 
+	        if Univ.Level.is_small lev || not var then 
 		  if Univ.is_type0m_univ l && Univ.is_type0_univ r then
 		    local, postponed
 		  else (raise (Univ.UniverseInconsistency (Univ.Le, l, r, [])))
@@ -318,8 +318,12 @@ let process_universe_constraints univs postponed vars alg local cstrs =
 	        anomaly (Pp.str"Trying to assign an algebraic universe to a non-algebraic universe variable")
 	      | Inr (l',_,_) -> instantiate_variable l (Univ.Universe.make l') vars; 
 	        local, postponed)
-	    | (Inr (_, false, _), Inr (_, false, _)) ->
-	      Univ.enforce_eq l r local, postponed
+	    | (Inr (l', false, _), Inr (r', false, _)) ->
+	      if Univ.Level.is_small l' || Univ.Level.is_small r' then
+		(* Disallow lowering global universes to Prop/Set *)
+		raise (Univ.UniverseInconsistency (Univ.Eq, l, r, []))
+	      else
+		Univ.enforce_eq l r local, postponed
            | _, _ (* Algebraic or globals: 
                                try first-order unification of formal expressions.
 			       THIS IS WRONG: it should be postponed and the equality

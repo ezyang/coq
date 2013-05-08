@@ -477,23 +477,6 @@ let change_sort_arity sort =
   in
     drec
 
-(* [npar] is the number of expected arguments (then excluding letin's) *)
-let modify_sort_scheme sort =
-  let rec drec npar elim =
-    match kind_of_term elim with
-      | Lambda (n,t,c) ->
-	  if Int.equal npar 0 then
-	    let s', t' = change_sort_arity sort t in
-	      s', mkLambda (n, t', c)
-	  else
-	    let s', t' = drec (npar-1) c in
-	      s', mkLambda (n, t, t')
-      | LetIn (n,b,t,c) -> 
-        let s', t' = drec npar c in s', mkLetIn (n,b,t,t')
-      | _ -> anomaly ~label:"modify_sort_scheme" (Pp.str "wrong elimination type")
-  in
-  drec
-
 (* Change the sort in the type of an inductive definition, builds the
    corresponding eta-expanded term *)
 let weaken_sort_scheme env evd set sort npars term ty =
