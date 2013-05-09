@@ -48,11 +48,6 @@ val build_mutual_induction_scheme :
 
 (** Scheme combinators *)
 
-(** [modify_sort_scheme s n c] modifies the quantification sort of
-   scheme c whose predicate is abstracted at position [n] of [c] *)
-
-val modify_sort_scheme : sorts -> int -> constr -> sorts * constr
-
 (** [weaken_sort_scheme env sigma eq s n c t] derives by subtyping from [c:t]
    whose conclusion is quantified on [Type i] at position [n] of [t] a
    scheme quantified on sort [s]. [set] asks for [s] be declared equal to [i],
