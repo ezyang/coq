@@ -111,6 +111,11 @@ module Level = struct
 
   let pr u = str (to_string u)
 
+  let apart u v =
+    match u, v with
+    | Set, Prop | Prop, Set -> true
+    | _, _ -> false
+
 end
 
 let pr_universe_level_list l = 
@@ -1669,11 +1674,14 @@ let enforce_leq u v c =
 
 let enforce_eq u v c =
   match Universe.level u, Universe.level v with
-    | Some u, Some v ->
+    | Some u', Some v' ->
       (* We discard trivial constraints like u=u *)
-      if Level.eq u v then c else Constraint.add (u,Eq,v) c
+      if Level.eq u' v' then c 
+      else if Level.apart u' v' then
+	raise (UniverseInconsistency (Eq, u, v, []))
+      else Constraint.add (u',Eq,v') c
     | _ -> anomaly (Pp.str "A universe comparison can only happen between variables")
-
+      
 let enforce_eq u v c =
   if check_univ_eq u v then c
   else enforce_eq u v c
@@ -1691,7 +1699,20 @@ type 'a universe_constraint_function = 'a -> 'a -> universe_constraints -> unive
 let enforce_eq_instances_univs t1 t2 c = 
   CArray.fold_right2 (fun x y -> UniverseConstraints.add (Universe.make x, ULub, Universe.make y))
     t1 t2 c
-  
+
+let enforce_eq_univs u v c =
+  match Universe.level u, Universe.level v with
+    | Some u', Some v' ->
+      (* We discard trivial constraints like u=u *)
+      if Level.eq u' v' then c 
+      else if Level.apart u' v' then
+	raise (UniverseInconsistency (Eq, u, v, []))
+      else UniverseConstraints.add (u,UEq,v) c
+    | _ -> anomaly (Pp.str "A universe comparison can only happen between variables")
+
+let enforce_leq_univs u v c =
+  UniverseConstraints.add (u,ULe,v) c
+
 let merge_constraints c g =
   Constraint.fold enforce_constraint c g
 
@@ -1722,8 +1743,8 @@ let to_constraints g s =
   let rec tr (x,d,y) acc =
     let add l d l' acc = Constraint.add (l,UniverseConstraints.tr_dir d,l') acc in
       match Universe.level x, d, Universe.level y with
-      | Some l, (ULe | UEq), Some l' -> add l d l' acc
-      | None, ULe, Some l' -> enforce_leq x y acc
+      | _, ULe, Some l' -> enforce_leq x y acc
+      | Some l, UEq, Some l' -> enforce_eq x y acc
       | _, ULub, _ -> acc
       | _, d, _ -> 
 	let f = if d = ULe then check_leq else check_eq in

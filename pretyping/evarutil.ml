@@ -692,16 +692,24 @@ let define_pure_evar_as_product evd evk =
   let evi = Evd.find_undefined evd evk in
   let evenv = evar_env evi in
   let id = next_ident_away idx (ids_of_named_context (evar_context evi)) in
+  let s = destSort evi.evar_concl in
   let evd1,(dom,u1) = new_type_evar univ_flexible_alg evd evenv ~filter:(evar_filter evi) in
   let evd2,(rng,u2) =
     let newenv = push_named (id, None, dom) evenv in
     let src = evar_source evk evd1 in
     let filter = true::evar_filter evi in
-    new_type_evar univ_flexible_alg evd1 newenv ~src ~filter in
+      if is_prop_sort s then
+	let evd, rng = new_evar evd1 newenv evi.evar_concl ~src ~filter in
+	  evd, (rng, s)
+      else
+	new_type_evar univ_flexible_alg evd1 newenv ~src ~filter in
   let prod = mkProd (Name id, dom, subst_var id rng) in
   let evd3 = Evd.define evk prod evd2 in
-  let u = destSort evi.evar_concl in
-  let evd3 = set_leq_sort evd3 (Type (Univ.sup (univ_of_sort u1) (univ_of_sort u2))) u in
+  let evd3 = 
+    if not (is_prop_sort s) then
+      conversion evenv evd3 Reduction.CUMUL
+	(mkType (Univ.sup (univ_of_sort u1) (univ_of_sort u2))) evi.evar_concl 
+    else evd3 in
   evd3,prod
 
 (* Refine an applied evar to a product and returns its instantiation *)
@@ -766,7 +774,8 @@ let define_evar_as_sort evd (ev,args) =
   let evi = Evd.find_undefined evd ev in 
   let s = Type u in
   let evd' = Evd.define ev (mkSort s) evd in
-    Evd.set_leq_sort evd' (Type (Univ.super u)) (destSort evi.evar_concl), s
+    Evd.conversion (evar_env evi) evd' Reduction.CUMUL
+      (mkType (Univ.super u)) evi.evar_concl, s
 
 (* We don't try to guess in which sort the type should be defined, since
    any type has type Type. May cause some trouble, but not so far... *)

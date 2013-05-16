@@ -344,6 +344,8 @@ val enforce_eq_instances : universe_instance constraint_function
 type 'a universe_constraint_function = 'a -> 'a -> universe_constraints -> universe_constraints
 
 val enforce_eq_instances_univs : universe_instance universe_constraint_function
+val enforce_eq_univs : universe universe_constraint_function
+val enforce_leq_univs : universe universe_constraint_function
 
 (** {6 ... } *)
 (** Merge of constraints in a universes graph.

@@ -724,8 +724,9 @@ let eq_constr_universes m n =
     let eq_universes l l' = 
       cstrs := Univ.enforce_eq_instances_univs l l' !cstrs; true in
     let eq_sorts s1 s2 = 
-      cstrs := Univ.UniverseConstraints.add (univ_of_sort s1, Univ.UEq, univ_of_sort s2) !cstrs;
-      true
+      try cstrs := Univ.enforce_eq_univs (univ_of_sort s1) (univ_of_sort s2) !cstrs;
+	  true
+      with _ -> false
     in
     let rec eq_constr' m n = 
       m == n ||	compare_constr eq_universes eq_sorts eq_constr' m n
@@ -740,10 +741,14 @@ let leq_constr_universes m n =
     let eq_universes l l' = 
       cstrs := Univ.enforce_eq_instances_univs l l' !cstrs; true in
     let eq_sorts s1 s2 = 
-      cstrs := Univ.UniverseConstraints.add (univ_of_sort s1,Univ.UEq,univ_of_sort s2) !cstrs; true
+      try cstrs := Univ.enforce_eq_univs (univ_of_sort s1) (univ_of_sort s2) !cstrs;
+	  true
+      with _ -> false
     in
     let leq_sorts s1 s2 = 
-      cstrs := Univ.UniverseConstraints.add (univ_of_sort s1,Univ.ULe,univ_of_sort s2) !cstrs; true
+      try cstrs := Univ.enforce_leq_univs (univ_of_sort s1) (univ_of_sort s2) !cstrs;
+	  true
+      with _ -> false
     in
     let rec eq_constr' m n = 
       m == n ||	compare_constr eq_universes eq_sorts eq_constr' m n
