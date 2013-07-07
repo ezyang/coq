@@ -1076,7 +1076,8 @@ module Strategies =
             error "fold: the term is not unfoldable !"
 	in
 	  try
-	    let sigma = Unification.w_unify env sigma CONV ~flags:Unification.elim_flags unfolded t in
+	  let sigma = Unification.w_unify env sigma CONV ~flags:(Unification.elim_flags ())
+	    unfolded t in
 	    let c' = Evarutil.nf_evar sigma c in
 	      Some (Some { rew_car = ty; rew_from = t; rew_to = c';
 			   rew_prf = RewCast DEFAULTcast; 
@@ -1093,7 +1094,7 @@ module Strategies =
             error "fold: the term is not unfoldable !"
 	in
 	  try
-	    let sigma = Unification.w_unify env sigma CONV ~flags:Unification.elim_flags unfolded t in
+	    let sigma = Unification.w_unify env sigma CONV ~flags:(Unification.elim_flags ()) unfolded t in
 	    let c' = Evarutil.nf_evar sigma c in
 	      Some (Some { rew_car = ty; rew_from = t; rew_to = c';
 			   rew_prf = RewCast DEFAULTcast; 

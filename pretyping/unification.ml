@@ -251,11 +251,12 @@ type unify_flags = {
 
 (* Default flag for unifying a type against a type (e.g. apply) *)
 (* We set all conversion flags (no flag should be modified anymore) *)
-let default_unify_flags = {
-  modulo_conv_on_closed_terms = Some full_transparent_state;
+let default_unify_flags () = 
+  let ts = Conv_oracle.get_transp_state () in
+  { modulo_conv_on_closed_terms = Some ts;
   use_metas_eagerly_in_conv_on_closed_terms = true;
-  modulo_delta = full_transparent_state;
-  modulo_delta_types = full_transparent_state;
+  modulo_delta = ts;
+  modulo_delta_types = ts;
   modulo_delta_in_merge = None;
   check_applied_meta_types = true;
   resolve_evars = false;
@@ -279,7 +280,7 @@ let set_merge_flags flags =
 (* type against a type (e.g. apply) *)
 (* We set only the flags available at the time the new "apply" extends *)
 (* out of "simple apply" *)
-let default_no_delta_unify_flags = { default_unify_flags with
+let default_no_delta_unify_flags () = { (default_unify_flags ()) with
   modulo_delta = empty_transparent_state;
   check_applied_meta_types = false;
   use_pattern_unification = false;
@@ -292,13 +293,13 @@ let default_no_delta_unify_flags = { default_unify_flags with
 (* allow_K) because only closed terms are involved in *)
 (* induction/destruct/case/elim and w_unify_to_subterm_list does not *)
 (* call w_unify for induction/destruct/case/elim  (13/6/2011) *)
-let elim_flags = { default_unify_flags with
+let elim_flags () = { (default_unify_flags ()) with
   restrict_conv_on_strict_subterms = false; (* ? *)
   modulo_betaiota = false;
   allow_K_in_toplevel_higher_order_unification = true
 }
 
-let elim_no_delta_flags = { elim_flags with
+let elim_no_delta_flags () = { (elim_flags ()) with
   modulo_delta = empty_transparent_state;
   check_applied_meta_types = false;
   use_pattern_unification = false;
@@ -326,11 +327,9 @@ let subterm_restriction is_subterm flags =
 let key_of b flags f =
   if subterm_restriction b flags then None else
   match kind_of_term f with
-  | Const (cst,u) when is_transparent (ConstKey cst) &&
-        Cpred.mem cst (snd flags.modulo_delta) ->
+  | Const (cst,u) when Cpred.mem cst (snd flags.modulo_delta) ->
       Some (ConstKey (cst,u))
-  | Var id when is_transparent (VarKey id) &&
-        Id.Pred.mem id (fst flags.modulo_delta) ->
+  | Var id when Id.Pred.mem id (fst flags.modulo_delta) ->
       Some (VarKey id)
   | _ -> None
 
@@ -338,7 +337,7 @@ let translate_key = function
   | ConstKey (cst,u) -> ConstKey cst
   | VarKey id -> VarKey id
   | RelKey n -> RelKey n
-  
+
 let oracle_order env cf1 cf2 =
   match cf1 with
   | None ->
@@ -368,14 +367,14 @@ let isAllowedEvar flags c = match kind_of_term c with
   | Evar (evk,_) -> not (ExistentialSet.mem evk flags.frozen_evars)
   | _ -> false
 
-let check_compatibility env (sigma,metasubst,evarsubst) tyM tyN =
+let check_compatibility env flags (sigma,metasubst,evarsubst) tyM tyN =
   match subst_defined_metas metasubst tyM with
   | None -> ()
   | Some m ->
   match subst_defined_metas metasubst tyN with
   | None -> ()
   | Some n ->
-      if not (is_trans_fconv CONV full_transparent_state env sigma m n)
+      if not (is_trans_fconv CONV flags.modulo_delta env sigma m n)
          && is_ground_term sigma m && is_ground_term sigma n
       then
 	error_cannot_unify env sigma (m,n)
@@ -391,7 +390,7 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
             if wt && flags.check_applied_meta_types then
               (let tyM = Typing.meta_type sigma k1 in
                let tyN = Typing.meta_type sigma k2 in
-               check_compatibility curenv substn tyM tyN);
+               check_compatibility curenv flags substn tyM tyN);
 	    if k2 < k1 then sigma,(k1,cN,stN)::metasubst,evarsubst
 	    else sigma,(k2,cM,stM)::metasubst,evarsubst
 	| Meta k, _
@@ -399,7 +398,7 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
             if wt && flags.check_applied_meta_types then
               (let tyM = Typing.meta_type sigma k in
                let tyN = get_type_of curenv sigma cN in
-               check_compatibility curenv substn tyM tyN);
+               check_compatibility curenv flags substn tyM tyN);
 	    (* Here we check that [cN] does not contain any local variables *)
 	    if Int.equal nb 0 then
               sigma,(k,cN,snd (extract_instance_status pb))::metasubst,evarsubst
@@ -413,7 +412,7 @@ let unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb flag
             if wt && flags.check_applied_meta_types then
               (let tyM = get_type_of curenv sigma cM in
                let tyN = Typing.meta_type sigma k in
-               check_compatibility curenv substn tyM tyN);
+               check_compatibility curenv flags substn tyM tyN);
 	    (* Here we check that [cM] does not contain any local variables *)
 	    if Int.equal nb 0 then
               (sigma,(k,cM,fst (extract_instance_status pb))::metasubst,evarsubst)
@@ -969,7 +968,7 @@ let w_merge env with_types flags (evd,metas,evars) =
   (* merge constraints *)
   w_merge_rec evd (order_metas metas) evars []
 
-let w_unify_meta_types env ?(flags=default_unify_flags) evd =
+let w_unify_meta_types env ?(flags=default_unify_flags ()) evd =
   let metas,evd = retract_coercible_metas evd in
   w_merge env true flags (evd,metas,[])
 
@@ -1043,7 +1042,7 @@ let iter_fail f a =
 (* Tries to find an instance of term [cl] in term [op].
    Unifies [cl] to every subterm of [op] until it finds a match.
    Fails if no match is found *)
-let w_unify_to_subterm env evd ?(flags=default_unify_flags) (op,cl) =
+let w_unify_to_subterm env evd ?(flags=default_unify_flags ()) (op,cl) =
   let rec matchrec cl =
     let cl = strip_outer_cast cl in
     (try
@@ -1103,7 +1102,7 @@ let w_unify_to_subterm env evd ?(flags=default_unify_flags) (op,cl) =
 (* Tries to find all instances of term [cl] in term [op].
    Unifies [cl] to every subterm of [op] and return all the matches.
    Fails if no match is found *)
-let w_unify_to_subterm_all env evd ?(flags=default_unify_flags) (op,cl) =
+let w_unify_to_subterm_all env evd ?(flags=default_unify_flags ()) (op,cl) =
   let return a b =
     let (evd,c as a) = a () in
       if List.exists (fun (evd',c') -> eq_constr c c') b then b else a :: b
@@ -1248,7 +1247,7 @@ let w_unify2 env evd flags dep cv_pb ty1 ty2 =
    Before, second-order was used if the type of Meta(1) and [x:A]t was
    convertible and first-order otherwise. But if failed if e.g. the type of
    Meta(1) had meta-variables in it. *)
-let w_unify env evd cv_pb ?(flags=default_unify_flags) ty1 ty2 =
+let w_unify env evd cv_pb ?(flags=default_unify_flags ()) ty1 ty2 =
   let hd1,l1 = whd_nored_stack evd ty1 in
   let hd2,l2 = whd_nored_stack evd ty2 in
   let is_empty1 = match l1 with [] -> true | _ -> false in
