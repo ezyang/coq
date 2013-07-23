@@ -842,9 +842,6 @@ let is_type0_univ = Universe.is_type0
 
 let is_univ_variable l = Universe.level l <> None
 
-let initial_universes = LMap.empty
-let is_initial_universes = LMap.is_empty
-
 (* Every Level.t has a unique canonical arc representative *)
 
 (* repr : universes -> Level.t -> canonical_arc *)
@@ -1239,6 +1236,10 @@ let enforce_univ_lt u v g =
 	  NLE -> fst (setlt g arcu arcv)
 	| EQ -> anomaly (Pp.str "Univ.compare")
 	| (LE p|LT p) -> error_inconsistency Lt u v (List.rev p))
+
+let empty_universes = LMap.empty
+let initial_universes = enforce_univ_lt Level.prop Level.set LMap.empty
+let is_initial_universes = LMap.equal (==) initial_universes
 
 (* Constraints and sets of constraints. *)    
 
@@ -1741,15 +1742,14 @@ let check_consistent_constraints (ctx,cstrs) cstrs' =
 
 let to_constraints g s = 
   let rec tr (x,d,y) acc =
-    let add l d l' acc = Constraint.add (l,UniverseConstraints.tr_dir d,l') acc in
-      match Universe.level x, d, Universe.level y with
-      | _, ULe, Some l' -> enforce_leq x y acc
-      | Some l, UEq, Some l' -> enforce_eq x y acc
-      | _, ULub, _ -> acc
-      | _, d, _ -> 
-	let f = if d = ULe then check_leq else check_eq in
-	  if f g x y then acc else 
-	    raise (Invalid_argument 
+    match Universe.level x, d, Universe.level y with
+    | _, ULe, Some l' -> enforce_leq x y acc
+    | Some l, UEq, Some l' -> enforce_eq x y acc
+    | _, ULub, _ -> acc
+    | _, d, _ -> 
+      let f = if d = ULe then check_leq else check_eq in
+	if f g x y then acc else 
+	  raise (Invalid_argument 
 		   "to_constraints: non-trivial algebraic constraint between universes")
   in UniverseConstraints.fold tr s Constraint.empty
      
