@@ -751,6 +751,8 @@ let rec extern inctx scopes vars r =
       CCast (loc,sub_extern true scopes vars c,
 	     Miscops.map_cast_type (extern_typ scopes vars) c')
 
+  | GRun (loc, c) -> (*BETA*) CRun (loc, extern inctx scopes vars c)
+
 and extern_typ (_,scopes) =
   extern true (Some Notation.type_scope,scopes)
 

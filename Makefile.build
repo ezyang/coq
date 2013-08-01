@@ -209,7 +209,7 @@ coqbinaries:: ${COQBINARIES} ${CSDPCERT} ${FAKEIDE}
 
 coq: coqlib tools coqbinaries
 
-coqlib:: theories plugins
+coqlib:: theories plugins mtac
 
 coqlight: theories-light tools coqbinaries
 
@@ -484,6 +484,15 @@ theories/Numbers/Natural/BigN/NMake_gen.v: theories/Numbers/Natural/BigN/NMake_g
 	$(OCAML) $< $(TOTARGET)
 
 ###########################################################################
+# Mtac
+###########################################################################
+
+mtac: $(COQC) theories plugins
+	$(COQC) -coqlib . $(MTACV)
+
+
+
+###########################################################################
 # tools
 ###########################################################################
 
@@ -639,6 +648,9 @@ endif
 	$(INSTALLBIN) $(CSDPCERT) $(FULLCOQLIB)/plugins/micromega
 	rm -f $(FULLCOQLIB)/revision
 	-$(INSTALLLIB) revision $(FULLCOQLIB)
+#mtac
+	$(MKDIR) $(FULLCOQLIB)/user-contrib/Mtac
+	$(INSTALLLIB) user-contrib/Mtac/*.vo $(FULLCOQLIB)/user-contrib/Mtac
 
 install-library-light:
 	$(MKDIR) $(FULLCOQLIB)

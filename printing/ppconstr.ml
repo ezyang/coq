@@ -556,6 +556,9 @@ let pr pr sep inherited a =
   | CGeneralization (_,bk,ak,c) -> pr_generalization bk ak (pr mt ltop c), latom
   | CPrim (_,p) -> pr_prim_token p, prec_of_prim_token p
   | CDelimiters (_,sc,a) -> pr_delimiters sc (pr mt (ldelim,E) a), ldelim
+  | CRun (_, c) -> (*BETA*)
+      hv 0 (hov 2 (str "run " ++ pr spc ltop c)),
+      latom
   in
   let loc = constr_loc a in
   pr_with_comments loc

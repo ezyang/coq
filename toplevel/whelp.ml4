@@ -167,7 +167,10 @@ let rec uri_of_constr c =
   | GVar _ | GRef _ | GHole _ | GEvar _ | GSort _ | GCast (_,_, CastCoerce) ->
       anomaly (Pp.str "Written w/o parenthesis")
   | GPatVar _ ->
-      anomaly (Pp.str "Found constructors not supported in constr")) ()
+      anomaly (Pp.str "Found constructors not supported in constr")
+  (* BETA *)
+  | GRun _ -> anomaly (Pp.str "Run not supported")) ()
+  
 
 let make_string f x = Buffer.reset b; f x; Buffer.contents b
 

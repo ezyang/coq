@@ -566,6 +566,12 @@ let explain_type_error env sigma err =
   | WrongCaseInfo (ind,ci) ->
       explain_wrong_case_info env ind ci
 
+(* BETA *)
+let explain_user_exception env sigma c =
+  let c = Reductionops.nf_evar sigma c in
+  let pr = pr_lconstr_env env c in
+  str "Uncaught user exception:" ++ spc () ++ pr
+
 let explain_pretype_error env sigma err =
   let env = Evarutil.env_nf_betaiotaevar sigma env in
   let env = make_all_name_different env in
@@ -589,6 +595,8 @@ let explain_pretype_error env sigma err =
   | AbstractionOverMeta (m,n) -> explain_abstraction_over_meta env m n
   | NonLinearUnification (m,c) -> explain_non_linear_unification env m c
   | TypingError t -> explain_type_error env sigma t
+  (* BETA *)
+  | UncaughtUserException c -> explain_user_exception env sigma c
 
 (* Module errors *)
 

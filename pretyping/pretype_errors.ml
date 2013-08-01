@@ -48,6 +48,8 @@ type pretype_error =
   | UnexpectedType of constr * constr
   | NotProduct of constr
   | TypingError of type_error
+  (* BETA *)
+  | UncaughtUserException of constr
 
 exception PretypeError of env * Evd.evar_map * pretype_error
 
@@ -96,7 +98,7 @@ let contract3' env a b c = function
       let (env',t1,t2) = contract2 env' t1 t2 in
       contract3 env a b c, ConversionFailed (env',t1,t2)
   | NotSameArgSize | NotSameHead | NoCanonicalStructure
-  | MetaOccurInBody _ | InstanceNotSameType _ 
+  | MetaOccurInBody _ | InstanceNotSameType _
   | UnifUnivInconsistency as x -> contract3 env a b c, x
 
 let raise_pretype_error (loc,env,sigma,te) =
@@ -189,6 +191,10 @@ let error_unexpected_type_loc loc env sigma actty expty =
 
 let error_not_product_loc loc env sigma c =
   raise_pretype_error (loc, env, sigma, NotProduct c)
+
+(* BETA *)
+let error_user_exception loc env sigma c =
+  raise_pretype_error (loc, env, sigma, UncaughtUserException c)
 
 (*s Error in conversion from AST to glob_constr *)
 

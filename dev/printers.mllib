@@ -117,6 +117,8 @@ Program
 Coercion
 Unification
 Cases
+Simpleunify
+Run
 Pretyping
 Declaremods
 

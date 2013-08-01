@@ -87,6 +87,7 @@ type constr_expr =
   | CGeneralization of Loc.t * binding_kind * abstraction_kind option * constr_expr
   | CPrim of Loc.t * prim_token
   | CDelimiters of Loc.t * string * constr_expr
+  | CRun of Loc.t * constr_expr (*BETA*)
 
 and case_expr =
   constr_expr * (Name.t located option * cases_pattern_expr option)

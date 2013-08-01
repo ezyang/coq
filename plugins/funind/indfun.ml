@@ -206,6 +206,9 @@ let is_rec names =
     | GCases(_,_,_,el,brl) ->
 	List.exists (fun (e,_) -> lookup names e) el ||
 	  List.exists (lookup_br names) brl
+    (* BETA *)
+    | GRun _ -> error "Mtac is not supported"
+
   and lookup_br names (_,idl,_,rt) =
     let new_names = List.fold_right Id.Set.remove idl names in
     lookup new_names rt
@@ -693,6 +696,9 @@ let rec add_args id new_args b =
   | CGeneralization _ -> anomaly ~label:"add_args " (Pp.str "CGeneralization")
   | CPrim _ -> b
   | CDelimiters _ -> anomaly ~label:"add_args " (Pp.str "CDelimiters")
+  (* BETA *)
+  | CRun _ -> error "Mtac is not supported"
+
 exception Stop of  Constrexpr.constr_expr
 
 

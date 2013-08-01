@@ -48,6 +48,7 @@ type glob_constr =
   | GSort of Loc.t * glob_sort
   | GHole of (Loc.t * Evar_kinds.t)
   | GCast of Loc.t * glob_constr * glob_constr cast_type
+  | GRun of (Loc.t * glob_constr) (*BETA*)
 
 and glob_decl = Name.t * binding_kind * glob_constr option * glob_constr
 

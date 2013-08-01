@@ -686,6 +686,10 @@ let rec subst_glob_constr subst raw =
       let k' = Miscops.smartmap_cast_type (subst_glob_constr subst) k in
       if r1' == r1 && k' == k then raw else GCast (loc,r1',k')
 
+  | GRun (loc, r) -> (*BETA*)
+    let r' = subst_glob_constr subst r in
+    if r' == r then raw else GRun (loc, r')
+
 (* Utilities to transform kernel cases to simple pattern-matching problem *)
 
 let simple_cases_matrix_of_branches ind brs =

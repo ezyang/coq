@@ -254,6 +254,7 @@ COQMAKEFILECMO:=lib/clib.cma ide/project_file.cmo tools/coq_makefile.cmo
 ## we now retrieve the names of .vo file to compile in */vo.itarget files
 
 cat_vo_itarget = $(addprefix $(1)/,$(shell cat $(1)/vo.itarget))
+cat_v_itarget = $(addprefix $(1)/,$(shell cat $(1)/v.itarget))
 
 ## Theories
 
@@ -281,6 +282,7 @@ SETOIDSVO:=$(call cat_vo_itarget, theories/Setoids)
 UNICODEVO:=$(call cat_vo_itarget, theories/Unicode)
 CLASSESVO:=$(call cat_vo_itarget, theories/Classes)
 PROGRAMVO:=$(call cat_vo_itarget, theories/Program)
+MTACV:=$(call cat_v_itarget, user-contrib/Mtac)
 
 THEORIESVO:=\
   $(INITVO) $(LOGICVO) $(ARITHVO) $(BOOLVO) \

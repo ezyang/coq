@@ -183,6 +183,8 @@ let change_vars =
       | GCast(loc,b,c) ->
 	  GCast(loc,change_vars mapping b,
 		Miscops.map_cast_type (change_vars mapping) c)
+      (* BETA *)
+      | GRun _ -> error "Mtac is not supported"
   and change_vars_br mapping ((loc,idl,patl,res) as br) =
     let new_mapping = List.fold_right Id.Map.remove idl mapping in
     if Id.Map.is_empty new_mapping
@@ -367,6 +369,9 @@ let rec alpha_rt excluded rt =
 	     alpha_rt excluded f,
 	     List.map (alpha_rt excluded) args
 	    )
+    (* BETA *)
+    | GRun _ -> error "Mtac is not supported"
+
   in
   new_rt
 
@@ -411,6 +416,9 @@ let is_free_in id =
     | GHole _ -> false
     | GCast (_,b,(CastConv t|CastVM t|CastNative t)) -> is_free_in b || is_free_in t
     | GCast (_,b,CastCoerce) -> is_free_in b
+    (* BETA *)
+    | GRun _ -> error "Mtac is not supported"
+
   and is_free_in_br (_,ids,_,rt) =
     (not (List.mem id ids)) && is_free_in rt
   in
@@ -508,6 +516,9 @@ let replace_var_by_term x_id term =
       | GCast(loc,b,c) ->
 	  GCast(loc,replace_var_by_pattern b,
 		Miscops.map_cast_type replace_var_by_pattern c)
+      (* BETA *)
+      | GRun _ -> error "Mtac is not supported"
+
   and replace_var_by_pattern_br ((loc,idl,patl,res) as br) =
     if List.exists (fun id -> Id.compare id x_id == 0) idl
     then br
@@ -599,6 +610,8 @@ let ids_of_glob_constr c =
 	  List.flatten (List.map (fun (_,idl,patl,c) -> idl @ ids_of_glob_constr [] c) brchl)
       | GRec _ -> failwith "Fix inside a constructor branch"
       | (GSort _ | GHole _ | GRef _ | GEvar _ | GPatVar _) -> []
+      (* BETA *)
+      | GRun _ -> error "Mtac is not supported"
   in
   (* build the set *)
   List.fold_left (fun acc x -> Id.Set.add x acc) Id.Set.empty (ids_of_glob_constr [] c)
@@ -661,6 +674,9 @@ let zeta_normalize =
       | GCast(loc,b,c) ->
 	  GCast(loc,zeta_normalize_term b,
                 Miscops.map_cast_type zeta_normalize_term c)
+      (* BETA *)
+      | GRun _ -> error "Mtac is not supported"
+
   and zeta_normalize_br (loc,idl,patl,res) =
     (loc,idl,patl,zeta_normalize_term res)
   in
@@ -704,6 +720,9 @@ let expand_as =
       | GCases(loc,sty,po,el,brl) ->
 	  GCases(loc, sty, Option.map (expand_as map) po, List.map (fun (rt,t) -> expand_as map rt,t) el,
 		List.map (expand_as_br map) brl)
+      (* BETA *)
+      | GRun _ -> error "Mtac is not supported"
+
   and expand_as_br map (loc,idl,cpl,rt) =
     (loc,idl,cpl, expand_as (List.fold_left add_as map cpl) rt)
   in

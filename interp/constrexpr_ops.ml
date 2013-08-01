@@ -250,6 +250,8 @@ let constr_loc = function
   | CGeneralization (loc,_,_,_) -> loc
   | CPrim (loc,_) -> loc
   | CDelimiters (loc,_,_) -> loc
+  (* BETA *)
+  | CRun (loc, _) -> loc
 
 let cases_pattern_expr_loc = function
   | CPatAlias (loc,_,_) -> loc

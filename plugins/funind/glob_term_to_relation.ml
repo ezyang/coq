@@ -559,6 +559,9 @@ let rec build_entry_lc env funnames avoid rt  : glob_constr build_entry_return =
 		build_entry_lc env funnames avoid (mkGApp(b,args))
 	    | GRec _ -> error "Not handled GRec"
 	    | GProd _ -> error "Cannot apply a type"
+            (* BETA *)
+            | GRun _ -> error "Mtac is not supported"
+
 	end (* end of the application treatement *)
 
     | GLambda(_,n,_,t,b) ->
@@ -662,6 +665,9 @@ let rec build_entry_lc env funnames avoid rt  : glob_constr build_entry_return =
     | GRec _ -> error "Not handled GRec"
     | GCast(_,b,_) ->
 	build_entry_lc env funnames  avoid b
+    (* BETA *)
+    | GRun _ -> error "Mtac is not supported"
+
 and build_entry_lc_from_case env funname make_discr
     (el:tomatch_tuples)
     (brl:Glob_term.cases_clauses) avoid :
@@ -1177,7 +1183,7 @@ let rec compute_cst_params relnames params = function
 		 discriminitation ones *)
   | GSort _ -> params
   | GHole _ -> params
-  | GIf _ | GRec _ | GCast _ ->
+  | GIf _ | GRec _ | GCast _ | GRun _ (* BETA *) ->
       raise (UserError("compute_cst_params", str "Not handled case"))
 and compute_cst_params_from_app acc (params,rtl) =
   match params,rtl with

@@ -107,6 +107,8 @@ let glob_constr_of_notation_constr_with_binders loc g f e = function
   | NHole x  -> GHole (loc,x)
   | NPatVar n -> GPatVar (loc,(false,n))
   | NRef x -> GRef (loc,x,None)
+  (* BETA *)
+  | NRun m -> GRun (loc, f e m, None)
 
 let glob_constr_of_notation_constr loc x =
   let rec aux () x =
@@ -159,10 +161,11 @@ let compare_glob_constr f add t1 t2 = match t1,t2 with
   | GSort (_,s1), GSort (_,s2) -> glob_sort_eq s1 s2
   | GLetIn (_,na1,b1,c1), GLetIn (_,na2,b2,c2) when Name.equal na1 na2 ->
       on_true_do (f b1 b2 & f c1 c2) add na1
+  | GRun (_, m1), GRun (_, m2) -> (* BETA *) f m1 m2
   | (GCases _ | GRec _
-    | GPatVar _ | GEvar _ | GLetTuple _ | GIf _ | GCast _),_
+    | GPatVar _ | GEvar _ | GLetTuple _ | GIf _ | GCast _ | GRun _),_
   | _,(GCases _ | GRec _
-      | GPatVar _ | GEvar _ | GLetTuple _ | GIf _ | GCast _)
+      | GPatVar _ | GEvar _ | GLetTuple _ | GIf _ | GCast _ | GRun _)
       -> error "Unsupported construction in recursive notations."
   | (GRef _ | GVar _ | GApp _ | GLambda _ | GProd _
     | GHole _ | GSort _ | GLetIn _), _
@@ -292,6 +295,8 @@ let notation_constr_and_vars_of_glob_constr a =
   | GPatVar (_,(_,n)) -> NPatVar n
   | GEvar _ ->
       error "Existential variables not allowed in notations."
+  (* BETA *)
+  | GRun (_, m) -> NRun (aux m)
 
   in
   let t = aux a in
@@ -466,6 +471,13 @@ let rec subst_notation_constr subst bound raw =
       let r1' = subst_notation_constr subst bound r1 in
       let k' = Miscops.smartmap_cast_type (subst_notation_constr subst bound) k in
       if r1' == r1 && k' == k then raw else NCast(r1',k')
+
+  (* BETA *)
+  | NRun m ->
+      let m' = subst_notation_constr subst bound m in
+      	if m' == m then raw else
+	  NRun m'
+
 
 let subst_interpretation subst (metas,pat) =
   let bound = List.map fst metas in

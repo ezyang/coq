@@ -173,6 +173,7 @@ let generalizable_vars_of_glob_constr ?(bound=Id.Set.empty) ?(allowed=Id.Set.emp
     | GCast (loc,c,k) -> let v = vars bound vs c in
 	(match k with CastConv t | CastVM t -> vars bound v t | _ -> v)
     | (GSort _ | GHole _ | GRef _ | GEvar _ | GPatVar _) -> vs
+    | GRun (_, e) -> (*BETA*) vars bound vs e
 
   and vars_pattern bound vs (loc,idl,p,c) =
     let bound' = List.fold_right Id.Set.add idl bound  in
