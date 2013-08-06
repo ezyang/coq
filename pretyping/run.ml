@@ -12,18 +12,20 @@ open Closure
 open Util
 open Evarconv
 open Libnames
-open Vars
+(* open Vars *)
 
 
-let isConstr c t = isConstruct t && eq_constructor (destConstruct t) c
+let isConstr c t = isConstruct t && eq_constructor (fst (destConstruct t)) c
 
-let mk_constr name = Globnames.constr_of_global (Nametab.global_of_path (path_of_string name))
+let mk_constr name = Universes.constr_of_global (Nametab.global_of_path (path_of_string name))
 
 module Constr = struct
   let mkConstr s = lazy (mk_constr s)
 
   let isConstr = fun r c -> eq_constr (Lazy.force r) c
 end
+
+let sel ((x,_),y) = (x,y)
 
 module MtacNames = struct
   let mtacore_name = "Mtac.mtacore"
@@ -34,8 +36,8 @@ module MtacNames = struct
   let mkBase = lazy (destInd (mkConstr "tpatt"), 1)
   let mkTele = lazy (destInd (mkConstr "tpatt"), 2)
 
-  let isBase =  fun c->isConstr (Lazy.force mkBase) c
-  let isTele =  fun c->isConstr (Lazy.force mkTele) c
+  let isBase =  fun c->isConstr (sel (Lazy.force mkBase)) c
+  let isTele =  fun c->isConstr (sel (Lazy.force mkTele)) c
 
 end
 
@@ -459,7 +461,8 @@ let mkBool = (mk_ind "Coq.Init.Datatypes" "bool", 0)
 let mkTrue = (mkBool, 1)
 let mkFalse = (mkBool, 2)
 
-let isTrue b = destConstruct b = mkTrue
+(* XXX??? *)
+let isTrue b = (destConstruct b) = mkTrue
 
 let to_ascii env sigma c =
   let (h, args) = whd_betadeltaiota_stack env sigma c in

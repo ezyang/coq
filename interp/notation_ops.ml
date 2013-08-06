@@ -108,7 +108,7 @@ let glob_constr_of_notation_constr_with_binders loc g f e = function
   | NPatVar n -> GPatVar (loc,(false,n))
   | NRef x -> GRef (loc,x,None)
   (* BETA *)
-  | NRun m -> GRun (loc, f e m, None)
+  | NRun m -> GRun (loc, f e m)
 
 let glob_constr_of_notation_constr loc x =
   let rec aux () x =

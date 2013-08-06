@@ -104,7 +104,7 @@ let ev_define env sigma (ev, s) args t =
   let evi = Evd.find_undefined sigma ev in
   let ctxt = Evd.evar_context evi in
   if occur_evar ev t || args <> [] || not (is_id_subst ctxt (Array.to_list s)) 
-    || not (Vars.closedn (List.length args) t) || not (linear env args) then
+    || not (Term.closedn (List.length args) t) || not (linear env args) then
     err sigma env (mkApp (mkEvar(ev,s), Array.of_list args)) t
   else
     success (Evd.define ev t sigma)
@@ -179,13 +179,14 @@ let rec unify ?(conv_pb=CONV) env sigma0 t t' =
     success sigma0
   | Var id1, Var id2 when id1 = id2 && l = [] && l' = [] -> 
     success sigma0
-  | Const c1, Const c2 when eq_constant c1 c2 && l = [] && l' = [] ->
+  | Const (c1, u1), Const (c2, u2) when eq_constant c1 c2 && l = [] && l' = [] ->
+    (* EZY XXX UNIVERSES??? *)
     success sigma0
 
-  | Ind c1, Ind c2 when eq_ind c1 c2 && l = [] && l' = [] ->
+  | Ind (c1, u1), Ind (c2, u2) when eq_ind c1 c2 && l = [] && l' = [] ->
     success sigma0
 	
-  | Construct c1, Construct c2 
+  | Construct (c1, u1), Construct (c2, u2) 
     when eq_constructor c1 c2 && l = [] && l' = []  ->
     success sigma0
 
