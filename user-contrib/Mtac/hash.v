@@ -28,10 +28,18 @@ Module ListMtactics.
       | _ => raise NotFound
       end.
     
-  Program
   Definition find {A} {B : A -> Type} (x : A) : list (sigT B) -> M (B x) :=
     mfix f (s : list (sigT B)) : M (B x) :=
-      mmatch s with
+      tmatch (fun _=>B x) s
+      ((tele (fun l=>tele (fun r=> @base _ (fun _ =>B x) s (l ++ r) (fun _=>
+        ttry 
+          (f l)
+          (fun _=> f r)
+        ) UniRed))) :: 
+       (tele (fun y=>tele (fun s'=> @base _ (fun _=>B x) s (existT B x y :: s') (fun _=>ret y) UniRed))) ::
+       (tele (fun y=>tele (fun s'=> @base _ (fun _=>B x) s (y :: s') (fun _=>f s') UniRed))) ::
+       (tele (fun t=>@base _ (fun _=>B x) s t (fun _=>raise NotFound) UniRed)) :: nil)
+(*      mmatch s with
       | [l r] l ++ r => 
         mtry 
           _ (f l)
@@ -41,7 +49,7 @@ Module ListMtactics.
       | [y s'] (existT B x y :: s') => _ (ret y)
       | [y s'] (y :: s') => _ (f s')
       | _ => raise NotFound
-      end.
+      end *).
 
 End ListMtactics.
 
