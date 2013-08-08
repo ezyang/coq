@@ -439,7 +439,7 @@ let rec open_pattern (env, sigma) p evars =
 
 
 let rec runmatch' (env, sigma as ctxt) t ty patts' i =
-  let (patts, args) = decompose_app patts' in
+  let (patts, args) = whd_betadeltaiota_stack env sigma patts' in
   if CoqList.isNil patts && List.length args = 1 then
     Exceptions.raise Exceptions.error_no_match
   else if CoqList.isCons patts && List.length args = 3 then
@@ -479,8 +479,7 @@ and unify env rsigma evars strategy t1 t2 =
   UnificationStrategy.unify rsigma env evars strategy t1 t2
 
 
-let runmatch (env, sigma as ctxt) t ty patts' = 
-  let patts = Tacred.cbv_betadeltaiota env sigma patts' in
+let runmatch (env, sigma as ctxt) t ty patts = 
   runmatch' ctxt t ty patts 0
 
 
